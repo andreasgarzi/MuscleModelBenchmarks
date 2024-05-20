@@ -44,9 +44,9 @@ $ normalized_FL_force_list: Time-histories of MU FL scaling factor (Force-Length
 
 ### AVAILABLE EXPERIMENTAL DATASETS OF INPUT SPIKE TRAINS (to uncomment)
 # test = 'S1_30_256' #30% MVC - 256 electrodes
-# test = 'S1_30_64L'
+test = 'S1_30_64L'
 # test = 'S1_30_36L'
-test = 'S1_50_256'
+# test = 'S1_50_256'
 # test = 'S1_50_64L'
 
 ### TYPE OF NEURAL INPUTS (experimental or reconstructed)
@@ -54,8 +54,8 @@ Input_MU_pop='Nr' # the inputs are the Nr experimental spike trains
 # Input_MU_pop='400' # the inputs are the spike trains of the reconstructed population of 400 MUs
 
 ### If Input_MU_pop='Nr', type of distribution chosen for the f0^MU parameter 
-f0_MU_distrib = 'evenly'  # Evenly distributed across pool
-# f0_MU_distrib = 'identified' # identified with recruitment threshold
+# f0_MU_distrib = 'evenly'  # Evenly distributed across pool
+f0_MU_distrib = 'identified' # identified with recruitment threshold
 
 ### Accounting for the electromechanical delays?
 delay ='y'
@@ -69,26 +69,15 @@ want_all_intermediary_data = 'n'
 save='n'
 
 
-
-
-
-
-
-
-
-
-
-
-
 #------------------------------------------------------------------------------
 
-from IPython import get_ipython;   
-get_ipython().magic('reset -sf')
+# from IPython import get_ipython;   #IPython environment
+# get_ipython().magic('reset -sf')
 import sys
 sys.path.insert(0,'Modules/')
 from pathlib import Path
-root = Path(".")
-path_to_data = root / "Results"
+root = Path(".")                     #current dir path
+path_to_data = root / "Results"      #results path
 
 #------------------------------------------------------------------------------
 # Libraries and functions
@@ -111,12 +100,15 @@ from fibre_forces_MOD import fibre_forces_func
 # Loading the pre-processed Experimental (Nr MUs) and reconstructed (N = 400 MUs) populations of MU spike trains + additional parameters 
 time, time_dt, muscle, MVC, Transd_Force, muscle_F0M, Nb_MN, MN_pop, Real_MN_pop, exp_disch_times, Firing_times_sim, range_start,range_stop, t_start, plateau_time1, plateau_time2, end_force, d, dt, fs = load_Input_Data_func(test, path_to_data)
 
-# Re-sizing the input matrix of MU discharge times, also converted from samples into seconds 
+# Choose between N or Nr MNs based on the Input_MU_pop.
+# - N case: resize the 400-MNs matrix to select the actual firing MNs
+# - Nr case: converts samples --> seconds 
 Nr, sp_matrix = input_spike_trains_func(Input_MU_pop, Nb_MN, Firing_times_sim, exp_disch_times, fs)
 print('There are ', Nr, ' discharging MUs in this simulation.')
 
 #------------------------------------------------------------------------------
-# 0. Experimental Muscle Force from Experimental Force Transducer and Muscle Co-Contraction (bEMG)
+# 0. Experimental isolated TA Force from Experimental total Force and Muscle Co-Contraction (bEMG)
+#    N.B. contains force --> torque conversion based on NEG1 geometry and TA subject-sp. moment arm
 Exp_muscle_force, F_TA_norm = F_TA_func(Transd_Force, MVC, fs, range_start, range_stop, plateau_time1, plateau_time2)
 #------------------------------------------------------------------------------
 
@@ -155,7 +147,7 @@ for i in range (Nr): # for each considered MU
 #---------------------
 # 2. MU normalized length        
     l_M_norm=1.16 # Normalized fibre length identified in the study
-    l_M_norm_list=l_M_norm*np.ones(Nr) #Assuming for the activation dynamics that all MUs are at optimal fibre length
+    l_M_norm_list=l_M_norm*np.ones(Nr) # Assuming for the activation dynamics that all MUs are at optimal fibre length
 
 
 #-------------
@@ -165,7 +157,7 @@ for i in range (Nr): # for each considered MU
 
 #-----------------------
 # 3.1. Nerve AP = f(discharge times)
-    if want_all_intermediary_data =='y':
+    if want_all_intermediary_data =='y':  # N.B. this is actually not adopted in the modelling, so just to visualize the results 
         for j in range (len(time_dt)):
             MN_AP_list[i][j] = MN_AP_func(time_dt[j], Matrix_AP)     
 
@@ -182,7 +174,7 @@ for i in range (Nr): # for each considered MU
     if want_all_intermediary_data =='y': free_Ca_concentration_list[i] = free_Ca_concentration
 
 #----------------
-# 4.2. CaTn = f(Ca,type)             
+# 4.2. CaTn = f(Ca,type)      Actually uses Wexler-1997       
     bound_Ca_concentration = MU_bound_calcium_func(d, dt, free_Ca_concentration, l_M_norm, MU_type, Matrix_AP)
     if want_all_intermediary_data =='y': bound_Ca_concentration_list[i] = bound_Ca_concentration
 
@@ -199,8 +191,8 @@ for i in range (Nr): # for each considered MU
 #------------------------------------------------------------------------------
 ### NORMALIZED MU FORCES
 # 6. f_MU_norm = f(a, f_FL)
-normalized_MU_Force_list = act_histories_list * normalized_FL_force_list 
-Normalized_MU_Force_list = fibre_forces_func(Nr, muscle_F0M, F0MU_distribution, normalized_MU_Force_list) #accounting for the individual asynchronous activities of the fibres constituting the MUs
+normalized_MU_Force_list = act_histories_list * normalized_FL_force_list #scale the forces by the active state
+Normalized_MU_Force_list = fibre_forces_func(Nr, muscle_F0M, F0MU_distribution, normalized_MU_Force_list) #LPF accounting for the individual asynchronous activities of the fibers (random delays between 0-20ms)
 
 #------------------------------------------------------------------------------
 ### MU FORCES (N)

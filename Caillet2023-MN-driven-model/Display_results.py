@@ -14,8 +14,8 @@ Figures 7A-D: distributions across the MU samples of MU active states, FMU, and 
 
 import warnings
 warnings.filterwarnings("ignore")
-from IPython import get_ipython;   
-get_ipython().magic('reset -sf')
+# from IPython import get_ipython;   
+# get_ipython().magic('reset -sf')
 import sys
 sys.path.insert(0,'Modules')
 import numpy as np
@@ -37,7 +37,8 @@ Trial = 'S1_30_256' #30% MVC - 256 electrodes
 # Trial = 'S1_30_36L'
 # Trial = 'S1_50_256'
 # Trial = 'S1_50_64L'
-
+# Trial = 'BBmax'
+# Trial = 'BBsub'
 #------------------------------------------------------------------------------
 # Loading preliminary data (preprocessed MN spike trains - subject-speciific MSK data - recorded force - other simultaiton parameters)
 from load_Input_Data_MOD import load_Input_Data_func
@@ -52,17 +53,19 @@ N_Nr_Input = np.array([ 'Nr_', 'Nr_', '400_'])
 distrib_approach = np.array(['_evenly_', '_identified_', '_'])
 
 #------------------------------------------------------------------------------
-# LOADING THE EXPERIMENTAL FORCE
-data_npy_files_list = dataname_func(N_Nr_Input, Trial, distrib_approach, Data,2)
-time_exp = np.load(path[2] / data_npy_files_list[1], allow_pickle=True) 
+# LOADING THE EXPERIMENTAL FORCE (specifically from the 400_Trial_Data files)
+data_npy_files_list = dataname_func(N_Nr_Input, Trial, distrib_approach, Data, 2) 
+time_exp = np.load(path[2] / data_npy_files_list[1], allow_pickle=True) # follows the "Data" order
 FM_exp = np.load(path[2] / data_npy_files_list[2], allow_pickle=True) 
 
 #------------------------------------------------------------------------------
 # COMPUTING THE COMMON CONTROLS
 norm_CC_exp = norm_CC_func(Nb_MN, time, exp_disch_times, plateau_time1, plateau_time2, fs, 'sample') # from Nr spike trains
 norm_CC_reconstructed = norm_CC_func(MN_pop, time, Firing_times_sim, plateau_time1, plateau_time2, fs, 'sec') # From N=400 spike trains (reconstructed MN pool)
-norm_FM_exp = FM_exp / np.mean(FM_exp[int(plateau_time1*fs): int(plateau_time2*fs)]) # Normalized TA force, for validation
-time_shaped = time[range_start:range_stop] 
+norm_FM_exp = FM_exp / np.mean(FM_exp[int(plateau_time1*fs): int(plateau_time2*fs)]) # Normalized TA force to mean plateau value
+
+time_shaped = time[range_start:range_stop] #actual time line
+
 plt.rcParams['figure.dpi'] = 360
 plt.plot(time_shaped, norm_CC_exp[range_start:range_stop],  linewidth=2,linestyle='dotted', label ='common control  [0-4Hz] from the '+str(Nb_MN)+' recorded MNs')
 plt.plot(time_shaped, norm_CC_reconstructed[range_start:range_stop]*1.03, linewidth=2, color='red', label ='common control  [0-4Hz] from the 400 virtual MNs')
@@ -74,6 +77,7 @@ plt.ylim(0,1.2)
 plt.xticks(fontsize=13)
 plt.yticks(fontsize=13)
 plt.title('Figure 6')
+plt.legend()
 plt.show()
 
 #------------------------------------------------------------------------------
