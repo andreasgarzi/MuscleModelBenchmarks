@@ -54,6 +54,7 @@ fd = 70 # paper stimulation freq. Hz d.r. (to reach active_state = 1 always, wit
 T = 1/fd # correspondend d.r. period
 Nr = 27 # n. of an average complete rat soleus MUs pool
 muscle_F0M = 1.17 # muscle max. isom. force [N]
+scale = [0.05, 0.1, 0.25, 0.5, 1, 2] # amplitude disp. scales
 
 if Trial == 'BBmax': # maximal biological benchmarks
     
@@ -65,8 +66,8 @@ if Trial == 'BBmax': # maximal biological benchmarks
 os.chdir(cwd)
 
 # Visualize original and interpolated Biol.Benchmark imposed displacement
-# plt.plot(disp_bb[:,0], disp_bb[:,1])
-# plt.plot(time_dt, disp_bb_int)
+# plt.plot(disp_bb[:,0], disp_bb[:,1]*scale[s])
+# plt.plot(np.linspace(0,2+dt,20001), disp_bb_int*scale[s])
 
 sp_matrix = np.empty((Nr, int(t_end/T)), dtype=float)
 disch = np.arange(0, t_end, T) # create array of dischare times at 70 Hz
@@ -84,13 +85,11 @@ F0MU_distribution = F0MU_distrib_func(Nr, muscle_F0M)
 
 l_T_slack = 17.1 # Tendon slack length (mm)
 l_M_opt = l_T_slack # Optimal fiber length (mm)
-l_M_0 = 1 # Initial fibre length normalized to l_M_0 (it would be l_MT - l_ST)
+l_M_0 = 1 - 2/l_M_opt # Initial fibre length normalized to l_M_0 (it would be l_MT - l_ST)
 alpha_0 = 6*np.pi/180 # initial pennation (pennation should make less than 2 % difference)
-l_MT_0 = l_T_slack + l_M_opt*np.cos(alpha_0)-2 # Musculo-tendon length (mm)
-scale = [0.05, 0.1, 0.25, 0.5, 1, 2] # amplitude disp. scales
+l_MT_0 = l_T_slack + (l_M_opt-2)*np.cos(alpha_0) # Musculo-tendon length (mm)
 l_MT = l_MT_0 + disp_bb_int*scale[s] # scaled MT length
 
-alpha_store = np.empty((len(time_dt)+1), dtype=object) # Pennation for in-function iteration
 alpha = np.empty((Nr,len(time_dt)+1), dtype=object) # Pennation
 l_T = np.empty((Nr,len(time_dt)), dtype=object) # Tendon length
 eps_T = np.empty((Nr,len(time_dt)), dtype=object) # Tendon strain
@@ -139,7 +138,7 @@ for i in range (Nr):
         return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
      
     
-    y0 = [0, 0, 4*10**-4, 0, 0, 6, l_M_0] # set initial states
+    y0 = [0, 0, 0, 0, 0, 6, l_M_0] # set initial states
     p = (l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha[i,:]) # set ODE parameters
     sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
     

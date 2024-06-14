@@ -40,14 +40,14 @@ l_T = (eps_T*l_T_slack + l_T_slack)/l_T_slack
 
 #%% MU recruitment threshold analysis
 
-MN_pop = 27
-MN = np.arange(1, MN_pop+1, 1)
-F_MU = 0.000786*(3.0*MN/MN_pop+8.20**((MN/MN_pop)**5.29))
+# MN_pop = 27
+# MN = np.arange(1, MN_pop+1, 1)
+# F_MU = 0.000786*(3.0*MN/MN_pop+8.20**((MN/MN_pop)**5.29))
 
-plt.figure()
-plt.plot(MN, F_MU)
-plt.grid()
-plt.show()
+# plt.figure()
+# plt.plot(MN, F_MU)
+# plt.grid()
+# plt.show()
 
 #%%
 
@@ -74,10 +74,10 @@ fig = plt.subplot(2,2,1)
 plt.plot(eps_T*100, f_T, 'b', label = 'John et al. 2013')
 #plt.plot(l_T, f_T, 'b', label = 'John et al. 2013')
 #plt.plot(eps_T*100, f_T_2, 'b', linestyle = 'dashed', label = 'Caillet et al. 2023')
-plt.xlabel('Eps_t [%]')
-plt.ylabel('Norm. Ft')
+plt.xlabel(r'$\epsilon^T$ [%]')
+plt.ylabel('$\overline {F^T}$')
 plt.grid()
-plt.title('Elastic tendon')
+plt.title('SEE (Tendon)')
 plt.legend()
 
 plt.subplot(2,2,2)
@@ -85,7 +85,7 @@ plt.plot(l_M, f_PE)
 plt.xlabel('Norm. Lm')
 plt.ylabel('Norm. PE force')
 plt.grid()
-plt.title('Passive el. element')
+plt.title('PEE')
 
 plt.subplot(2,2,3)
 plt.plot(l_M, fl[0,:],'r', label = 'a = 0.2')
