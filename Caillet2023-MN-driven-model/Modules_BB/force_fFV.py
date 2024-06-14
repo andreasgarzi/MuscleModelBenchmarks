@@ -1,0 +1,46 @@
+"""
+Author: Andrea Sgarzi
+a.sgarzi@ad.unsw.edu.au
+University of New South Wales, GSBE
+Created on Sat Jun  1 15:21:15 2024
+___________________________________
+
+Force-velocity relationship.
+"""
+
+def f_fFV(v_M, FL_force, act, l_M, MU_type):
+    
+    # Defining fFV involved parameters
+    if MU_type == 'slow':
+        kMU = 0.5
+    elif MU_type == 'fast':
+        kMU = 1
+        
+    fv = 0.8 + 0.2*act
+    
+    if l_M < 1:
+        g = FL_force
+    else:
+        g = 1
+        
+    if MU_type == 'slow':
+        af = 0.2
+    elif MU_type == 'fast':
+        af = 0.4
+        
+    b = (1.4 - 1)/(2 + 2/af)
+    K = kMU*fv*g
+    
+    if v_M < -1:
+        fv = (1+v_M/K)/(1+(1/(af*K)))
+    elif v_M >= -1 and v_M < 0:
+        fv = (1+v_M/K)/(1-(v_M/(af*K)))
+    elif v_M >= 0:
+        fv = (1 + 1.4*(v_M/(K*b)))/(1+v_M/(K*b))
+        
+    return fv
+        
+       
+       
+       
+    
