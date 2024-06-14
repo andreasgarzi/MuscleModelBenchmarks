@@ -40,7 +40,7 @@ $ normalized_FL_force_list: Time-histories of MU FL scaling factor (Force-Length
 """
 
 #------------------------------------------------------------------------------
-# User Definition
+" User Definition "
 
 ### AVAILABLE EXPERIMENTAL DATASETS OF INPUT SPIKE TRAINS (to uncomment)
 # test = 'S1_30_256' #30% MVC - 256 electrodes
@@ -62,7 +62,7 @@ delay ='y'
 # delay = 'n'
 
 ### Requires storing the histories of APs, free Ca, and CaTn?
-want_all_intermediary_data = 'n'
+want_all_intermediary_data = 'y'
 
 ### Saving the simulations?
 # save = 'y'
@@ -74,7 +74,7 @@ save='n'
 # from IPython import get_ipython;   #IPython environment
 # get_ipython().magic('reset -sf')
 import sys
-sys.path.insert(0,'Modules/')
+sys.path.insert(0,'Modules')
 from pathlib import Path
 root = Path(".")                     #current dir path
 path_to_data = root / "Results"      #results path
@@ -82,10 +82,15 @@ path_to_data = root / "Results"      #results path
 #------------------------------------------------------------------------------
 # Libraries and functions
 import numpy as np
+import warnings
 import matplotlib.pyplot as plt
+from scipy.integrate import ode
 from load_Input_Data_MOD import load_Input_Data_func
 from input_spike_trains_MOD import input_spike_trains_func
 from F_TA_MOD import F_TA_func
+from PE_force import PEE_force
+from Tendon_force import T_force
+from velocity_fFV import velo_fFV
 from MU_type_id_MOD import MU_type_id_func
 from MN_AP_MOD import MN_AP_func
 from MU_AP_MOD import MU_AP_func
@@ -97,10 +102,12 @@ from F0MU_distrib_MOD import F0MU_distrib_func
 from fibre_forces_MOD import fibre_forces_func
 
 #------------------------------------------------------------------------------
-# Loading the pre-processed Experimental (Nr MUs) and reconstructed (N = 400 MUs) populations of MU spike trains + additional parameters 
-time, time_dt, muscle, MVC, Transd_Force, muscle_F0M, Nb_MN, MN_pop, Real_MN_pop, exp_disch_times, Firing_times_sim, range_start,range_stop, t_start, plateau_time1, plateau_time2, end_force, d, dt, fs = load_Input_Data_func(test, path_to_data)
+" Loading the pre-processed Experimental (Nr MUs) and reconstructed (N = 400 MUs) populations of MU spike trains + additional parameters "
 
-# Choose between N or Nr MNs based on the Input_MU_pop.
+time, time_dt, muscle, MVC, Transd_Force, muscle_F0M, Nb_MN, MN_pop, Real_MN_pop, exp_disch_times, Firing_times_sim, range_start, range_stop, t_start, plateau_time1, plateau_time2, end_force, d, dt, fs = load_Input_Data_func(test, path_to_data)
+
+" Choose between N or Nr MNs based on the Input_MU_pop. "
+
 # - N case: resize the 400-MNs matrix to select the actual firing MNs
 # - Nr case: converts samples --> seconds 
 Nr, sp_matrix = input_spike_trains_func(Input_MU_pop, Nb_MN, Firing_times_sim, exp_disch_times, fs)
@@ -117,12 +124,9 @@ Exp_muscle_force, F_TA_norm = F_TA_func(Transd_Force, MVC, fs, range_start, rang
 F0MU_distribution = F0MU_distrib_func(MVC, Nr, MN_pop, muscle_F0M, Input_MU_pop, Real_MN_pop, f0_MU_distrib)
 #------------------------------------------------------------------------------
 
-
-
 ###############################################################################
-# RUNNING THE MN-DRIVEN MODEL FOR ALL FIRING MUS USED AS INPUTS
+" RUNNING THE MN-DRIVEN MODEL FOR ALL FIRING MUS USED AS INPUTS "
 
-#------------------------------------------------------------------------------
 # Array initialization 
 if want_all_intermediary_data =='y': 
     MN_AP_list = np.empty((Nr,len(time_dt)), dtype=object) 
@@ -147,7 +151,7 @@ for i in range (Nr): # for each considered MU
 #---------------------
 # 2. MU normalized length        
     l_M_norm=1.16 # Normalized fibre length identified in the study
-    l_M_norm_list=l_M_norm*np.ones(Nr) # Assuming for the activation dynamics that all MUs are at optimal fibre length
+    l_M_norm_list=l_M_norm*np.ones(Nr) #Assuming for the activation dynamics that all MUs are at optimal fibre length
 
 
 #-------------
@@ -157,7 +161,7 @@ for i in range (Nr): # for each considered MU
 
 #-----------------------
 # 3.1. Nerve AP = f(discharge times)
-    if want_all_intermediary_data =='y':  # N.B. this is actually not adopted in the modelling, so just to visualize the results 
+    if want_all_intermediary_data =='y':
         for j in range (len(time_dt)):
             MN_AP_list[i][j] = MN_AP_func(time_dt[j], Matrix_AP)     
 
@@ -174,7 +178,7 @@ for i in range (Nr): # for each considered MU
     if want_all_intermediary_data =='y': free_Ca_concentration_list[i] = free_Ca_concentration
 
 #----------------
-# 4.2. CaTn = f(Ca,type)      Actually uses Wexler-1997       
+# 4.2. CaTn = f(Ca,type)             
     bound_Ca_concentration = MU_bound_calcium_func(d, dt, free_Ca_concentration, l_M_norm, MU_type, Matrix_AP)
     if want_all_intermediary_data =='y': bound_Ca_concentration_list[i] = bound_Ca_concentration
 
@@ -191,8 +195,8 @@ for i in range (Nr): # for each considered MU
 #------------------------------------------------------------------------------
 ### NORMALIZED MU FORCES
 # 6. f_MU_norm = f(a, f_FL)
-normalized_MU_Force_list = act_histories_list * normalized_FL_force_list #scale the forces by the active state
-Normalized_MU_Force_list = fibre_forces_func(Nr, muscle_F0M, F0MU_distribution, normalized_MU_Force_list) #LPF accounting for the individual asynchronous activities of the fibers (random delays between 0-20ms)
+normalized_MU_Force_list = act_histories_list * normalized_FL_force_list 
+Normalized_MU_Force_list = fibre_forces_func(Nr, muscle_F0M, F0MU_distribution, normalized_MU_Force_list) #accounting for the individual asynchronous activities of the fibres constituting the MUs
 
 #------------------------------------------------------------------------------
 ### MU FORCES (N)
@@ -202,7 +206,6 @@ F_MU_list = F0MU_distribution * Normalized_MU_Force_list
 #------------------------------------------------------------------------------
 ### 9. Total muscle force (N)
 Tot_Muscle_force=F_MU_list.sum(axis=0) # Total whole muscle force (in N)
-
 
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
