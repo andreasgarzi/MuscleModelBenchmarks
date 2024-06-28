@@ -129,6 +129,9 @@ for i in range (Nr):
             
         dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[6], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
         
+        if y[2] < 0:   # avoid negative values
+            y[2] = 0
+        
         ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
             
         dadt = MU_active_state_func(t, y, y[4]) # Active state

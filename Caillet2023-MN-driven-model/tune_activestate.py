@@ -29,6 +29,8 @@ from MU_bound_calcium_MOD import MU_bound_calcium_func
 from MU_active_state_MOD import MU_active_state_func
 from Force_Length_MOD import Force_Length_func
 from F0MU_distrib_MOD import F0MU_distrib_func
+from Shift_length import shift_fun
+from Activity import activity
 #______________________________________________________________________________
 """ Load time, displacement and force form BB tests, create virtual MU spikes"""
 
@@ -91,6 +93,7 @@ alpha = np.empty((len(time_dt)+1), dtype=object) # Pennation
 
 active_state = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state
 free_Ca = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # free [Ca] course
+l_M = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # MU lengths
 
 # ...for each frequency considered assign the correspond
 for f in range (5):
@@ -118,38 +121,55 @@ for f in range (5):
             if int(t/dt) == 0: # initial pennation angle
                 alpha[int(t/dt)] = alpha_0
             
-            l_T = l_MT - (y[6]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
+            l_T = l_MT - (y[4]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
             eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
             SE_force = T_force(eps_T) # tendon force
-            PE_force = PEE_force(y[6]) # passive el. force    
+            PE_force = PEE_force(y[4]) # passive el. force    
             CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
-            alpha[int((t+dt)/dt)] = penn_ang(l_MT, y[6], l_T, l_M_0, alpha_0) # update pennation angle
+            alpha[int((t+dt)/dt)] = penn_ang(l_MT, y[4], l_T, l_M_0, alpha_0) # update pennation angle
         
             dbetadt, DDbetaDDt = MU_AP_func(t, y, Matrix_AP) # remember to multiply by Vmax_factor = 0.85
             
-            dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[6], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
-        
-            ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
+            dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[4], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
             
-            dadt = MU_active_state_func(t, y, y[4]) # Active state
+            # Rockenfeller, Gunther & Hatze's approach
+            w_l = shift_fun(y[4])
             
-            FL_force = Force_Length_func(y[6], y[5])*y[5] # F-L relationship (*active state)
+            a = activity(y[2], w_l) 
             
-            dldt = velo_fFV(t, y, CE_force, FL_force, y[5], y[6], MU_type) # velocity 
+            #__________________________________________________________________
+            # Arnault's original ODEs
+            #ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
             
-            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
-     
+            #dadt = MU_active_state_func(t, y, y[4]) # Active state
+            #__________________________________________________________________
+            
+            FL_force = Force_Length_func(y[4], a)*a # F-L relationship (*active state)
+            
+            dldt = velo_fFV(t, y, CE_force, FL_force, a, y[4], MU_type) # velocity 
+            
+            #return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
+            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dldt]
     
-        y0 = [0, 0, 0, 0, 0, 0, l_M_0] # set initial states
+        y0 = [0, 0, 0, 0, l_M_0] # set initial states
         p = (l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha) # set ODE parameters
         sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
     
-        active_state[f,i,:] = sol.y[5]  # get active state
-        #l_M[i,:] = sol.y[6]  # get l_M
+        #active_state[f,i,:] = sol.y[5]  # get active state
+        l_M[f,i,:] = sol.y[4]  # get l_M
         # MUAP_nerve[i] = sol.y[0]
-        free_Ca[f,i,:] = sol.y[2]
         # Ca_Tn[i] = sol.y[4]
-
+        free_Ca[f,i,:] = sol.y[2] # get [Ca2+]
+        
+        for l in range (len(time_dt)):  # correct the negative values of free [Ca++]
+            if free_Ca[f,i,l] < 0:
+                free_Ca[f,i,l] = 0
+    
+for f in range (5):   
+    for i in range (Nr):
+        for l in range (len(time_dt)):
+        
+            active_state[f,i,l] = activity(free_Ca[f,i,l], shift_fun(l_M[f,i,l])) # get activity
 
 #%%
 """ Compute HRT and TTP [s] """
@@ -199,17 +219,17 @@ cg2 = get_color_gradient(c3, c4, 5)
 plt.rcParams['figure.dpi'] = 360
 figure(figsize=(12, 10))
 
-plt.plot(time_dt, active_state[0,0,:], color=cg1[0], label='d.r. = 10Hz, slow')
-plt.plot(time_dt, active_state[1,0,:], color=cg1[1], label='d.r. = 20Hz, slow')
-plt.plot(time_dt, active_state[2,0,:], color=cg1[2], label='d.r. = 30Hz, slow')
-plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz, slow')
+#plt.plot(time_dt, active_state[0,0,:], color=cg1[0], label='d.r. = 10Hz, slow')
+#plt.plot(time_dt, active_state[1,0,:], color=cg1[1], label='d.r. = 20Hz, slow')
+#plt.plot(time_dt, active_state[2,0,:], color=cg1[2], label='d.r. = 30Hz, slow')
+#plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz, slow')
 plt.plot(time_dt, active_state[4,0,:], color=cg1[4], label='d.r. = 50Hz, slow')
 
-plt.plot(time_dt, active_state[0,1,:], color=cg2[0], label='d.r. = 10Hz, fast')
-plt.plot(time_dt, active_state[1,1,:], color=cg2[1], label='d.r. = 20Hz, fast')
-plt.plot(time_dt, active_state[2,1,:], color=cg2[2], label='d.r. = 30Hz, fast')
-plt.plot(time_dt, active_state[3,1,:], color=cg2[3], label='d.r. = 40Hz, fast')
-plt.plot(time_dt, active_state[4,1,:], color=cg2[4], label='d.r. = 50Hz, fast')
+#plt.plot(time_dt, active_state[0,1,:], color=cg2[0], label='d.r. = 10Hz, fast')
+#plt.plot(time_dt, active_state[1,1,:], color=cg2[1], label='d.r. = 20Hz, fast')
+#plt.plot(time_dt, active_state[2,1,:], color=cg2[2], label='d.r. = 30Hz, fast')
+#plt.plot(time_dt, active_state[3,1,:], color=cg2[3], label='d.r. = 40Hz, fast')
+#plt.plot(time_dt, active_state[4,1,:], color=cg2[4], label='d.r. = 50Hz, fast')
 
 # plt.plot(time_dt[pk], active_state[0,pk], 'r*')
 # plt.plot(time_dt[end], active_state[0,end], 'r*')
@@ -226,37 +246,42 @@ plt.show()
 figure(figsize=(12, 10))
 plt.subplot(2,1,1)
 plt.rcParams['figure.dpi'] = 360
-plt.plot(time_dt, free_Ca[0,0,:], label='d.r. = 10Hz')
-plt.plot(time_dt, free_Ca[1,0,:], label='d.r. = 20Hz')
-plt.plot(time_dt, free_Ca[2,0,:], label='d.r. = 30Hz')
-plt.plot(time_dt, free_Ca[3,0,:], label='d.r. = 40Hz')
-plt.plot(time_dt, free_Ca[4,0,:], label='d.r. = 50Hz')
+plt.plot(time_dt, free_Ca[0,0,:]*10**6, label='d.r. = 10Hz')
+plt.plot(time_dt, free_Ca[1,0,:]*10**6, label='d.r. = 20Hz')
+plt.plot(time_dt, free_Ca[2,0,:]*10**6, label='d.r. = 30Hz')
+plt.plot(time_dt, free_Ca[3,0,:]*10**6, label='d.r. = 40Hz')
+plt.plot(time_dt, free_Ca[4,0,:]*10**6, label='d.r. = 50Hz')
 plt.ylabel('Free [$Ca^{++}$] [$\mu$M]')
            
 plt.legend(loc='lower right')
 plt.grid()
 plt.title('Slow MU')
-plt.ylim((-0.10*10**-5, 1.3*10**-5))
+#plt.ylim((-0.10*10**-5, 1.3*10**-5))
 plt.xlim((0, 0.3))
 
 plt.subplot(2,1,2)
 plt.rcParams['figure.dpi'] = 360
-plt.plot(time_dt, free_Ca[0,1,:], label='d.r. = 10Hz')
-plt.plot(time_dt, free_Ca[1,1,:], label='d.r. = 20Hz')
-plt.plot(time_dt, free_Ca[2,1,:], label='d.r. = 30Hz')
-plt.plot(time_dt, free_Ca[3,1,:], label='d.r. = 40Hz')
-plt.plot(time_dt, free_Ca[4,1,:], label='d.r. = 50Hz')
+plt.plot(time_dt, free_Ca[0,1,:]*10**6, label='d.r. = 10Hz')
+plt.plot(time_dt, free_Ca[1,1,:]*10**6, label='d.r. = 20Hz')
+plt.plot(time_dt, free_Ca[2,1,:]*10**6, label='d.r. = 30Hz')
+plt.plot(time_dt, free_Ca[3,1,:]*10**6, label='d.r. = 40Hz')
+plt.plot(time_dt, free_Ca[4,1,:]*10**6, label='d.r. = 50Hz')
 plt.xlabel('Time [s]')
 plt.ylabel('Free [$Ca^{++}$] [$\mu$M]')
 plt.legend(loc='lower right')
 plt.grid()
 plt.title('Fast MU')
-plt.ylim((-0.10*10**-5, 2*10**-5))
+#plt.ylim((-0.10*10**-5, 2*10**-5))
 plt.xlim((0, 0.3))
 
 plt.suptitle('MN-driven model sensitivity (excitation)', weight='bold',  y=0.94)
 plt.show()
 
-
-
+#%%
+act = np.empty((1000), dtype=float)
+rel_Ca = np.linspace(0, 11.8*10**-6, 1000)
+for k in range(1000):
+    act[k] = activity(rel_Ca[k], 6) 
     
+plt.plot(rel_Ca/(11.8*10**-6), act)
+plt.grid()

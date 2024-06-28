@@ -13,7 +13,7 @@ ODE that defines the dynamics of CaTn concentration in the MUs (in Mols), from a
 
 def MU_bound_calcium_func(t, y, free_Ca_concentration, l_M, MU_type, Matrix_AP): 
 
-    if free_Ca_concentration < 0:   # avoid negative values
+    if free_Ca_concentration < 0:
         free_Ca_concentration = 0
 
     if MU_type == 'fast':

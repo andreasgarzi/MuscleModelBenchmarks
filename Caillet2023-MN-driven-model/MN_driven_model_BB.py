@@ -13,7 +13,7 @@ Trial = 'BBmax'
 # Trial = 'BBsub'
 
 """ Choose amplitude scale as well (0-5) """
-s = 0
+s = 2
 
 """ Saving the simulations (y/n)? """
 save = 'n'
@@ -27,23 +27,22 @@ cwd = os.getcwd()
 import numpy as np
 import scipy as sp
 import scipy.interpolate
+from matplotlib.pyplot import figure
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from load_Input_Data_MOD import load_Input_Data_func
 from pennation_angle import penn_ang
-from input_spike_trains_MOD import input_spike_trains_func
-from F_TA_MOD import F_TA_func
 from PE_force import PEE_force
 from Tendon_force import T_force
 from velocity_fFV import velo_fFV
 from MU_type_id_MOD import MU_type_id_func
 from MU_AP_MOD import MU_AP_func
 from MU_free_Ca_MOD import MU_free_Ca_func
-from MU_bound_calcium_MOD import MU_bound_calcium_func
-from MU_active_state_MOD import MU_active_state_func
+#from MU_bound_calcium_MOD import MU_bound_calcium_func
+#from MU_active_state_MOD import MU_active_state_func
 from Force_Length_MOD import Force_Length_func
 from F0MU_distrib_MOD import F0MU_distrib_func
-from fibre_forces_MOD import fibre_forces_func
+from Activity import activity
+from Shift_length import shift_fun
 #______________________________________________________________________________
 """ Load time, displacement and force form BB tests, create virtual MU spikes"""
 
@@ -58,7 +57,7 @@ scale = [0.05, 0.1, 0.25, 0.5, 1, 2] # amplitude disp. scales
 
 if Trial == 'BBmax': # maximal biological benchmarks
     
-    os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\maximalActivation") # max activation BB dir path
+    os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\maximalActivation") # max activation BB dir path
     disp_bb = np.genfromtxt('displacement.dat', delimiter='') #BB time & displacement data
     disp_bb_int = sp.interpolate.interp1d(disp_bb[:,0], disp_bb[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate with time_dt+1 points (l_MT must be longer)
     force_bb = (np.genfromtxt('force_trial'+str(s+1)+'.dat', delimiter='')) #list of lists (6 BB time & forces data)
@@ -86,8 +85,10 @@ F0MU_distribution = F0MU_distrib_func(Nr, muscle_F0M)
 l_T_slack = 17.1 # Tendon slack length (mm)
 l_M_opt = l_T_slack # Optimal fiber length (mm)
 l_M_0 = 1 - 2/l_M_opt # Initial fibre length normalized to l_M_0 (it would be l_MT - l_ST)
+#l_M_0 = 1
 alpha_0 = 6*np.pi/180 # initial pennation (pennation should make less than 2 % difference)
-l_MT_0 = l_T_slack + (l_M_opt-2)*np.cos(alpha_0) # Musculo-tendon length (mm)
+#l_MT_0 = l_T_slack + (l_M_opt-2)*np.cos(alpha_0) # Musculo-tendon length (mm)
+l_MT_0 = l_T_slack + (l_M_opt-2)*np.cos(alpha_0)
 l_MT = l_MT_0 + disp_bb_int*scale[s] # scaled MT length
 
 alpha = np.empty((Nr,len(time_dt)+1), dtype=object) # Pennation
@@ -100,9 +101,9 @@ FL_force = np.empty((Nr,len(time_dt)), dtype=object) # Force-length relationship
 
 l_M = np.empty((Nr, len(time_dt)), dtype=object) # MUs length in time
 active_state = np.empty((Nr, len(time_dt)), dtype=object) # active state
-MUAP_nerve = np.empty((Nr, len(time_dt)), dtype=object) # MU AP nerve signal
+#MUAP_nerve = np.empty((Nr, len(time_dt)), dtype=object) # MU AP nerve signal
 free_Ca = np.empty((Nr, len(time_dt)), dtype=object) # free [Ca] course
-Ca_Tn = np.empty((Nr, len(time_dt)), dtype=object) # Ca-Tn bound course
+#Ca_Tn = np.empty((Nr, len(time_dt)), dtype=object) # Ca-Tn bound course
 
 # ...for each considered i-th MU 
 for i in range (Nr):  
@@ -116,57 +117,66 @@ for i in range (Nr):
         if int(t/dt) == 0: # initial pennation angle
             alpha[int(t/dt)] = alpha_0
             
-        l_T = l_MT[int(t/dt)] - (y[6]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
+        l_T = l_MT[int(t/dt)] - (y[4]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
         eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
         SE_force = T_force(eps_T) # tendon force
-        PE_force = PEE_force(y[6]) # passive el. force    
+        PE_force = PEE_force(y[4]) # passive el. force    
         CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
-        alpha[int((t+dt)/dt)] = penn_ang(l_MT[int(t+dt/dt)], y[6], l_T, l_M_0, alpha_0) # update pennation angle
+        alpha[int((t+dt)/dt)] = penn_ang(l_MT[int(t+dt/dt)], y[4], l_T, l_M_0, alpha_0) # update pennation angle
         
         dbetadt, DDbetaDDt = MU_AP_func(t, y, Matrix_AP) # remember to multiply by Vmax_factor = 0.85
             
-        dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[6], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
+        dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[4], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
         
-        ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
+        # Rockenfeller, Gunther & Hatze's approach
+        w_l = shift_fun(y[4])
             
-        dadt = MU_active_state_func(t, y, y[4]) # Active state
+        a = activity(y[2], w_l) 
             
-        FL_force = Force_Length_func(y[6], y[5])*y[5] # F-L relationship (*active state)
+        #______________________________________________________________________
+        # Arnault's original ODEs
+        #ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
             
-        dldt = velo_fFV(t, y, CE_force, FL_force, y[5], y[6], MU_type) # velocity 
+        #dadt = MU_active_state_func(t, y, y[4]) # Active state
+        #______________________________________________________________________
+        
+        FL_force = Force_Length_func(y[4], a)*a # F-L relationship (*active state)
             
-        return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
+        dldt = velo_fFV(t, y, CE_force, FL_force, a, y[4], MU_type) # velocity 
+            
+        #return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
+        return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dldt]
      
     
-    y0 = [0, 0, 0, 0, 0, 6, l_M_0] # set initial states
+    y0 = [0, 0, 0, 0, l_M_0] # set initial states
     p = (l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha[i,:]) # set ODE parameters
     sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
     
-    active_state[i,:] = sol.y[5]  # get active state
-    l_M[i,:] = sol.y[6]  # get l_M
+    #active_state[i,:] = sol.y[5]  # get active state
+    l_M[i,:] = sol.y[4]  # get l_M
     
     # MUAP_nerve[i,:] = sol.y[0]
-    # free_Ca[i,:] = sol.y[2]
+    free_Ca[i,:] = sol.y[2]
     # Ca_Tn[i,:] = sol.y[4]
    
     # now recalculate data based on l_M values..
     alpha[i,0] = alpha_0
     for l in range(len(time_dt)):
-        l_T[i,l] = l_MT[l] - (l_M[i,l]*l_M_opt)*np.cos(alpha[i,l])
+        l_T[i,l] = l_MT[l] - (l_M[i,l]*l_M_opt)*np.cos(alpha[i,l]) # tendon length
         eps_T[i,l] = (l_T[i,l]-l_T_slack)/l_T_slack # new tendon strain    
         SE_force[i,l] = T_force(eps_T[i,l]) # tendon force
         PE_force[i,l] = PEE_force(l_M[i,l]) # passive el. force    
         CE_force[i,l] = SE_force[i,l]/np.cos(alpha[i,l]) - PE_force[i,l] # contractile element force
         alpha[i,l+1] = penn_ang(l_MT[l+1], l_M[i,l], l_T[i,l], l_M_0, alpha_0) # update pennation angle 
-    
+        
+        active_state[i,l] = activity(free_Ca[i,l], shift_fun(l_M[i,l])) # get activity
     
 MU_Force_list = active_state*CE_force + PE_force  # scaled MU force + PEE force     
-#MU_Force_list = fibre_forces_func(Nr, muscle_F0M, F0MU_distribution, MU_force) #LPF accounting for the individual asynchronous activities of the fibers (random delays between 0-20ms)   
 
 F_MU_list = F0MU_distribution[0:Nr,:] * MU_Force_list
 Tot_Muscle_force = F_MU_list.sum(axis=0)/muscle_F0M # Total normalized muscle force   
 
-#------------------------------------------------------------------------------
+#%%----------------------------------------------------------------------------
 # Visual validation
 plt.rcParams['figure.dpi'] = 360
 plt.plot(time_dt, Tot_Muscle_force, 'r', label='Simulated Force')
@@ -177,7 +187,22 @@ plt.legend()
 plt.grid()
 plt.show()
 
-#------------------------------------------------------------------------------
+plt.subplot(2,1,1)
+plt.plot(time_dt, l_T[1,:]/l_T_slack, 'b', label='Tendon')
+plt.plot(time_dt, l_M[1,:], 'g', label='Fiber')
+plt.ylabel('Norm. Length')
+plt.legend()
+plt.grid()
+
+plt.subplot(2,1,2)
+plt.plot(time_dt, SE_force[1,:], 'b', label='SE')
+plt.plot(time_dt, PE_force[1,:], 'r', label='PE')
+plt.xlabel('Time [s]')
+plt.ylabel('Norm. force')
+plt.legend()
+plt.grid()
+
+#%%----------------------------------------------------------------------------
 # Saving data
 if save =='y':
     os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests')
