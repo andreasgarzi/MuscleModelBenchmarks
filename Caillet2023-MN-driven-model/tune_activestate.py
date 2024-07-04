@@ -8,13 +8,16 @@ ___________________________________
 Tuning of the active state ODE coefficients based on rat soleus MU twitch.
 """
 
-#______________________________________________________________________________
+#%%____________________________________________________________________________
 import sys
 sys.path.insert(0,'Modules_BB')
 import os
 cwd = os.getcwd()
-#______________________________________________________________________________
+#%%____________________________________________________________________________
 import numpy as np
+import pandas as pd
+import scipy as sp
+from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 from scipy.integrate import solve_ivp
@@ -31,14 +34,17 @@ from Force_Length_MOD import Force_Length_func
 from F0MU_distrib_MOD import F0MU_distrib_func
 from Shift_length import shift_fun
 from Activity import activity
-#______________________________________________________________________________
+#%%____________________________________________________________________________
 """ Load time, displacement and force form BB tests, create virtual MU spikes"""
 
 dt = 0.0001 # time step (x-data)
 t_end = 1 # total seconds
+
+#t_end = 0.04 # case of 5 shocks at 100HZ
+
 time_dt = np.arange(0, t_end, dt) # time 
-fd = [10, 20, 30, 40, 50] # paper stimulation freq. Hz d.r. (to reach active_state = 1 always, without any recruitment)
-T = [1/fd[0], 1/fd[1], 1/fd[2], 1/fd[3], 1/fd[4]]# correspondend d.r. period
+fd = [10, 20, 30, 40, 50, 100, 125] # paper stimulation freq. Hz d.r. (to reach active_state = 1 always, without any recruitment)
+T = [1/fd[0], 1/fd[1], 1/fd[2], 1/fd[3], 1/fd[4], 1/fd[5], 1/fd[6]]# correspondent d.r. period
 Nr = 2
 muscle_F0M = 1.17 # muscle max. isom. force [N]
 
@@ -48,6 +54,8 @@ sp_matrix20 = np.empty((Nr,int(t_end/T[1])), dtype=float)
 sp_matrix30 = np.empty((Nr,int(t_end/T[2])), dtype=float)
 sp_matrix40 = np.empty((Nr,int(t_end/T[3])), dtype=float)
 sp_matrix50 = np.empty((Nr,int(t_end/T[4])), dtype=float)
+sp_matrix100 = np.empty((Nr,int(0.05/T[5])), dtype=float) # manually impose the n. of impulses for literature comparisons
+sp_matrix125 = np.empty((Nr,int(0.08/T[6])), dtype=float)
 
 disch10 = np.arange(0,t_end,T[0]) # create array of dischare times at 10 Hz
 for i in range (Nr):
@@ -68,6 +76,14 @@ for i in range (Nr):
 disch50 = np.arange(0,t_end,T[4]) # create array of dischare times at 50 Hz
 for i in range (Nr):
     sp_matrix50[i,:] = disch50
+    
+disch100 = np.arange(0,0.05,T[5]) # create array of dischare times at 50 Hz
+for i in range (Nr):
+    sp_matrix100[i,:] = disch100
+        
+disch125 = np.arange(0,0.08,T[6]) # create array of dischare times at 50 Hz
+for i in range (Nr):
+    sp_matrix125[i,:] = disch125
 
 """2nd CASE: one spike only"""
 # sp_matrix = np.zeros((Nr, int(t_end/T)), dtype=float)
@@ -86,7 +102,7 @@ F0MU_distribution = F0MU_distrib_func(Nr, muscle_F0M)
 l_MT = 31.9 # Musculo-tendon length (cm)
 l_T_slack = 24 # Tendon slack length (cm)
 l_M_opt = 6.8 # Optimal fiber length (cm)
-l_M_0 = 1.16 # Initial fibre length normalized to l_M_0 (it would be l_MT - l_ST)
+l_M_0 = 1.6 # Initial fibre length normalized to l_M_0 (it would be l_MT - l_ST)
 alpha_0 = 11.2*np.pi/180 # initial pennation (pennation should make less than 2 % difference)
 
 alpha = np.empty((len(time_dt)+1), dtype=object) # Pennation
@@ -94,9 +110,10 @@ alpha = np.empty((len(time_dt)+1), dtype=object) # Pennation
 active_state = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state
 free_Ca = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # free [Ca] course
 l_M = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # MU lengths
+#MUAP_nerve = np.empty((len(fd), Nr, len(time_dt)), dtype=object)
 
 # ...for each frequency considered assign the correspond
-for f in range (5):
+for f in range (7):
     
     if f == 0:
         sp_matrix = sp_matrix10
@@ -108,6 +125,10 @@ for f in range (5):
         sp_matrix = sp_matrix40
     elif f == 4:
         sp_matrix = sp_matrix50
+    elif f == 5:
+        sp_matrix = sp_matrix100
+    elif f == 6:
+        sp_matrix = sp_matrix125
         
     # ...for each considered i-th MU 
     for i in range (Nr):  
@@ -121,43 +142,43 @@ for f in range (5):
             if int(t/dt) == 0: # initial pennation angle
                 alpha[int(t/dt)] = alpha_0
             
-            l_T = l_MT - (y[4]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
-            eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
-            SE_force = T_force(eps_T) # tendon force
-            PE_force = PEE_force(y[4]) # passive el. force    
-            CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
-            alpha[int((t+dt)/dt)] = penn_ang(l_MT, y[4], l_T, l_M_0, alpha_0) # update pennation angle
+            # l_T = l_MT - (y[5]*l_M_opt)*np.cos(alpha[int(t/dt)]) # tendon length
+            # eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
+            # SE_force = T_force(eps_T) # tendon force
+            # PE_force = PEE_force(y[5]) # passive el. force    
+            # CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
+            # alpha[int((t+dt)/dt)] = penn_ang(l_MT, y[5], l_T, l_M_0, alpha_0) # update pennation angle
         
             dbetadt, DDbetaDDt = MU_AP_func(t, y, Matrix_AP) # remember to multiply by Vmax_factor = 0.85
             
-            dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, y[4], MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
+            dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0]*0.85, l_M_0, MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
             
+            #__________________________________________________________________
             # Rockenfeller, Gunther & Hatze's approach
-            w_l = shift_fun(y[4])
-            
-            a = activity(y[2], w_l) 
-            
+            #w_l = shift_fun(y[4])
+           
+            #a = activity(y[2], w_l) 
             #__________________________________________________________________
             # Arnault's original ODEs
             #ddeltadt = MU_bound_calcium_func(t, y, y[2], y[6], MU_type, Matrix_AP) # Ca-Tn
             
-            #dadt = MU_active_state_func(t, y, y[4]) # Active state
+            dadt = MU_active_state_func(t, y, y[2], MU_type) # Active state
             #__________________________________________________________________
             
-            FL_force = Force_Length_func(y[4], a)*a # F-L relationship (*active state)
+            #FL_force = Force_Length_func(y[5], y[4])*y[4] # F-L relationship (*active state)
             
-            dldt = velo_fFV(t, y, CE_force, FL_force, a, y[4], MU_type) # velocity 
+            #dldt = velo_fFV(t, y, CE_force, FL_force, y[4], y[5], MU_type) # velocity 
             
             #return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, ddeltadt, dadt, dldt]
-            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dldt]
+            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt]
     
-        y0 = [0, 0, 0, 0, l_M_0] # set initial states
+        y0 = [0, 0, 0, 0, 0] # set initial states
         p = (l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha) # set ODE parameters
         sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
     
-        #active_state[f,i,:] = sol.y[5]  # get active state
-        l_M[f,i,:] = sol.y[4]  # get l_M
-        # MUAP_nerve[i] = sol.y[0]
+        active_state[f,i,:] = sol.y[4]  # get active state
+        #l_M[f,i,:] = sol.y[5]  # get l_M
+        #MUAP_nerve[f,i,:] = sol.y[0]
         # Ca_Tn[i] = sol.y[4]
         free_Ca[f,i,:] = sol.y[2] # get [Ca2+]
         
@@ -165,11 +186,11 @@ for f in range (5):
             if free_Ca[f,i,l] < 0:
                 free_Ca[f,i,l] = 0
     
-for f in range (5):   
-    for i in range (Nr):
-        for l in range (len(time_dt)):
+# for f in range (5):   
+#     for i in range (Nr):
+#         for l in range (len(time_dt)):
         
-            active_state[f,i,l] = activity(free_Ca[f,i,l], shift_fun(l_M[f,i,l])) # get activity
+#             active_state[f,i,l] = activity(free_Ca[f,i,l], shift_fun(l_M[f,i,l])) # get activity
 
 #%%
 """ Compute HRT and TTP [s] """
@@ -213,35 +234,74 @@ cg1 = get_color_gradient(c1, c2, 5)
 cg2 = get_color_gradient(c3, c4, 5)
 
 
-#______________________________________________________________________________
+#%%______________________________________________________________________________
+""" Extract experimental digitized data from Rincon 2021 """
+
+os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code") # max activation BB dir path
+
+path_slow = "slow_23_mouse_100hz_spaceseparator.csv"  #.csv files locations
+path_fast = "fast_23_mouse_100hz_spaceseparator.csv"
+path_fast_35 = "fast_35_mouse_125hz.csv"
+
+data_slow = pd.read_csv(path_slow, delimiter = ' ')
+data_slow = data_slow.to_numpy()    
+            
+data_fast = pd.read_csv(path_fast, delimiter = ' ')
+data_fast = data_fast.to_numpy()
+
+data_fast_35 = pd.read_csv(path_fast_35, delimiter = ' ')
+data_fast_35 = data_fast_35.to_numpy()
+
+os.chdir(cwd)
+
+
+# figure(figsize=(12, 10))
+# plt.subplot(2,1,1)
+# plt.rcParams['figure.dpi'] = 360
+# plt.plot((data_slow[:,0]-data_slow[0,0])*10**-3, data_slow[:,1], 'k', label = 'Rincon 2021 (100Hz)') # offset and in seconds
+
+
+# plt.rcParams['figure.dpi'] = 360
+# plt.plot((data_fast_35[:,0]-data_fast_35[0,0])*10**-3, data_fast_interp[:,1], 'k', label = 'Rincon 2021 (100Hz)') # offset and in seconds
 
 #%% Visual validation
+# ACTIVATION
 plt.rcParams['figure.dpi'] = 360
 figure(figsize=(12, 10))
-
-#plt.plot(time_dt, active_state[0,0,:], color=cg1[0], label='d.r. = 10Hz, slow')
-#plt.plot(time_dt, active_state[1,0,:], color=cg1[1], label='d.r. = 20Hz, slow')
-#plt.plot(time_dt, active_state[2,0,:], color=cg1[2], label='d.r. = 30Hz, slow')
-#plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz, slow')
+plt.subplot(2,1,1)
+plt.plot(time_dt, active_state[0,0,:], color=cg1[0], label='d.r. = 10Hz, slow')
+plt.plot(time_dt, active_state[1,0,:], color=cg1[1], label='d.r. = 20Hz, slow')
+plt.plot(time_dt, active_state[2,0,:], color=cg1[2], label='d.r. = 30Hz, slow')
+plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz, slow')
 plt.plot(time_dt, active_state[4,0,:], color=cg1[4], label='d.r. = 50Hz, slow')
 
-#plt.plot(time_dt, active_state[0,1,:], color=cg2[0], label='d.r. = 10Hz, fast')
-#plt.plot(time_dt, active_state[1,1,:], color=cg2[1], label='d.r. = 20Hz, fast')
-#plt.plot(time_dt, active_state[2,1,:], color=cg2[2], label='d.r. = 30Hz, fast')
-#plt.plot(time_dt, active_state[3,1,:], color=cg2[3], label='d.r. = 40Hz, fast')
-#plt.plot(time_dt, active_state[4,1,:], color=cg2[4], label='d.r. = 50Hz, fast')
+plt.ylabel('Active state')
+plt.legend(loc='lower right')
+plt.title('Slow type fibre')
+plt.grid()
+
+plt.subplot(2,1,2)
+plt.rcParams['figure.dpi'] = 360
+plt.plot(time_dt, active_state[0,1,:], color=cg2[0], label='d.r. = 10Hz, fast')
+plt.plot(time_dt, active_state[1,1,:], color=cg2[1], label='d.r. = 20Hz, fast')
+plt.plot(time_dt, active_state[2,1,:], color=cg2[2], label='d.r. = 30Hz, fast')
+plt.plot(time_dt, active_state[3,1,:], color=cg2[3], label='d.r. = 40Hz, fast')
+plt.plot(time_dt, active_state[4,1,:], color=cg2[4], label='d.r. = 50Hz, fast')
 
 # plt.plot(time_dt[pk], active_state[0,pk], 'r*')
 # plt.plot(time_dt[end], active_state[0,end], 'r*')
 plt.xlabel('Time [s]')
 plt.ylabel('Active state')
+plt.title('Fast type fibre')
 plt.legend(loc='lower right')
 plt.grid()
-plt.title('MN-driven model sensitivity (activation)', weight='bold')
+plt.suptitle('MN-driven model sensitivity (activation)', weight='bold', y=0.94)
 plt.show()
     
-
-
+#%%
+# EXCITATION
+pks_slow, _ = find_peaks(-free_Ca[4,0,:]) # 3.64*10**-6
+pks_fast, _ = find_peaks(-free_Ca[4,1,:]) # 5.34*10**-7
 
 figure(figsize=(12, 10))
 plt.subplot(2,1,1)
@@ -251,12 +311,12 @@ plt.plot(time_dt, free_Ca[1,0,:]*10**6, label='d.r. = 20Hz')
 plt.plot(time_dt, free_Ca[2,0,:]*10**6, label='d.r. = 30Hz')
 plt.plot(time_dt, free_Ca[3,0,:]*10**6, label='d.r. = 40Hz')
 plt.plot(time_dt, free_Ca[4,0,:]*10**6, label='d.r. = 50Hz')
-plt.ylabel('Free [$Ca^{++}$] [$\mu$M]')
-           
+#plt.plot(time_dt[pks_slow], free_Ca[4,0,pks_slow]*10**6, 'r*')
+
+plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')           
 plt.legend(loc='lower right')
 plt.grid()
-plt.title('Slow MU')
-#plt.ylim((-0.10*10**-5, 1.3*10**-5))
+plt.title('Slow type fibre')
 plt.xlim((0, 0.3))
 
 plt.subplot(2,1,2)
@@ -266,22 +326,60 @@ plt.plot(time_dt, free_Ca[1,1,:]*10**6, label='d.r. = 20Hz')
 plt.plot(time_dt, free_Ca[2,1,:]*10**6, label='d.r. = 30Hz')
 plt.plot(time_dt, free_Ca[3,1,:]*10**6, label='d.r. = 40Hz')
 plt.plot(time_dt, free_Ca[4,1,:]*10**6, label='d.r. = 50Hz')
+#plt.plot(time_dt[pks_fast], free_Ca[4,1,pks_fast]*10**6, 'r*')
+
 plt.xlabel('Time [s]')
-plt.ylabel('Free [$Ca^{++}$] [$\mu$M]')
+plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')
 plt.legend(loc='lower right')
 plt.grid()
-plt.title('Fast MU')
-#plt.ylim((-0.10*10**-5, 2*10**-5))
+plt.title('Fast type fibre')
 plt.xlim((0, 0.3))
 
-plt.suptitle('MN-driven model sensitivity (excitation)', weight='bold',  y=0.94)
+plt.suptitle('MN-driven model sensitivity (excitation, [$Ca^{2+}$]) ', weight='bold',  y=0.94)
 plt.show()
 
-#%%
-act = np.empty((1000), dtype=float)
-rel_Ca = np.linspace(0, 11.8*10**-6, 1000)
-for k in range(1000):
-    act[k] = activity(rel_Ca[k], 6) 
-    
-plt.plot(rel_Ca/(11.8*10**-6), act)
+#%% COMPARISON WITH RINCON & HOLLINGORTH DATA
+
+figure(figsize=(10, 12))
+plt.subplot(3,1,1)
+plt.rcParams['figure.dpi'] = 360
+plt.plot(time_dt, free_Ca[5,0,:]*10**6, label='Simulated')
+
+plt.plot((data_slow[:,0]-data_slow[0,0])*10**-3, data_slow[:,1], 'k--', label = 'Rincon et al. 2021 (23°C)') # offset and in seconds
+
+plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')           
+plt.legend(loc='lower right')
 plt.grid()
+plt.title('Type I fibre (5 impulses at 100Hz)')
+plt.xlim((0, 0.1))
+
+plt.subplot(3,1,2)
+plt.rcParams['figure.dpi'] = 360
+plt.plot(time_dt, free_Ca[5,1,:]*10**6, label='Simulated')
+
+plt.plot((data_fast[:,0]-data_fast[0,0])*10**-3, data_fast[:,1], 'k--', label = 'Rincon et al. 2021 (23°C)') # offset and in seconds
+
+plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')
+plt.legend(loc='lower right')
+plt.grid()
+plt.title('Type IIB fibre (5 impulses at 100Hz)')
+plt.xlim((0, 0.1))
+
+plt.subplot(3,1,3)
+plt.rcParams['figure.dpi'] = 360
+plt.plot(time_dt, free_Ca[6,1,:]*10**6, label='Simulated')
+
+plt.plot((data_fast_35[:,0]-data_fast_35[0,0])*10**-3, data_fast_35[:,1], 'g--', label = 'Hollingworth 1996 (35°C)') # offset and in seconds
+
+plt.xlabel('Time [s]')
+plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')
+plt.legend(loc='lower right')
+plt.grid()
+plt.title('Type IIB fibre (10 impulses at 120Hz)')
+plt.xlim((0, 0.13))
+
+plt.suptitle('Simulated vs. literature free [$Ca^{2+}$] for I/IIB mouse fibres', weight='bold',  y=0.94)
+plt.show()
+
+
+

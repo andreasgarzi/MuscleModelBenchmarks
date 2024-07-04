@@ -10,25 +10,29 @@ Force-velocity relationship.
 
 def f_fFV(v_M, FL_force, act, l_M, MU_type):
     
+    FL_force = FL_force*act
+    fmax = 1.33 #Hatze
+    
     # Defining fFV involved parameters
     if MU_type == 'slow':
-        kMU = 0.5
+        kMU = 1
     elif MU_type == 'fast':
         kMU = 1
         
-    fv = 0.8 + 0.2*act
+    fv = 0.8 + 0.6*act
     
-    if l_M < 1:
-        g = FL_force
-    else:
-        g = 1
+    # if l_M < 1:
+    #     g = FL_force
+    # else:
+    #     g = 1
+    g = 1
         
     if MU_type == 'slow':
-        af = 0.2
+        af = 0.9
     elif MU_type == 'fast':
-        af = 0.4
+        af = 0.5
         
-    b = (1.4 - 1)/(2 + 2/af)
+    b = (fmax - 1)/(2 + 2/af)
     K = kMU*fv*g
     
     if v_M < -1:
@@ -36,8 +40,8 @@ def f_fFV(v_M, FL_force, act, l_M, MU_type):
     elif v_M >= -1 and v_M < 0:
         fv = (1+v_M/K)/(1-(v_M/(af*K)))
     elif v_M >= 0:
-        fv = (1 + 1.4*(v_M/(K*b)))/(1+v_M/(K*b))
-        
+        fv = (1 + fmax*(v_M/(K*b)))/(1+v_M/(K*b))
+    
     return fv
         
        

@@ -14,9 +14,9 @@ from MU_AP_ODE_MOD import MU_AP_ODE_func
 
 def MU_AP_func(t, y, Matrix_AP): 
     
-    syn_delay, sarc_delay, tub_delay =  0.5*10**-3, 3.0*10**-3, 0.5*10**-3  #s
-    MAP_delay = syn_delay + sarc_delay + tub_delay 
-    #MAP_delay = 0
+    #syn_delay, sarc_delay, tub_delay =  0.5*10**-3, 3.0*10**-3, 0.5*10**-3  #s
+    #MAP_delay = syn_delay + sarc_delay + tub_delay 
+    MAP_delay = 0
      
     beta = y[0] 
     dbetadt = y[1]

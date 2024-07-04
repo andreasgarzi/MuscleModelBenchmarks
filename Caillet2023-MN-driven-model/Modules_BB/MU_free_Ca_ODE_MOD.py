@@ -9,12 +9,16 @@ Function necessary to compute the results presented in the manuscript Caillet et
 
 Description of the MU type- length-dependent ODE describing the dynamics of free Calcium concentration in the MUs
 """
+import numpy as np
+import math as math
 
 def coef_CA(MU_type):  #c1, c2, c3
     if MU_type == 'fast':
-        c_1, c_2, c_3= 2.4*10.**3,  4.3*10.**5, 0.9
+       # c_1, c_2, c_3= 2.4*10.**3,  4.3*10.**5, 0.9
+       c_1, c_2, c_3= 2.5*10.**3,  3.9*10.**5, 0.82  # C2=decay constant, C3=pk2pk
     elif MU_type == 'slow':
-        c_1, c_2, c_3 =2.5*10.**3, 1.5*10.**5, 0.4 
+       #c_1, c_2, c_3 =2.5*10.**3, 1.5*10.**5, 0.4 
+       c_1, c_2, c_3 =2.5*10.**3, 1.8*10.**5, 0.5 
     return c_1, c_2, c_3
 
 def Ca_l_amplitude_func(l_M_norm): #F1 function
@@ -41,5 +45,11 @@ def MU_free_Ca_ODE_func(t, l_M_norm, MU_type, beta, gamma,  dgammadt):
     amp=Ca_l_amplitude_func(l_M_norm) #impact of l_M_norm on Ca amplitude
     width=Ca_l_width_func(l_M_norm) #impact of l_M_norm on Ca half-width
     
-    DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt+width*c_2*gamma) #Actual 2nd ord. ODE
+    if MU_type == 'slow':
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt+width*c_2*gamma) #Actual 2nd ord. ODE
+    elif MU_type == 'fast':
+        c_2 = c_2*(gamma*10**5)
+        
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt+width*c_2*gamma) 
+        
     return DDgammaDDt

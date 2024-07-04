@@ -14,8 +14,8 @@ from MU_free_Ca_ODE_MOD import MU_free_Ca_ODE_func
 
 def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP): 
 
-    CA_delay = 2.1*10**-3
-    #CA_delay = 0
+    #CA_delay = 2.1*10**-3
+    CA_delay = 0
         
     gamma = y[2] 
     dgammadt = y[3]
