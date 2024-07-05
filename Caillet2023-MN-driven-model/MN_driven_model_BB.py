@@ -13,7 +13,7 @@ Trial = 'BBmax'
 # Trial = 'BBsub'
 
 """ Choose amplitude scale as well (0-5) """
-s = 0
+s = 5
 
 """ Saving the simulations (y/n)? """
 save = 'n'
@@ -154,9 +154,9 @@ for i in range (Nr):
         return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt, dldt]
      
     
-    y0 = [0, 0, 0, 0, 1, l_M_0] # set initial states
+    y0 = [0, 0, 0, 0, 1*10**-9, l_M_0] # set initial states (active state can't be 0 otherwise you'll divide by 0 in FV)
     p = (l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha[i,:]) # set ODE parameters
-    sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
+    sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/4) # solve IVP
     
     active_state[i,:] = sol.y[4]  # get active state
     l_M[i,:] = sol.y[5]  # get l_M
@@ -180,7 +180,7 @@ for i in range (Nr):
         alpha[i,l+1] = penn_ang(l_MT[l+1], l_M[i,l], l_T[i,l], l_M_0, alpha_0) # update pennation angle 
     
     
-MU_Force_list = F_M + PE_force  # scaled MU force + PEE force     
+MU_Force_list = active_state*F_M + PE_force  # scaled MU force + PEE force     
 
 F_MU_list = F0MU_distribution[0:Nr,:] * MU_Force_list
 Tot_Muscle_force = F_MU_list.sum(axis=0) # Total normalized muscle force   
@@ -199,9 +199,9 @@ plt.show()
 #pks, _ = find_peaks(free_Ca[2,:]) # 3.64*10**-6
 #Ca_0 = free_Ca[2,pks[10]]
 
-# plt.subplot(2,1,1)
-# plt.plot(time_dt, l_T[1,:]/l_T_slack, 'b', label='Tendon')
-# plt.plot(time_dt, l_M[1,:], 'g', label='Fiber')
+
+# plt.plot(time_dt, l_T[0,:]/l_T_slack, 'b', label='Tendon')
+# plt.plot(time_dt, l_M[0,:], 'g', label='Fiber')
 # plt.ylabel('Norm. Length')
 # plt.legend()
 # plt.grid()

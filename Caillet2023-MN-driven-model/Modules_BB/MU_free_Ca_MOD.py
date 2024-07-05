@@ -19,7 +19,6 @@ def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP):
         
     gamma = y[2] 
     dgammadt = y[3]
-    #beta = MU_AP_train[max(int((t-CA_delay)/0.0001), 0)] #from previously solved ODE for MUAP
     beta = MU_AP_train  #from previously solved ODE for MUAP
     DDgammaDDt = MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, gamma, dgammadt)    
     return dgammadt, DDgammaDDt

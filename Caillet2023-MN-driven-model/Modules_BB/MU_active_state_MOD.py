@@ -29,6 +29,7 @@ def MU_active_state_func(t, y, Ca, MU_type):
 
     if MU_type == 'slow':
         Ca_max = 4.5*10**-6
+        
     elif MU_type == 'fast':
         Ca_max = 3.5*10**-6
         
