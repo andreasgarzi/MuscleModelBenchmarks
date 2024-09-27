@@ -17,6 +17,7 @@ from matplotlib.pyplot import figure
 from PE_force import PEE_force
 from Tendon_force import T_force
 from force_fFV import f_fFV
+from velocity_fFV import velo_fFV
 from Force_Length_MOD import Force_Length_func
 
 points = 300 # x-points for plots
@@ -39,6 +40,7 @@ f_PE5 = np.empty((points),dtype=object)
 f_PE6 = np.empty((points),dtype=object)
 fl = np.empty((n_a,points),dtype=object)
 fv = np.empty((n_a,points,fibre_type),dtype=object)
+vf = np.empty((n_a,points,fibre_type),dtype=object)
 
 # defining x-axis quantities...
 a = np.linspace(0.2,1,n_a)
@@ -83,7 +85,7 @@ for i in range(points):
         fl[l,i] = Force_Length_func(l_M[i],a[l])*a[l]
         for t in range(fibre_type):
             fv[l,i,t] = f_fFV(v_M[i], fl[l,i], a[l], 1, MU_type[t]) # for fixed l_M = 1
-    
+            vf[l,i,t] = velo_fFV(fv[l,i,t], fl[l,i], a[l], 1, MU_type[t])
 
  # f_T_2 = np.empty((points),dtype=object)
  # for i in range(points):
@@ -185,11 +187,19 @@ plt.plot(v_M, fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fas
 plt.plot(v_M, fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
 plt.plot(v_M, fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
 plt.plot(v_M, fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
+
+plt.plot(vf[0,:,0], fv[0,:,0], color=cg2[0], label = 'a = 0.2, fast')
+plt.plot(vf[2,:,0], fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
+plt.plot(vf[4,:,0], fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fast')
+plt.plot(vf[0,:,1], fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
+plt.plot(vf[2,:,1], fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
+plt.plot(vf[4,:,1], fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
+
 plt.xlabel('$\overline {V^M}$')
 plt.ylabel('$\overline {F^M_v}$')
 plt.grid()
 plt.legend()
-plt.title('Active F-V, $\overline {L^M}$ = 1')
+plt.title('Active F-V, $\overline {L^M}$ = 0.8')
 
 plt.suptitle('MN-driven model sensitivity (contractile part)', weight='bold', y=0.94)
 plt.show()

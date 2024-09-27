@@ -11,32 +11,54 @@ ODE that defines the dynamics of MU active state, from an input concentration of
 
 """
 
-#def MU_active_state_func(t, y, CaTn_concentration): 
-def MU_active_state_func(t, y, Ca, MU_type): 
+def MU_active_state_func(t, Ca, act, tup, tdown, a, b):    
     
-    #coefs = [1.00*10**5 , 0.021,  260] #works best against F-F steady-state curves. TTP = 60ms. Half Relaxation Time (HRT) = 75ms 
-    # Need for a tuning to match the MU twitch
-    #coefs = [1.5*10**5 , 0.015, 130] #  TTP = 35ms HRT = 43ms in rat soleus (Malak 2024)
+ # ARNAULT ODE 
+    
+    # coefs = [2*10**5 , 0.026, 260] #works best against F-F steady-state curves. TTP = 60ms. Half Relaxation Time (HRT) = 75ms 
+    # # Need for a tuning to match the MU twitch
+    # #coefs = [d1_tuned[int(t/dt)] , 0.041, d3_tuned[int(t/dt)]] #  TTP = 35ms HRT = 43ms in rat soleus (Malak 2024)
     
     # a = y[5]
-    # CaTn = CaTn_concentration     #from previously solved ODE ([Ca-Tn])
+    # CaTn = CaTn_concentration    #from previously solved ODE ([Ca-Tn])
+    
     # d1, d2, d3 = coefs
-    # dadt = d1*CaTn - a/(d2+d3*CaTn)
+    # dadt = (d1*CaTn - a/(d2+d3*CaTn))*(1-a)
+    
     # return dadt
+
+#______________________________________________________________________________
+# Winters and Thelen ODE 
+ 
+    # #Ca = Ca/(5*10**-6)
+    # Ca = Ca/(150*10**-6)
+    # #tup = 0.8
+    # #tup = 0.01
+    # #tdown = 0.04
+    
+    # amin = 1*10**-9
+    # ac = (act-amin)/(1-amin)
+    
+    # if Ca > ac:
+    #     tau = tup*(a + b*ac)  # for 20 Hz with Camax = 1*10**-6
+    # else:
+    #     tau = tdown/(a + b*ac)
+    
+    # dadt = ((Ca - ac)/tau)*(1-act)
+    
+    # return dadt
+
+#______________________________________________________________________________
+# Hussein 2022 ODE
 
     if Ca < 0:
         Ca = 0
-
-    if MU_type == 'slow':
-        Ca_max = 4.5*10**-6
         
-    elif MU_type == 'fast':
-        Ca_max = 3.5*10**-6
-        
-    Ca = Ca/Ca_max
+    Ca = Ca/(6*10**-6)
+    #Ca = Ca/(50*10**-7)
     
-    a = y[4]
-    k3, k4 = 22.5, 19.2
-    dadt = -(k4*a - k3*Ca)*(1 - a)
+    #k1, k2 = 22.5, 19.2
+    #k1, k2 = 22.5, 19.2
+    dadt = -(b*act - a*Ca)*(1 - act)
     
     return dadt

@@ -11,16 +11,17 @@ Description: force-velocity relationship
 
 def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
     
-    FL_force = FL_force*act
-    fmax = 1.33 #Hatze
+    fmax = 1.33
     
     # Defining fFV involved parameters
     if MU_type == 'slow':
-        kMU = 0.8
+        kMU = 0.7
     elif MU_type == 'fast':
-        kMU = 1
-        
-    fv = 0.8 + 0.2*act
+        kMU = 1.5
+
+    #fv = 0.2 + 0.8*act*FL_force
+    
+    fv = 0.9 + 0.1*act
     
     if l_M < 1:
         g = FL_force
@@ -29,12 +30,12 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
     #g = 1
         
     if MU_type == 'slow':
-        af = 1.2
+        af = 1.3 # the lower the lower the inferior limit
     elif MU_type == 'fast':
-        af = 1.4
+        af = 0.8
         
-    b = (fmax - 0.5)/(2 + 2/af)
-    K = kMU*fv*g
+    b = (fmax - 0.1)/(2 + 2/af)
+    K = (kMU*fv*g)
     
     #fFV relationship inverted
     if CE_force >= 1:
@@ -42,6 +43,5 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
         vel = vel*K
     else:
         vel = (CE_force-1)/(CE_force/(af*K))
-        
     
     return vel

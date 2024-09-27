@@ -42,6 +42,7 @@ def MU_bound_calcium_func(t, y, free_Ca_concentration, l_M, MU_type, Matrix_AP):
             f4 = 1.46
         
     elif MU_type == 'slow':
+        
         T0 = 17*10**-5 
         k1=0.6*10**13 
         k2 = 21 
@@ -68,7 +69,7 @@ def MU_bound_calcium_func(t, y, free_Ca_concentration, l_M, MU_type, Matrix_AP):
     
     gamma = free_Ca_concentration   # from previously solved ODE for free [Ca++]  
     delta = y[4]
-    #ddeltadt = (k1/f3)*(T0/f4 - delta)*(gamma**2) - (k2/f5)*delta # modified Wexler to account for non-linear length dependency
+    # ddeltadt = (k1/f3)*(T0/f4 - delta)*(gamma**2) - ((k2/f5)*delta) # modified Wexler to account for non-linear length dependency
     ddeltadt = k1*T0*gamma**2-(k1*gamma**2+k2)*delta #║Wexler 1997. It is quite the same but not entirely. 
     return ddeltadt
     

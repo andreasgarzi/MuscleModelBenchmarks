@@ -75,13 +75,13 @@ FM_sim_id = np.load(path[1] / data_npy_files_list[9], allow_pickle=True)
 
 #%%
 
-os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\pyHatze-Local\\Caillet2023-MN-driven-model\\Results_withTendon\\Nr_S1_30_64L')
+# os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\pyHatze-Local\\Caillet2023-MN-driven-model\\Results_withTendon\\Nr_S1_30_64L')
 
-F_LPF = np.load('Nr_S1_30_64L_identified_total_muscle_force_nopennation&delays_LPFfibres.npy', allow_pickle=True)
-F_noLPF = np.load('Nr_S1_30_64L_identified_total_muscle_force_nopennation&delays.npy', allow_pickle=True)
-F_noLPF = np.array(F_noLPF, dtype=float)
-F_id = np.load('Nr_S1_30_64L_identified_total_muscle_force_tendon2.npy', allow_pickle=True)
-F_ev = np.load('Nr_S1_30_64L_evenly_total_muscle_force_tendon2.npy', allow_pickle=True)
+# F_LPF = np.load('Nr_S1_30_64L_identified_total_muscle_force_nopennation&delays_LPFfibres.npy', allow_pickle=True)
+# F_noLPF = np.load('Nr_S1_30_64L_identified_total_muscle_force_nopennation&delays.npy', allow_pickle=True)
+# F_noLPF = np.array(F_noLPF, dtype=float)
+# F_id = np.load('Nr_S1_30_64L_identified_total_muscle_force_tendon2.npy', allow_pickle=True)
+# F_ev = np.load('Nr_S1_30_64L_evenly_total_muscle_force_tendon2.npy', allow_pickle=True)
 #f_T = np.load('Nr_S1_30_64L_identified_Tendon_force_nopennation.npy', allow_pickle=True)
 #eps_T = np.load('Nr_S1_30_64L_identified_Tendon_strain_nopennation.npy', allow_pickle=True)
 #l_T = np.load('Nr_S1_30_64L_identified_Tendon_length_nopennation.npy', allow_pickle=True)
@@ -93,26 +93,26 @@ os.chdir(cwd)
 """Some error metrics"""
 #RMSE_noLPF = metrics_func(FM_exp, Tot_force_noLPF, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
 #RMSE_LPF = metrics_func(FM_exp, Tot_force_LPF, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
-MSE = np.square(np.subtract(F_LPF ,F_noLPF)).mean() 
-RMSE_LPF = math.sqrt(MSE)
-RMSE_perc_LPF = np.sqrt(np.mean(np.square(((F_LPF - F_noLPF) / F_noLPF)*100), axis=0))
-RMSE_ev = metrics_func(FM_exp, FM_sim_ev, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
-RMSE = metrics_func(FM_exp, FM_sim_id, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
+# MSE = np.square(np.subtract(F_LPF ,F_noLPF)).mean() 
+# RMSE_LPF = math.sqrt(MSE)
+# RMSE_perc_LPF = np.sqrt(np.mean(np.square(((F_LPF - F_noLPF) / F_noLPF)*100), axis=0))
+# RMSE_ev = metrics_func(FM_exp, FM_sim_ev, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
+# RMSE = metrics_func(FM_exp, FM_sim_id, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
 
-#Linear regression between LPFed force and not
-slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(F_LPF, F_noLPF)
+# #Linear regression between LPFed force and not
+# slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(F_LPF, F_noLPF)
 
-coef = np.polyfit(F_LPF, F_noLPF, 1)
-poly1d_fn = np.poly1d(coef) 
-# poly1d_fn is now a function which takes in x and returns an estimate for y
-plt.figure()
-plt.scatter(F_LPF, F_noLPF, c='None', marker='o', edgecolors='g', alpha=0.4) 
-plt.plot(F_LPF, poly1d_fn(F_LPF), 'r')
-plt.grid()
-plt.xlabel('Predicted Force-LPF (N)')
-plt.ylabel('Predicted Force-noLPF (N)')
-plt.title('Fibers LPF effect: Linear regression')
-plt.axis('square')
+# coef = np.polyfit(F_LPF, F_noLPF, 1)
+# poly1d_fn = np.poly1d(coef) 
+# # poly1d_fn is now a function which takes in x and returns an estimate for y
+# plt.figure()
+# plt.scatter(F_LPF, F_noLPF, c='None', marker='o', edgecolors='g', alpha=0.4) 
+# plt.plot(F_LPF, poly1d_fn(F_LPF), 'r')
+# plt.grid()
+# plt.xlabel('Predicted Force-LPF (N)')
+# plt.ylabel('Predicted Force-noLPF (N)')
+# plt.title('Fibers LPF effect: Linear regression')
+# plt.axis('square')
 
 #%%
 
@@ -127,30 +127,30 @@ plt.axis('square')
 # plt.legend()
 
 # Identified distributed MUs result comparison
-plt.figure()
-figure(figsize=(12, 4))
-plt.subplot(1,2,1)
-plt.rcParams['figure.dpi'] = 360
-plt.plot(time_dt, FM_sim_id, 'b', label = 'Caillet et al.2023 model')
-plt.plot(time_dt, F_id, 'r', label = 'Updated model')
-plt.plot(time_exp, FM_exp, 'k', label = 'Exp.TA force')
-plt.grid()
-plt.title('35 MUs, identified distribution')
-plt.xlabel('Time [s]')
-plt.ylabel('TA Force (N)')
-plt.legend(loc='lower center')
+# plt.figure()
+# figure(figsize=(12, 4))
+# plt.subplot(1,2,1)
+# plt.rcParams['figure.dpi'] = 360
+# plt.plot(time_dt, FM_sim_id, 'b', label = 'Caillet et al.2023 model')
+# plt.plot(time_dt, F_id, 'r', label = 'Updated model')
+# plt.plot(time_exp, FM_exp, 'k', label = 'Exp.TA force')
+# plt.grid()
+# plt.title('35 MUs, identified distribution')
+# plt.xlabel('Time [s]')
+# plt.ylabel('TA Force (N)')
+# plt.legend(loc='lower center')
 
-# Evenly distributed MUs result comparison
-plt.subplot(1,2,2)
-plt.rcParams['figure.dpi'] = 360
-plt.plot(time_dt, FM_sim_ev, 'b--', label = 'Caillet et al.2023 model')
-plt.plot(time_dt, F_ev, 'r--', label = 'Updated model')
-plt.plot(time_exp, FM_exp, 'k', label = 'Exp.TA force')
-plt.grid()
-plt.title('35 MUs, even distribution')
-plt.xlabel('Time [s]')
-plt.ylabel('TA Force (N)')
-plt.legend(loc='lower center')
+# # Evenly distributed MUs result comparison
+# plt.subplot(1,2,2)
+# plt.rcParams['figure.dpi'] = 360
+# plt.plot(time_dt, FM_sim_ev, 'b--', label = 'Caillet et al.2023 model')
+# plt.plot(time_dt, F_ev, 'r--', label = 'Updated model')
+# plt.plot(time_exp, FM_exp, 'k', label = 'Exp.TA force')
+# plt.grid()
+# plt.title('35 MUs, even distribution')
+# plt.xlabel('Time [s]')
+# plt.ylabel('TA Force (N)')
+# plt.legend(loc='lower center')
 
 # plt.plot(time_dt, f_T[2,:], 'b', label = 'Norm. tendon force')
 # plt.plot(time_dt, f_PE[2,:], 'k', label = 'Norm. PEE force')
@@ -197,40 +197,40 @@ plt.legend(loc='lower center')
 
 #------------------------------------------------------------------------------
 # PLOTTING THE WHOLE MUSCLE FORCES AND GENERATING THE VALIDAITON METRICS (Figure 8)
-# metrics=np.zeros((3,8))
-# linest = np.array(['dotted', 'dashed', 'solid'])
-# col = np.array(['steelblue', 'green', 'red'])
+metrics=np.zeros((3,8))
+linest = np.array(['dotted', 'dashed', 'solid'])
+col = np.array(['steelblue', 'green', 'red'])
 
 
-# for i in range(len(N_Nr_Input)): # Investigating the 3 types of neural controls  
-#     data_npy_files_list = dataname_func(N_Nr_Input, Trial, distrib_approach, Data, i)
-#     time_sim = np.load(path[i] / data_npy_files_list[0], allow_pickle=True) 
-#     FM_sim = np.load(path[i] / data_npy_files_list[9], allow_pickle=True) #Load simulated force
+for i in range(len(N_Nr_Input)): # Investigating the 3 types of neural controls  
+    data_npy_files_list = dataname_func(N_Nr_Input, Trial, distrib_approach, Data, i)
+    time_sim = np.load(path[i] / data_npy_files_list[0], allow_pickle=True) 
+    FM_sim = np.load(path[i] / data_npy_files_list[9], allow_pickle=True) #Load simulated force
  
-#     if i==2: 
-#         # Plot the Experimental Force only once
-#         plt.plot(time_exp, FM_exp, color = 'black', linewidth = 2)  
+    if i==2: 
+        # Plot the Experimental Force only once
+        plt.plot(time_exp, FM_exp, color = 'black', linewidth = 2)  
         
-#         # In the case of completely reconstructed pool, let's remove in the following the MUs that fire at less than 7Hz (see manuscript for details)
-#         MUs_below_7Hz = find_MUmax_func(Firing_times_sim)
+        # In the case of completely reconstructed pool, let's remove in the following the MUs that fire at less than 7Hz (see manuscript for details)
+        MUs_below_7Hz = find_MUmax_func(Firing_times_sim)
       
-#     # Plot simulated forces
-#     plt.plot(time_sim, FM_sim, color = col[i], linestyle = linest[i])
+    # Plot simulated forces
+    plt.plot(time_sim, FM_sim, color = col[i], linestyle = linest[i])
     
-#     # The metrics are d1, F_exp_d1, ME, RMS_total, RMS_ramp1, RMS_plateau, RMS_ramp2, r2
-#     metrics[i,:] = metrics_func(FM_exp, FM_sim, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
-#     if i==2: 
-#         print(metrics)
+    # The metrics are d1, F_exp_d1, ME, RMS_total, RMS_ramp1, RMS_plateau, RMS_ramp2, r2
+    metrics[i,:] = metrics_func(FM_exp, FM_sim, time_exp, time_sim, MVC, plateau_time1, plateau_time2)
+    if i==2: 
+        print(metrics)
 
-# plt.xlim(0,end_force)
-# plt.ylim(0,int(max(FM_exp)/100+1)*100)    
-# plt.xticks(fontsize = 12)
-# plt.yticks(fontsize = 12)
-# plt.xlabel('Time (s)', fontsize=13)
-# plt.ylabel('TA Force (N)', fontsize=13)
-# plt.rcParams['figure.dpi'] = 360
-# plt.title('Figure 8')
-# plt.figure()
+plt.xlim(0,end_force)
+plt.ylim(0,int(max(FM_exp)/100+1)*100)    
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.xlabel('Time (s)', fontsize=13)
+plt.ylabel('TA Force (N)', fontsize=13)
+plt.rcParams['figure.dpi'] = 360
+plt.title('Figure 8')
+plt.figure()
 
 
 # /!\ The storage data for the distributions of MU active states and FMU are heavy (0.1-1.5 Go).

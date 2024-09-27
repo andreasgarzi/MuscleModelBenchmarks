@@ -22,13 +22,13 @@ def T_force(eps):
     #     f_T = k3*(eps-k2)+k4
     
     #John 2013
-    eps_0 = 0.055 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
+    eps_0 = 0.06 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
     eps_toe = 0.609*eps_0
     #eps_toe = eps_0
     #klin = 1.212/eps_0 #1.712
-    klin = 1.312/eps_0 #1.712
-    F_toe = 0.23
-    k_toe = 3
+    klin = 1.212/eps_0 #1.712
+    F_toe = 0.33
+    k_toe = 2
     
     if eps > eps_toe:
         f_T = 0.001*(1+eps)+(klin*(eps-eps_toe)+F_toe)
