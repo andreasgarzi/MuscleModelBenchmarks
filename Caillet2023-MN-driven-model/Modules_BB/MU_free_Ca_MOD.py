@@ -12,7 +12,7 @@ Computation of the free Calcium concentration (in Mols) in the MUs from an input
 
 from MU_free_Ca_ODE_MOD import MU_free_Ca_ODE_func
 
-def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP): 
+def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP, i, f): 
 
     #CA_delay = 2.1*10**-3
     CA_delay = 0
@@ -20,6 +20,6 @@ def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP):
     gamma = y[2] 
     dgammadt = y[3]
     beta = MU_AP_train  #from previously solved ODE for MUAP
-    DDgammaDDt = MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, gamma, dgammadt)    
+    DDgammaDDt = MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, gamma, dgammadt, i, f)    
     return dgammadt, DDgammaDDt
   

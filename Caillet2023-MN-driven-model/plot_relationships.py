@@ -20,7 +20,7 @@ from force_fFV import f_fFV
 from velocity_fFV import velo_fFV
 from Force_Length_MOD import Force_Length_func
 
-points = 300 # x-points for plots
+points = 2000 # x-points for plots
 n_a = 5 # n. different active states [0-1]
 fibre_type = 2 # n. different fibre types (fast & slow)
 l_T_slack = 24
@@ -50,6 +50,8 @@ l_M_PE = np.linspace(0.9, 2.2,points)
 v_M = np.linspace(-1.2,1.2,points)
 eps_T = np.linspace(0,0.07,points)
 l_T = (eps_T*l_T_slack + l_T_slack)/l_T_slack
+yielding = np.empty((points), dtype=object)
+
 
 #%% MU recruitment threshold analysis
 
@@ -70,10 +72,10 @@ for i in range(points):
     f_T0[i] = T_force(eps_T[i], 0)
     f_T1[i] = T_force(eps_T[i], 1)
     f_T2[i] = T_force(eps_T[i], 2)
-    f_T3[i] = T_force(eps_T[i], 3)
-    f_T4[i] = T_force(eps_T[i], 4)
+    f_T3[i] = T_force(eps_T[i], 3) # Rat soleus
+    f_T4[i] = T_force(eps_T[i], 4) # Cat soleus
     
-    f_PE0[i] = PEE_force(l_M_PE[i], 0)
+    f_PE0[i] = PEE_force(l_M_PE[i], 0) # Thelen
     f_PE1[i] = PEE_force(l_M_PE[i], 1)
     f_PE2[i] = PEE_force(l_M_PE[i], 2)
     f_PE3[i] = PEE_force(l_M_PE[i], 3)
@@ -91,6 +93,17 @@ for i in range(points):
  # for i in range(points):
  #     f_T_2[i] = T_force(eps_T[i])
 
+cy, Vy, Ty = 0.35, 0.1, 0.2
+dY = np.empty((points),dtype=object)
+for n in range(2000):
+
+    if n == 0:
+        j = 1
+    else:
+        j = dY[n-1]
+        
+    dY[n] = (1 - cy*(1 - np.exp((-np.abs(vf[4,n,0]))/Vy)) - j)/Ty
+    
 #______________________________________________________________________________
 """Create color map and plot relationships"""
    
@@ -135,71 +148,74 @@ cg3 = get_color_gradient(c3, c4, 3)
 
 
 # plotting...
-plt.rcParams['figure.dpi'] = 360
-figure(figsize=(12, 10))
+plt.rcParams['figure.dpi'] = 250
+figure(figsize=(14, 12))
 fig = plt.subplot(2,2,1)
 ax = fig
-plt.plot(eps_T*100, f_T0, color=cgt[0], label = r'$\epsilon^T_0$ = 1.3%')
-plt.plot(eps_T*100, f_T1, color=cgt[1], label = r'$\epsilon^T_0$ = 2.3%')
-plt.plot(eps_T*100, f_T2, color=cgt[2], label = r'$\epsilon^T_0$ = 3.3%')
-plt.plot(eps_T*100, f_T3, color=cgt[3], label = r'$\epsilon^T_0$ = 4.3%')
-plt.plot(eps_T*100, f_T4, color=cgt[4], label = r'$\epsilon^T_0$ = 5.3%')
-ax.annotate(r'$\epsilon^Ttoe$ = 0.609($\epsilon^T_0$)', xy=(0.1,1))
+# plt.plot(eps_T*100, f_T0, color=cgt[0], label = r'$\epsilon^T_0$ = 1.3%')
+# plt.plot(eps_T*100, f_T1, color=cgt[1], label = r'$\epsilon^T_0$ = 2.3%')
+# plt.plot(eps_T*100, f_T2, color=cgt[2], label = r'$\epsilon^T_0$ = 3.3%')
+plt.plot(eps_T*100, f_T3, color=cgt[0], label = 'Rat soleus')
+plt.plot(eps_T*100, f_T4, color=cgt[4], label = 'Cat soleus')
+#ax.annotate(r'$\epsilon^Ttoe$ = 0.609($\epsilon^T_0$)', xy=(0.1,1))
 #plt.plot(l_T, f_T, 'b', label = 'John et al. 2013')
-plt.xlabel(r'$\epsilon^T$ [%]')
-plt.ylabel('$\overline {F^T}$')
+#plt.xlabel(r'$\epsilon^T$ [%]', weight='bold', fontsize=15)
+#plt.ylabel('$\overline {F^T}$', weight='bold', fontsize=15)
 plt.grid()
-plt.title('SEE (Tendon)')
-plt.legend()
-plt.ylim((-0.25, 4))
+plt.title('SE (Tendon)', weight='bold', fontsize=17)
+plt.legend(fontsize=15)
+#plt.ylim((-0.25, 4))
 
-plt.subplot(2,2,2)
+fig = plt.subplot(2,2,2)
+plt.rcParams['figure.dpi'] = 250
 #plt.plot(l_M_PE, f_PE0, 'k--', label='k1 = 5, k2 = 0.6')
 plt.plot(l_M_PE, f_PE1, color=cg2[1], label='k1 = 5, k2 = 0.8') 
-plt.plot(l_M_PE, f_PE2, color=cg2[1], linestyle='dashed', label='k1 = 5, k2 = 1.0') 
-plt.plot(l_M_PE, f_PE3, color=cg2[1], linestyle='dashdot', label='k1 = 5, k2 = 1.2') 
-plt.plot(l_M_PE, f_PE4, color=cg3[0], label='k1 = 4, k2 = 0.6') 
-plt.plot(l_M_PE, f_PE5, color=cg3[0], linestyle='dashed', label='k1 = 3, k2 = 0.6') 
-plt.plot(l_M_PE, f_PE6, color=cg3[0], linestyle='dashdot', label='k1 = 2, k2 = 0.6') 
-plt.xlabel('$\overline {L^M}$')
-plt.ylabel('$\overline {F^M}$')
+#plt.plot(l_M_PE, f_PE2, color=cg2[1], linestyle='dashed') 
+# plt.plot(l_M_PE, f_PE3, color=cg2[1], linestyle='dashdot', label='k1 = 5, k2 = 1.2') 
+# plt.plot(l_M_PE, f_PE4, color=cg3[0], label='k1 = 4, k2 = 0.6') 
+# plt.plot(l_M_PE, f_PE5, color=cg3[0], linestyle='dashed', label='k1 = 3, k2 = 0.6') 
+# plt.plot(l_M_PE, f_PE6, color=cg3[0], linestyle='dashdot', label='k1 = 2, k2 = 0.6') 
+#plt.xlabel('$\overline {L^M}$', weight='bold', fontsize=15)
+#plt.ylabel('$\overline {F^M}$', weight='bold', fontsize=15)
 plt.grid()
-plt.title('PEE')
-plt.legend()
-plt.ylim((-0.25, 4))
+plt.title('PE', weight='bold', fontsize=17)
+#plt.legend()
+#plt.ylim((-0.25, 4))
 
-plt.subplot(2,2,3)
+fig = plt.subplot(2,2,3)
+plt.rcParams['figure.dpi'] = 250
 plt.plot(l_M, fl[0,:], color=cg1[0], label = 'a = 0.2')
 plt.plot(l_M, fl[1,:], color=cg1[1], label = 'a = 0.4')
 plt.plot(l_M, fl[2,:], color=cg1[2], label = 'a = 0.6')
 plt.plot(l_M, fl[3,:], color=cg1[3], label = 'a = 0.8')
 plt.plot(l_M, fl[4,:], color=cg1[4], label = 'a = 1.0')
-plt.xlabel('$\overline {L^M}$')
-plt.ylabel('$\overline {F^M_l}$')
+#plt.xlabel('$\overline {L^M}$', weight='bold', fontsize=15)
+#plt.ylabel('$\overline {F^M_l}$', weight='bold', fontsize=15)
 plt.grid()
-plt.legend()
-plt.title('Active F-L')
+plt.legend(fontsize=15)
+plt.title('CE, F-L relationship', weight='bold', fontsize=17)
 
-plt.subplot(2,2,4)
-plt.plot(v_M, fv[0,:,0], color=cg2[0], label = 'a = 0.2, fast')
-plt.plot(v_M, fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
-plt.plot(v_M, fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fast')
-plt.plot(v_M, fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
-plt.plot(v_M, fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
-plt.plot(v_M, fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
+fig = plt.subplot(2,2,4)
+plt.rcParams['figure.dpi'] = 250
+# plt.plot(v_M, fv[0,:,0], color=cg2[0], label = 'a = 0.2, fast')
+# plt.plot(v_M, fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
+# plt.plot(v_M, fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fast')
+# plt.plot(v_M, fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
+# plt.plot(v_M, fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
+# plt.plot(v_M, fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
 
 plt.plot(vf[0,:,0], fv[0,:,0], color=cg2[0], label = 'a = 0.2, fast')
-plt.plot(vf[2,:,0], fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
+#plt.plot(vf[2,:,0], fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
 plt.plot(vf[4,:,0], fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fast')
 plt.plot(vf[0,:,1], fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
-plt.plot(vf[2,:,1], fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
+#plt.plot(vf[2,:,1], fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
 plt.plot(vf[4,:,1], fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
 
-plt.xlabel('$\overline {V^M}$')
-plt.ylabel('$\overline {F^M_v}$')
+#plt.xlabel('$\overline {V^M}$')
+#plt.ylabel('$\overline {F^M_v}$')
 plt.grid()
-plt.legend()
-plt.title('Active F-V, $\overline {L^M}$ = 0.8')
+plt.legend(fontsize=15, loc='lower right')
+plt.title('CE, F-V relationship', weight='bold', fontsize=17)
 
 plt.suptitle('MN-driven model sensitivity (contractile part)', weight='bold', y=0.94)
 plt.show()

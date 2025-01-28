@@ -12,10 +12,10 @@ import numpy as np
 def T_force(eps):
     
     #John 2013
-    eps_0 = 0.045 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
+    eps_0 = 0.055 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
     eps_toe = 0.609*eps_0
     #klin = 1.212/eps_0 #1.712
-    klin = 1.712/eps_0 #1.712
+    klin = 1.212/eps_0 #1.712
     F_toe = 0.33
     k_toe = 3
     

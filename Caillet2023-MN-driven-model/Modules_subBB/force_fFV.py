@@ -10,31 +10,36 @@ Force-velocity relationship.
 
 def f_fFV(v_M, FL_force, act, l_M, MU_type):
     
-    fmax = 1.33 #Hatze
+    fmax = 1.2786
+    #fmax = 1.4
     
     # Defining fFV involved parameters
     if MU_type == 'slow':
-        kMU = 0.7
+        kMU = 0.5
     elif MU_type == 'fast':
-        kMU = 1.5
+        kMU = 1
 
+    #fv = 1
+    
     fv = 0.8 + 0.2*act
     
     if l_M < 1:
         g = FL_force
     else:
         g = 1
-     
+    #g = 1
+        
     if MU_type == 'slow':
-        af = 1.3 # the lower the lower the inferior limit
+        af = 0.17 # the lower the lower the inferior limit
     elif MU_type == 'fast':
         af = 0.8
         
-    b = (fmax - 0.1)/(2 + 2/af)
+    b = (fmax - 1)/(2 + 2/af)
     K = kMU*fv*g
     
     if v_M < -1:
         fvel = 1/(1 - (v_M/(af*K)))
+        #fv = 0
     if v_M >= -1 and v_M < 0:
         fvel = 1/(1 - (v_M/(af*K)))
     elif v_M >= 0:

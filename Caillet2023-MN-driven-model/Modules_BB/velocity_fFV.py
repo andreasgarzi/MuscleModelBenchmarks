@@ -8,20 +8,20 @@ ____________________________________
 Description: force-velocity relationship
 """
 
-
-def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
+def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type, vmax, af_par, fmax_par):
     
-    fmax = 1.33
+    #fmax = 1.33
+    fmax = fmax_par
     
     # Defining fFV involved parameters
     if MU_type == 'slow':
-        kMU = 0.7
+        kMU = 0.5
     elif MU_type == 'fast':
-        kMU = 1.5
+        kMU = 1
 
     #fv = 0.2 + 0.8*act*FL_force
     
-    fv = 0.9 + 0.1*act
+    fv = 0.8 + 0.2*act
     
     if l_M < 1:
         g = FL_force
@@ -30,11 +30,11 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
     #g = 1
         
     if MU_type == 'slow':
-        af = 1.3 # the lower the lower the inferior limit
+        af = af_par # the lower the lower the inferior limit
     elif MU_type == 'fast':
         af = 0.8
         
-    b = (fmax - 0.1)/(2 + 2/af)
+    b = (fmax - 1)/(2 + 2/af)
     K = (kMU*fv*g)
     
     #fFV relationship inverted
@@ -44,4 +44,4 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type):
     else:
         vel = (CE_force-1)/(CE_force/(af*K))
     
-    return vel
+    return vel*vmax
