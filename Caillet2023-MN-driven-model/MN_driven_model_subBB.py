@@ -9,7 +9,7 @@ MN-driven model with SE and PEE adapted for BB tests of Millard et. al 2023
 """
 
 """ D.r. preset """
-s = 2
+s = 5
 
 """ Saving the simulations (y/n)? """
 save = 'n'
@@ -72,7 +72,7 @@ os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python
 #os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
 
 #force_bb_disp = (np.genfromtxt('force_trial'+str(s)+'.dat', delimiter=''))
-force_bb_disp = (np.genfromtxt('force_trial3.dat', delimiter=''))
+force_bb_disp = (np.genfromtxt('force_trial5.dat', delimiter=''))
 force_bb_disp_int = sp.interpolate.interp1d(force_bb_disp[:,0], force_bb_disp[:,1], kind='cubic')(np.arange(0,t_end,dt))
     
 os.chdir(cwd)
@@ -230,39 +230,39 @@ else:  # variable d.r.
 #%%
 " NON-LINEAR TUNING of Ca2+ coefficients (depending on d.r.) "
 
-x = [10, 20, 30] # freqs.
-y_points = [0.7, 1.3, 1] # Ca scaling constants
+# x = [10, 20, 30] # freqs.
+# y_points = [0.7, 1.3, 1] # Ca scaling constants
 
-freq_sample = np.linspace(0, 35, len(time_dt))
-freq = 1/np.diff(disch) # calculate actual freq. (will be one sample less)
-Ca_coeffs = np.zeros((len(time_dt)), dtype=object) # allocation for Ca_coeffs
+# freq_sample = np.linspace(0, 35, len(time_dt))
+# freq = 1/np.diff(disch) # calculate actual freq. (will be one sample less)
+# Ca_coeffs = np.zeros((len(time_dt)), dtype=object) # allocation for Ca_coeffs
 
-if s == 0:   # for fixed freqs (first 3 trials)
-    freq_long = np.ones((len(time_dt)), dtype=object)*10 # preallocate elongated freqs
-elif s == 1: 
-    freq_long = np.ones((len(time_dt)), dtype=object)*20
-elif s == 2:
-    freq_long = np.ones((len(time_dt)), dtype=object)*30
-elif s > 2:    # if variable freqs (last 3 trials)
-    freq_long = np.zeros((len(time_dt)), dtype=object)
-    for z in range(len(pks)-1):    # for each peak (minus one)
-        for p in range(len(time_dt)):   # for each time sample
-            if p >= pks[z] and p < pks[z+1] and z < (len(pks)-1):   # in between two consecutive peaks..
-                freq_long[p] = freq[z] # assign frequency
-            elif p >= pks[len(pks)-1]: # only after the last peak..
-                freq_long[p] = freq[z]  # assign lest calculated frequency
+# if s == 0:   # for fixed freqs (first 3 trials)
+#     freq_long = np.ones((len(time_dt)), dtype=object)*10 # preallocate elongated freqs
+# elif s == 1: 
+#     freq_long = np.ones((len(time_dt)), dtype=object)*20
+# elif s == 2:
+#     freq_long = np.ones((len(time_dt)), dtype=object)*30
+# elif s > 2:    # if variable freqs (last 3 trials)
+#     freq_long = np.zeros((len(time_dt)), dtype=object)
+#     for z in range(len(pks)-1):    # for each peak (minus one)
+#         for p in range(len(time_dt)):   # for each time sample
+#             if p >= pks[z] and p < pks[z+1] and z < (len(pks)-1):   # in between two consecutive peaks..
+#                 freq_long[p] = freq[z] # assign frequency
+#             elif p >= pks[len(pks)-1]: # only after the last peak..
+#                 freq_long[p] = freq[z]  # assign lest calculated frequency
 
-pol = np.polyfit(x, y_points, 2)
-Ca_coeffs_sample = np.polyval(pol, freq_sample) # to visualize the fitting for coeffs evaluation
+# pol = np.polyfit(x, y_points, 2)
+# Ca_coeffs_sample = np.polyval(pol, freq_sample) # to visualize the fitting for coeffs evaluation
 
-# Assign Ca coefficients based on fitted curve (over 30Hz is always 1, while below 10Hz is 0.7)
-for p in range(len(time_dt)):
-    if freq_long[p] <= 30 and freq_long[p] >= 10:
-        Ca_coeffs[p] = np.polyval(pol, freq_long[p])  
-    elif freq_long[p] < 10:
-        Ca_coeffs[p] = 0.7
-    else:
-        Ca_coeffs[p] = 1
+# # Assign Ca coefficients based on fitted curve (over 30Hz is always 1, while below 10Hz is 0.7)
+# for p in range(len(time_dt)):
+#     if freq_long[p] <= 30 and freq_long[p] >= 10:
+#         Ca_coeffs[p] = np.polyval(pol, freq_long[p])  
+#     elif freq_long[p] < 10:
+#         Ca_coeffs[p] = 0.7
+#     else:
+#         Ca_coeffs[p] = 1
         
 #%%        
 # plt.rcParams['figure.dpi'] = 400
@@ -296,11 +296,11 @@ vmax = 10.5428*l_M_opt
 
 #ISOMETRIC CASE
 l_MT = np.zeros((len(time_dt)+1), dtype=object) 
-#l_MT = l_MT + l_MT_0
+l_MT = l_MT + l_MT_0
 
 #DYNAMIC CASE (displacement applied)
 #l_MT = l_MT_0 + (disp_1_int+8) # scaled MT length
-l_MT = l_MT_0 + (disp_2_int+8) # scaled MT length
+#l_MT = l_MT_0 + (disp_2_int+8) # scaled MT length
 
 #______________________________________________________________________________
 " ARRAYS PREALLOCATION "
@@ -425,7 +425,8 @@ figure(figsize=(7, 10))
 plt.subplot(3,1,1)
 plt.plot(time_dt, Tot_Muscle_force, 'r', label='Simulated Force')
 plt.plot(time_dt, force_bb_int, 'k', label='Exp. Force')
-plt.plot(time_dt, force_bb_disp_int, 'k--', label='Exp. Force')
+plt.plot(disch, force_bb_int[pks], 'k*', linewidth = 5)
+#plt.plot(time_dt, force_bb_disp_int, 'k--', label='Exp. Force')
 plt.ylabel('Force [N]', weight='bold')
 plt.legend(loc='lower right')
 plt.grid()

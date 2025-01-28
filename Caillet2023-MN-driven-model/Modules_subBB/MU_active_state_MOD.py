@@ -20,7 +20,7 @@ def MU_active_state_func(t, Ca, act, Y):
     amin = 1*10**-9
     ac = (act - amin)/(1 - amin)
     
-    n = 2.5  # species & exp conitions dependent parameter
+    n = 2.5  # species & exp conditions dependent parameter
     
     if Ca > ac:
         K = 15.79  # 15.79

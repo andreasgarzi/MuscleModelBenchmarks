@@ -51,8 +51,7 @@ def MU_free_Ca_ODE_func(t, l_M_norm, MU_type, beta, gamma,  dgammadt):
     
     
     if MU_type == 'slow':
-        #DDgammaDDt = c_3*beta*Ca_coeffs[int(t/dt)] - 1/amp*(c_1*dgammadt + width*c_2*gamma)   # #Actual 2nd ord. ODE
-        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma)   
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma)   # #Actual 2nd ord. ODE
     elif MU_type == 'fast':
         c_2 = c_2*(gamma*10**5)
         DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) 
