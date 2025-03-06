@@ -18,8 +18,6 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type, vmax):
         kMU = 0.5
     elif MU_type == 'fast':
         kMU = 1
-
-    #fv = 1
     
     fv = 0.9 + 0.1*act
     
@@ -27,12 +25,11 @@ def velo_fFV(t, y, CE_force, FL_force, act, l_M, MU_type, vmax):
         g = FL_force
     else:
         g = 1
-    #g = 1
         
     if MU_type == 'slow':
         af = 0.17 # the lower the lower the inferior limit
     elif MU_type == 'fast':
-        af = 0.8
+        af = 0.34
         
     b = (fmax - 1)/(2 + 2/af)
     K = (kMU*fv*g)

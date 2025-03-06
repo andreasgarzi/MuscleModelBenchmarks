@@ -12,8 +12,17 @@ Please see manuscript (Methods) for details.
 
 """
 
-def MU_type_id_func(i):
-    if i < 3: MU_type='slow' # 85 % slow MUs (reference is for TA human muscle, to be corrected)
-    else: MU_type='fast'
+def MU_type_id_func(i, Nr, muscle):
+    
+    if muscle == 'TA':
+        if i/Nr < 0.9: 
+            MU_type='slow' # TA
+        else: MU_type='fast'
+        
+    elif muscle == 'GM' :
+        if i/Nr < 0.75: 
+            MU_type='fast' # GM
+        else: MU_type='slow'
+    
 
     return MU_type

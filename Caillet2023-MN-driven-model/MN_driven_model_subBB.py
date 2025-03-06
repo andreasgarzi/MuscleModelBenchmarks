@@ -8,13 +8,6 @@ ___________________________________
 MN-driven model with SE and PEE adapted for BB tests of Millard et. al 2023
 """
 
-""" D.r. preset """
-s = 5
-
-""" Saving the simulations (y/n)? """
-save = 'n'
-
-#%%
 import sys
 sys.path.insert(0,'Modules_subBB')
 import os
@@ -42,6 +35,38 @@ from MU_free_Ca_MOD import MU_free_Ca_func
 from MU_active_state_MOD import MU_active_state_func
 from Force_Length_MOD import Force_Length_func
 from F0MU_distrib_MOD import F0MU_distrib_func
+
+#%%
+
+""" D.r. preset """
+s = 4
+
+os.chdir('C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\pyHatze\\Caillet2023-MN-driven-model\\Stimulation_inputs')
+
+if s == 0:
+    pks = np.load('10_c_index.npy')
+    disch = np.load('10_c_times.npy')
+elif s == 1:
+    pks = np.load('20_c_index.npy')
+    disch = np.load('20_c_times.npy')
+elif s == 2:
+    pks = np.load('30_c_index.npy')
+    disch = np.load('30_c_times.npy')
+elif s == 3:
+    pks = np.load('10_v_index.npy')
+    disch = np.load('10_v_times.npy')
+elif s == 4:
+    pks = np.load('20_v_index.npy')
+    disch = np.load('20_v_times.npy')
+elif s == 5:
+    pks = np.load('30_v_index.npy')
+    disch = np.load('30_v_times.npy')   
+
+os.chdir(cwd)
+
+
+""" Saving the simulations (y/n)? """
+save = 'n'
 
 #%%
 " Load time, displacement and force form BB tests, create virtual MU spikes "
@@ -104,81 +129,79 @@ force_bb_int = force_bb_int[0:(int(t_end/dt))] # make force vector length 20000 
 
 #%% 
 
-"Manual D.R. Selection, (for variable d.r. trials)"    
-if s > 2:
-    pks_d, _ = find_peaks(-force_bb_diff, distance = 100) # force derivative peaks
-    pks_f, _ = find_peaks(-force_bb_int, distance = 200)  # force peaks
+# "Manual D.R. Selection, (for variable d.r. trials)"    
+# if s > 2:
+#     pks_d, _ = find_peaks(-force_bb_diff, distance = 100) # force derivative peaks
+#     pks_f, _ = find_peaks(-force_bb_int, distance = 200)  # force peaks
 
-    pks_d = pks_d.tolist()
-    pks_f = pks_f.tolist()
-elif s <= 2:
-    pks, _ = find_peaks(-force_bb_diff, distance = 200) # force derivative peaks
-    #pks, _ = find_peaks(-force_bb_int, distance = 200)  # force peaks
+#     pks_d = pks_d.tolist()
+#     pks_f = pks_f.tolist()
+# elif s <= 2:
+#     pks, _ = find_peaks(-force_bb_diff, distance = 200) # force derivative peaks
+#     #pks, _ = find_peaks(-force_bb_int, distance = 200)  # force peaks
 
 
-# to be maually merged...
-if s == 3:
-    # Create a list of arrays to concatenate
-    pks = pks_f[3:12]
-    pks[0] = 1070
-    pks_d[3] = 1600
-    pks_d[5] = 3040
-    pksadd1 = 12400
-    pksadd2 = 12650
-    pksadd3 = 13050
-    pks.append(pksadd1)
-    pks.append(pksadd2)
-    pks.append(pksadd3)
-    for i in [3, 5]:
-        pks.append(pks_d[i])
-    pks = np.sort(pks)    
-elif s == 4:
-    # Create a list of arrays to concatenate
-    pks = pks_f[3:13]
-    pks.append(pks_f[15])
-    pks.append(pks_f[16])
-    pks.append(pks_f[17])
-    pks.append(pks_f[19])
-    pksadd = 11070
-    pks.append(pksadd)
-    for i in [34, 36, 38, 39, 45, 64]:
-        pks.append(pks_d[i])
+# # to be maually merged...
+# if s == 3:
+#     # Create a list of arrays to concatenate
+#     pks = pks_f[3:12]
+#     pks[0] = 1070
+#     pks_d[3] = 1600
+#     pks_d[5] = 3040
+#     pksadd1 = 12400
+#     pksadd2 = 12650
+#     pksadd3 = 13050
+#     pks.append(pksadd1)
+#     pks.append(pksadd2)
+#     pks.append(pksadd3)
+#     for i in [3, 5]:
+#         pks.append(pks_d[i])
+#     pks = np.sort(pks)    
+# elif s == 4:
+#     # Create a list of arrays to concatenate
+#     pks = pks_f[3:13]
+#     pks.append(pks_f[15])
+#     pks.append(pks_f[16])
+#     pks.append(pks_f[17])
+#     pks.append(pks_f[19])
+#     pksadd = 11070
+#     pks.append(pksadd)
+#     for i in [34, 36, 38, 39, 45, 64]:
+#         pks.append(pks_d[i])
     
-    pks = np.sort(pks)   
-elif s == 5:
-    # Create a list of arrays to concatenate
-    pks = pks_f[4:13]
-    pks.append(pks_f[15])
-    pks.append(pks_f[16])
-    pks.append(pks_f[18])
-    for i in [8, 10, 12, 13, 14, 17, 18, 20, 27, 28, 30, 32, 38, 43, 45, 48, 54, 56, 59, 62, 67, 70, 73, 75, 77, 79]:
-        pks.append(pks_d[i]) # not sure about 20, 37, 68, 69
-    pks = np.sort(pks) 
+#     pks = np.sort(pks)   
+# elif s == 5:
+#     # Create a list of arrays to concatenate
+#     pks = pks_f[4:13]
+#     pks.append(pks_f[15])
+#     pks.append(pks_f[16])
+#     pks.append(pks_f[18])
+#     for i in [8, 10, 12, 13, 14, 17, 18, 20, 27, 28, 30, 32, 38, 43, 45, 48, 54, 56, 59, 62, 67, 70, 73, 75, 77, 79]:
+#         pks.append(pks_d[i]) # not sure about 20, 37, 68, 69
+#     pks = np.sort(pks) 
     
-if s == 5:
-    pks[37] = 15000
+# if s == 5:
+#     pks[37] = 15000
     
 #%%    
-"Only for the first 3 trials"
-if s < 3:
-    disch_start = 0
-    for i in range (len(pks)-1):  # select only actual discharge times
-        if force_bb_int[pks[i+1]] > 0.1 and disch_start == 0:   # select first discharge (when next force sample is positive)
-            disch_start = i 
+# "Only for the first 3 trials"
+# if s < 3:
+#     disch_start = 0
+#     for i in range (len(pks)-1):  # select only actual discharge times
+#         if force_bb_int[pks[i+1]] > 0.1 and disch_start == 0:   # select first discharge (when next force sample is positive)
+#             disch_start = i 
         
-        elif force_bb_diff[pks[i]] == min(force_bb_diff[pks]):   # select last discharge (min. of differentiated signal)
-            if s == 1:
-                disch_end = i
-            elif s == 2:
-                disch_end = i
-            elif s == 0:
-                disch_end = len(pks) - 6 # manual selection for now
+#         elif force_bb_diff[pks[i]] == min(force_bb_diff[pks]):   # select last discharge (min. of differentiated signal)
+#             if s == 1:
+#                 disch_end = i
+#             elif s == 2:
+#                 disch_end = i
+#             elif s == 0:
+#                 disch_end = len(pks) - 6 # manual selection for now
             
-    pks = pks[disch_start:disch_end] # actual discharge times indeces selected
+#     pks = pks[disch_start:disch_end] # actual discharge times indeces selected
 
-#%%
-# PLOTS
-    
+#%%    
 # plt.rcParams['figure.dpi'] = 400
 # #figure(figsize=(10, 5))
 # #plt.subplot(4,1,1) # plot interpolated force
@@ -206,81 +229,26 @@ if s < 3:
 #%%
 " CREATE D.R. ARRAY "
 
-if s < 3: # fixed d.r.
-    " Based on predefined d.r. "
-    if s == 0:  # w adjusts for electrophysiological delays
-        w = 220
-    elif s == 1 or s == 2:
-        w = 100
+# if s < 3: # fixed d.r.
+#     " Based on predefined d.r. "
+#     if s == 0:  # w adjusts for electrophysiological delays
+#         w = 220
+#     elif s == 1 or s == 2:
+#         w = 100
         
-    disch = np.arange(time_dt[pks[0] + w], time_dt[pks[len(pks)-1] + w], T) # create array of discharge times 
-    sp_matrix = np.empty((Nr, len(disch)), dtype=float)
-    for i in range(Nr):   # append Nr times
-        sp_matrix[i] = disch
+#     disch = np.arange(time_dt[pks[0] + w], time_dt[pks[len(pks)-1] + w], T) # create array of discharge times 
+#     sp_matrix = np.empty((Nr, len(disch)), dtype=float)
+#     for i in range(Nr):   # append Nr times
+#         sp_matrix[i] = disch
 
         
-else:  # variable d.r.
-    " Based on peaks "
-    sp_matrix = np.zeros((Nr, len(pks)), dtype=float)
-    disch = time_dt[pks]
-    for i in range(Nr):  # append Nr times
-        sp_matrix[i] = disch
-
- 
-#%%
-" NON-LINEAR TUNING of Ca2+ coefficients (depending on d.r.) "
-
-# x = [10, 20, 30] # freqs.
-# y_points = [0.7, 1.3, 1] # Ca scaling constants
-
-# freq_sample = np.linspace(0, 35, len(time_dt))
-# freq = 1/np.diff(disch) # calculate actual freq. (will be one sample less)
-# Ca_coeffs = np.zeros((len(time_dt)), dtype=object) # allocation for Ca_coeffs
-
-# if s == 0:   # for fixed freqs (first 3 trials)
-#     freq_long = np.ones((len(time_dt)), dtype=object)*10 # preallocate elongated freqs
-# elif s == 1: 
-#     freq_long = np.ones((len(time_dt)), dtype=object)*20
-# elif s == 2:
-#     freq_long = np.ones((len(time_dt)), dtype=object)*30
-# elif s > 2:    # if variable freqs (last 3 trials)
-#     freq_long = np.zeros((len(time_dt)), dtype=object)
-#     for z in range(len(pks)-1):    # for each peak (minus one)
-#         for p in range(len(time_dt)):   # for each time sample
-#             if p >= pks[z] and p < pks[z+1] and z < (len(pks)-1):   # in between two consecutive peaks..
-#                 freq_long[p] = freq[z] # assign frequency
-#             elif p >= pks[len(pks)-1]: # only after the last peak..
-#                 freq_long[p] = freq[z]  # assign lest calculated frequency
-
-# pol = np.polyfit(x, y_points, 2)
-# Ca_coeffs_sample = np.polyval(pol, freq_sample) # to visualize the fitting for coeffs evaluation
-
-# # Assign Ca coefficients based on fitted curve (over 30Hz is always 1, while below 10Hz is 0.7)
-# for p in range(len(time_dt)):
-#     if freq_long[p] <= 30 and freq_long[p] >= 10:
-#         Ca_coeffs[p] = np.polyval(pol, freq_long[p])  
-#     elif freq_long[p] < 10:
-#         Ca_coeffs[p] = 0.7
-#     else:
-#         Ca_coeffs[p] = 1
-        
-#%%        
-# plt.rcParams['figure.dpi'] = 400
-# #figure(figsize=(7, 7))
-
-# # plt.subplot(2,1,1)
-# plt.plot(freq_sample[5714:17142], Ca_coeffs_sample[5714:17142], 'k')
-# plt.ylabel('C3 scaling coeff. (Ca2+)', weight = 'bold')
-# plt.xlabel('D.r. [Hz]', weight = 'bold')
-# plt.xlim([0, 40])
-# plt.grid()
-
-# plt.subplot(2,1,2)
-# plt.plot(time_dt, Ca_coeffs, 'r')
-# plt.xlabel('Time [s]', weight = 'bold')
-# plt.ylabel('Ca scaling coeffs.', weight = 'bold')
-# plt.grid()    
-
+# else:  # variable d.r.
+#     " Based on peaks "
+#     sp_matrix = np.zeros((Nr, len(pks)), dtype=float)
+#     disch = time_dt[pks]
+#     for i in range(Nr):  # append Nr times
+#         sp_matrix[i] = disch
+           
 #%%
 " LENGTH & DISPLACEMENT PARAMETERS "
 
@@ -317,12 +285,16 @@ F_M = np.empty((Nr,len(time_dt)), dtype=object) # force from FV relationship
 
 l_M = np.empty((Nr, len(time_dt)), dtype=object) # MUs length in time
 active_state = np.empty((Nr, len(time_dt)), dtype=object) # active state
-#MUAP_nerve = np.empty((Nr, len(time_dt)), dtype=object) # MU AP nerve signal
+MUAP_nerve = np.empty((Nr, len(time_dt)), dtype=object) # MU AP nerve signal
 free_Ca = np.empty((Nr, len(time_dt)), dtype=object) # free [Ca] course
 yielding = np.empty((Nr, len(time_dt)), dtype=object) # yieldin coeff.
 
 #______________________________________________________________________________
 " RUNNING THE MN-DRIVEN MODEL FOR ALL FIRING MUS USED AS INPUTS "
+
+sp_matrix = np.empty((Nr, len(disch)), dtype=float)
+for i in range(Nr):  # append Nr times
+    sp_matrix[i] = disch
 
 print('There are ', Nr, ' discharging MUs in this simulation.')
 F0MU_distribution = F0MU_distrib_func(Nr, muscle_F0M) # F0MU distribution across the sample of MUs
@@ -366,7 +338,7 @@ for i in range (Nr):  # ...for each considered i-th MU
     
     active_state[i,:] = sol.y[4]  # get active state
     l_M[i,:] = sol.y[5]  # get l_M
-    free_Ca[i,:] = sol.y[2] # get free [Ca]
+    #free_Ca[i,:] = sol.y[2] # get free [Ca]
     yielding[i,:] = sol.y[6] # get yielding coeff.
    
     # now recalculate data based on l_M values..
@@ -383,41 +355,14 @@ for i in range (Nr):  # ...for each considered i-th MU
         
         alpha[i,l+1] = penn_ang(l_MT[l+1], l_M[i,l], l_T[i,l], l_M_opt, alpha_0) # update pennation angle 
       
-#MU_Force_list = active_state*CE_force + PE_force
 MU_Force_list = yielding*active_state*CE_force + PE_force
 
 F_MU_list = F0MU_distribution[0:Nr,:] * MU_Force_list # Newtons
 Tot_Muscle_force = F_MU_list.sum(axis=0) # Total muscle force (in Newton)
     
 
-#%% 
-"SENSITIVITY functions and symbolic INTEGRAL EXPRESSION"
-
-# plt.rcParams['figure.dpi'] = 400
-# figure(figsize=(12, 8))
-# plt.subplot(1,2,1) 
-# ddadt_dCa = (active_state + 15)/(5.4 * 10**-6)
-# plt.plot(free_Ca[0,:], ddadt_dCa[0,:], '--k')
-
-# # plt.subplot(1,2,2) # plot interpolated force
-# # ddadt_dact = (free_Ca - 2 * active_state - 15)/(1 - 1*10**-9)
-# # plt.plot(active_state[0,:], ddadt_dact[0,:], '--g')
-
-# plt.subplot(1,2,2)
-# ddadt_dK = (free_Ca - active_state)
-# plt.plot(time_dt, ddadt_dK[0,:], '--g')
-
-# from sympy import *
-# from IPython.display import display
-
-# beta, t, amp, width, gamma = symbols('beta t amp width gamma')
-# c1, c2, c3 = 2.5*10.**3, 1.8*10.**5, 0.6
-
-# expr = c3*beta - 1/amp*(c1*1 + c2*width*gamma)
-# display(integrate(integrate(expr, gamma), gamma))
-
 #%%
-# " Visual validation "
+" Visual validation "
 
 plt.rcParams['figure.dpi'] = 400
 figure(figsize=(7, 10))
@@ -426,7 +371,7 @@ plt.subplot(3,1,1)
 plt.plot(time_dt, Tot_Muscle_force, 'r', label='Simulated Force')
 plt.plot(time_dt, force_bb_int, 'k', label='Exp. Force')
 plt.plot(disch, force_bb_int[pks], 'k*', linewidth = 5)
-#plt.plot(time_dt, force_bb_disp_int, 'k--', label='Exp. Force')
+# plt.plot(time_dt, force_bb_disp_int, 'k--', label='Exp. Force')
 plt.ylabel('Force [N]', weight='bold')
 plt.legend(loc='lower right')
 plt.grid()
@@ -441,12 +386,12 @@ plt.plot(time_dt, (free_Ca[0,:]*10**6), 'g')
 
 pks_Ca, _ = find_peaks(free_Ca[0,:], distance = 200)
 pks_Ca_mol = free_Ca[0,pks_Ca]
-max_Ca_pk = np.max(pks_Ca_mol)
-#plt.plot(time_dt[pks_Ca], free_Ca[0,pks_Ca]*10**6, 'r*')
+# max_Ca_pk = np.max(pks_Ca_mol)
+# plt.plot(time_dt[pks_Ca], free_Ca[0,pks_Ca]*10**6, 'r*')
 
 plt.ylabel('Trans. [$Ca^{2+}$] [$\mu$M]', weight='bold')
 plt.grid()
-#plt.xlabel('Time [s]', weight='bold')  
+# plt.xlabel('Time [s]', weight='bold')  
 
 # plt.subplot(4,1,4) # plot force first derivative
 # plt.plot(time_dt, Ca_Tn[0,:]*10**6, 'm')       

@@ -14,9 +14,6 @@ Activation-dependent FL relaitonship, fitted on human sarcomere data (Gollapudi 
 import numpy as np
 def Force_Length_func(X, active_state):
     
-    # if active_state < 0 or np.isnan(active_state) == True:
-    #         active_state = 1*10**-9
-    
     a = 0.45
     b = (0.15*(1-active_state))+1
     return np.exp(-((X-b)/a)**2)

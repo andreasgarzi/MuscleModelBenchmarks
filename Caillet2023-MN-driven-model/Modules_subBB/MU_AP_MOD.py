@@ -21,5 +21,6 @@ def MU_AP_func(t, y, Matrix_AP):
     beta = y[0] 
     dbetadt = y[1]
     DDbetaDDt = MU_AP_ODE_func(t-MAP_delay, Matrix_AP, beta, dbetadt) #Actual 2nd ord. ODE
+    
     return dbetadt, DDbetaDDt
  

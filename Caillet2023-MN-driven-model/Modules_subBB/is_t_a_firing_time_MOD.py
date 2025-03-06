@@ -18,4 +18,5 @@ def is_t_a_firing_time_func(t_round, Matrix_AP, chosen_precision):
         binary=1
     else:
         binary=0
+        
     return binary

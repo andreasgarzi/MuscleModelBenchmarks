@@ -18,8 +18,6 @@ def f_fFV(v_M, FL_force, act, l_M, MU_type):
         kMU = 0.5
     elif MU_type == 'fast':
         kMU = 1
-
-    #fv = 1
     
     fv = 0.8 + 0.2*act
     
@@ -27,7 +25,6 @@ def f_fFV(v_M, FL_force, act, l_M, MU_type):
         g = FL_force
     else:
         g = 1
-    #g = 1
         
     if MU_type == 'slow':
         af = 0.17 # the lower the lower the inferior limit
@@ -39,7 +36,6 @@ def f_fFV(v_M, FL_force, act, l_M, MU_type):
     
     if v_M < -1:
         fvel = 1/(1 - (v_M/(af*K)))
-        #fv = 0
     if v_M >= -1 and v_M < 0:
         fvel = 1/(1 - (v_M/(af*K)))
     elif v_M >= 0:

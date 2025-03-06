@@ -256,7 +256,7 @@ cg4 = get_color_gradient(c7, c8, 5)
 #%%
 """ Extract experimental digitized data from Rincon 2021 """
 
-os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code") # max activation BB dir path
+os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Digitized_Hollingworth_Rincon_Ca") # max activation BB dir path
 
 path_slow = "slow_23_mouse_100hz_spaceseparator.csv"  #.csv files locations
 path_fast = "fast_23_mouse_100hz_spaceseparator.csv"
@@ -347,28 +347,28 @@ plt.show()
 
 #%%
 
-cwd = os.getcwd()
-os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation")
-#os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
-force_sample = np.empty((3, len(time_dt)), dtype=object)
+# cwd = os.getcwd()
+# os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation")
+# #os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
+# force_sample = np.empty((3, len(time_dt)), dtype=object)
 
-force_sample1 = (np.genfromtxt('force_forcedot_trial1.dat', delimiter=''))
-force_sample2 = (np.genfromtxt('force_forcedot_trial2.dat', delimiter=''))
-force_sample3 = (np.genfromtxt('force_forcedot_trial3.dat', delimiter=''))
+# force_sample1 = (np.genfromtxt('force_forcedot_trial1.dat', delimiter=''))
+# force_sample2 = (np.genfromtxt('force_forcedot_trial2.dat', delimiter=''))
+# force_sample3 = (np.genfromtxt('force_forcedot_trial3.dat', delimiter=''))
 
-os.chdir(cwd)
+# os.chdir(cwd)
 
-plt.rcParams['figure.dpi'] = 360
-figure(figsize=(10, 8))
-plt.plot(force_sample1[:,0], force_sample1[:,1], color=cg1[0], label='d.r. = 10Hz')
-plt.plot(force_sample2[:,0], force_sample2[:,1], color=cg1[1], label='d.r. = 20Hz')
-plt.plot(force_sample3[:,0], force_sample3[:,1], color=cg1[2], label='d.r. = 30Hz')
+# plt.rcParams['figure.dpi'] = 360
+# figure(figsize=(10, 8))
+# plt.plot(force_sample1[:,0], force_sample1[:,1], color=cg1[0], label='d.r. = 10Hz')
+# plt.plot(force_sample2[:,0], force_sample2[:,1], color=cg1[1], label='d.r. = 20Hz')
+# plt.plot(force_sample3[:,0], force_sample3[:,1], color=cg1[2], label='d.r. = 30Hz')
 
-plt.ylabel('Force [N]', weight='bold', fontsize=17)
-plt.xlabel('Time [s]', weight='bold', fontsize=17)
-plt.legend(loc='lower right', fontsize=17)
-#plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
-plt.grid()
+# plt.ylabel('Force [N]', weight='bold', fontsize=17)
+# plt.xlabel('Time [s]', weight='bold', fontsize=17)
+# plt.legend(loc='lower right', fontsize=17)
+# #plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
+# plt.grid()
 
 
 #%% Visual validation
