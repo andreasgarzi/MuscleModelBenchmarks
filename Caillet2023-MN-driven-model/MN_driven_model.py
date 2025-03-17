@@ -6,6 +6,8 @@ University of New South Wales, GSBE
 Created on Tue Jan 28 15:33:16 2025
 ___________________________________
 
+MN-driven model based on Caillet et al. 2023 for simulating isometric and dynamic muscle contractions.
+
 """
 
 import numpy as np
@@ -27,15 +29,33 @@ class MN_driven_model():
         else:
             self.distimes = distimes  # Use provided discharges
         
+        # Assign attributes from input dictionary
+        self.time = self.P['time']
+        self.dt = self.P['dt']
+        self.muscle = self.P['muscle']
+        self.species = self.P['species']
+        self.MVC = self.P['MVC']
+        self.path = self.P['path']
+        self.Nr = self.P['Nr'] # Number of identified motor units
+        self.MN_pool = self.P['MN_pool'] # Number of theoretical MNs in the muscle pool
+        self.vmax = self.P['vmax']
+        self.alpha_0 = self.P['alpha_0']
+        self.spread = self.P['spread']
+        self.l_MT = np.zeros(len(self.time) + 1)  # Initialize l_MT
+        self.l_MT[:] = self.P['l_MT_0'] # Set MT lengths
+        self.l_M_0 = self.P['l_M_0']
+        self.l_M_opt = self.P['l_M_opt']
+        self.l_T_slack = self.P['l_T_slack']
+        
         # Sort MUs according to recruitment   
         sorted_indices = np.argsort([self.distimes[0, i][0, 0] for i in range(np.size(self.distimes, axis=1))])
         self.distimes = self.distimes[:, sorted_indices]
             
-        self.time = self.P['time']    
-        self.Nr = self.P['Nr'] # Number of motor units
-        self.l_MT = np.zeros(len(self.time) + 1)  # Initialize l_MT
-        self.l_MT[:] = self.P['l_MT_0'] # Set MT lengths
-
+        # Extract Fth recruitment in % of MVC (first discharge indeces)
+        self.F_thr = np.empty((self.Nr))
+        for f in range(np.size(self.distimes, axis=1)):
+            self.F_thr[f] = self.path[0, self.distimes[0, f][0, 0]]*100 
+        
         # Preallocate output arrays 
         self.initialize_arrays()
         
@@ -61,44 +81,82 @@ class MN_driven_model():
     
     def MU_type_id_func(self, i):
     
-        if self.P['muscle'] == 'TA':
+        if self.muscle == 'TA':
             if i/self.Nr < 0.9:
                 MU_type='slow' # TA
-            else: MU_type='fast'
-        
-        elif self.P['muscle'] == 'GM':
-            if i/self.Nr < 0.75:
-                MU_type='fast' # GM
-            else: MU_type='slow'
+            else: 
+                MU_type='fast'
+        elif self.muscle == 'GM':
+            if i/self.Nr < 0.5:
+                MU_type='slow' # GM
+            else: 
+                MU_type='fast'
     
         return MU_type
     
     
     " Distribution of force with MU recruitment (TA) "
     
-    def Fth_distrib_func(self, MN): 
-        return 0.5052*(58.1*MN/self.Nr+120**((MN/self.Nr)**1.83)) 
+    def Fth_distrib_func(self, MN):  #Obtained from processed literature data, typical muscle-specific distributions of MU force recruitment thresholds (%MVC)
+        if self.muscle == 'TA':
+            return 0.5052*(58.1*MN/self.MN_pool+120**((MN/self.MN_pool)**1.83)) 
+        elif self.muscle == 'GM':
+            return 0.6562*(46.7*MN/self.MN_pool+90**((MN/self.MN_pool)**1.79))
 
     def F0MU_norm_distrib_func(self, MN): 
-        return 7.86*10**-4*(3.0*MN/self.Nr+8.20**((MN/self.Nr)**5.29))    
+        return 7.86*10**-4*(3.0*MN/self.MN_pool+8.20**((MN/self.MN_pool)**5.29))    
         
     def Ftw_norm_distrib_func(self, MN): 
-        return 6.07*(4.52*MN/self.Nr+11.96**((MN/self.Nr)**4.66))  
+        return 6.07*(4.52*MN/self.MN_pool+11.96**((MN/self.MN_pool)**4.66))  
     
     def F0MU_distrib_func(self):
         
-        MU_pool_list = np.arange(1, self.Nr+1, 1) #list of all TA MUs = 1:1:N(400)
+        MU_list_identified = np.arange(1, self.Nr+1, 1) #list of identified MUs = 1:1:Nr
+        MU_pool_list = np.arange(1, self.MN_pool+1, 1) #list of all TA MUs = 1:1:N(400)
         
         #### Let's scale the normalized distribution of MU F0MU (from literature) to Newtons
         # Let's compute the sum of the normalized F0MU(i)
         cumulative_all_MUs = sum(self.F0MU_norm_distrib_func(MU_pool_list))
         # Obtaining, using the subject-specific F0M, the N-% relationship
-        scale_factor = self.P['MVC']/cumulative_all_MUs
+        scale_factor = self.MVC/cumulative_all_MUs
+
         # and scaling the normalized distribution of F0MU 
         F0MU_distribution_complete_MU_pool = self.F0MU_norm_distrib_func(MU_pool_list) * scale_factor
+    
+        F0MU_distribution = np.empty(self.Nr)
+        last_recruited_MU = np.argwhere(self.Fth_distrib_func(MU_pool_list) < self.MVC)[-1][0]+1 #finding it with MVC value only. 'Blind' approach
         
-        F0MU_distribution = F0MU_distribution_complete_MU_pool[0:self.Nr]
-        F0MU_distribution = np.reshape(F0MU_distribution, (self.Nr, 1))
+        if self.spread == 'evenly': #easy approach: assuming the Nr identified MUs are evenly spread across the MU pool
+            MU_list_identified = MU_list_identified * last_recruited_MU//self.Nr #Evenly spreading the Nr MUs across the MU pool
+        elif self.spread == 'identified': #the identified MUs are here located into the MU pool according to their experimental Fth
+            Real_MN_pop = np.zeros(self.Nr)
+            
+            for i in range (self.Nr):
+                Real_MN_pop[i] = (np.abs(self.Fth_distrib_func(MU_pool_list) - self.F_thr[i])).argmin() #looking for the closest match between typical and experimental %MVC recruitment threshold
+             
+            Real_MN_pop = Real_MN_pop.astype(int)
+            MU_list_identified = Real_MN_pop # is the list of indices of location of each MU within the pool (from the Fth distribution with the MN_distribution_MOD.py function)       
+
+        # Here, each of the Nr identified MUs is consisdered to be representative of a fraction of the MUs of the MU pool, and of their summed F0Mu
+        # Basically, you are summing all F0MU in a average symmetric contour around the ith MU within the F0MU distribution (compensating for two-times-counted MUs, due to not always ascending indices of MUs within the whole pool)
+        for i in range(0, len(MU_list_identified)):
+            if i == 0 : 
+                index_min = 0
+            else: 
+                index_min = int(MU_list_identified[i-1] + abs(MU_list_identified[i]-MU_list_identified[i-1])/2) +1
+            if i == len(MU_list_identified)-1 : 
+                index_max = last_recruited_MU +1
+            else: 
+                index_max = int(MU_list_identified[i] + abs(MU_list_identified[i+1]-MU_list_identified[i])/2)
+           
+            if index_max<index_min:   #because of this, some MUs may be counted two times. In such case, the sum of F0Ms must be scaled back to true value (see below)
+                index_max = index_min 
+            
+            F0MU_distribution[i] = sum(F0MU_distribution_complete_MU_pool[index_min : index_max+1])
+        
+        F0MU_distribution = F0MU_distribution / sum(F0MU_distribution) * sum(F0MU_distribution_complete_MU_pool[0:last_recruited_MU]) #in case some MUs have been counted twice, you normalize for the "affected cumulative value" and un-normalize back with respect to the "correct" cumulative value
+
+        F0MU_distribution = np.reshape(F0MU_distribution, (self.Nr,1))
 
         return F0MU_distribution
 
@@ -107,13 +165,14 @@ class MN_driven_model():
 
     def T_force(self, eps):
         
-        if self.P['species'] == 'animal':
+        if self.species == 'animal':
             eps_0 = 0.055 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
-        elif self.P['species'] == 'human':
-            eps_0 = 0.043
+            klin = 1.212/eps_0 
+        elif self.species == 'human':
+            eps_0 = 0.033
+            klin = 1.712/eps_0 
             
         eps_toe = 0.609*eps_0
-        klin = 1.212/eps_0 
         F_toe = 0.33
         k_toe = 3
             
@@ -256,15 +315,18 @@ class MN_driven_model():
 
     " Active state "
     
-    def MU_active_state_func(self, t, Ca, act, Y, species):
+    def MU_active_state_func(self, t, Ca, act, Y):
         
         amin = 1*10**-9
         ac = (act - amin)/(1 - amin)
     
-        if species == 'human':
-            Ca = Ca/(5*10**-5) # Ca normalisation
-            n = 1  # species & exp conditions dependent parameter 
-        elif species == 'animal':
+        if self.species == 'human' and self.muscle == 'TA':
+            Ca = Ca/(4*10**-5) # Ca normalisation
+            n = 3  # species & exp conditions dependent parameter 
+        elif self.species == 'human' and self.muscle == 'GM':
+            Ca = Ca/(1.4*10**-5) # Ca normalisation
+            n = 3  # species & exp conditions dependent parameter 
+        elif self.species == 'animal':
             Ca = Ca/(9*10**-6) 
             n = 2.5
             
@@ -353,7 +415,7 @@ class MN_driven_model():
             MU_type = self.MU_type_id_func(i)  # i-th MU type identification (fast/slow)
             Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
 
-            def ODE_system(t, y, l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha, vmax, species):
+            def ODE_system(t, y, l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha, vmax):
             
                 if int(t/dt) == 0:        # initial pennation angle
                     alpha[int(t/dt)] = alpha_0
@@ -368,7 +430,7 @@ class MN_driven_model():
 
                 dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, y[5]/l_M_opt, MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
 
-                dadt = self.MU_active_state_func(t, y[2], y[4], y[6], species) # Active state
+                dadt = self.MU_active_state_func(t, y[2], y[4], y[6]) # Active state
 
                 FL = self.Force_Length_func(y[5]/l_M_opt, y[4]) # F-L relationship    
 
@@ -379,29 +441,33 @@ class MN_driven_model():
                 return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt, dldt, dY]
 
 
-            y0 = [0, 0, 0, 0, 1*10**-9, self.P['l_M_opt'], 1]  # set initial states
-            p = (self.l_MT, self.P['l_M_0'], self.P['l_M_opt'], self.P['l_T_slack'], Matrix_AP, MU_type, self.P['alpha_0'], self.P['dt'], self.alpha[i,:], self.P['vmax'], self.P['species'])  # set ODE parameters
-            sol = solve_ivp(ODE_system, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.P['dt']/4)  # solve IVP
+            y0 = [0, 0, 0, 0, 1*10**-9, self.l_M_opt, 1]  # set initial states
+            p = (self.l_MT, self.l_M_0, self.l_M_opt, self.l_T_slack, Matrix_AP, MU_type, self.alpha_0, self.dt, self.alpha[i,:], self.vmax)  # set ODE parameters
+            sol = solve_ivp(ODE_system, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
 
+            self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
             self.active_state[i,:] = sol.y[4]  # get active state
             self.l_M[i,:] = sol.y[5]  # get l_M
-            self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
             self.yielding[i,:] = sol.y[6]  # get yielding coeff.
 
             # now recalculate data based on l_M values..
-            self.alpha[i,0] = self.P['alpha_0']
+            self.alpha[i,0] = self.alpha_0
             for l in range(len(self.time)):
                 self.l_T[i,l] = self.l_MT[l] - (self.l_M[i,l])*np.cos(self.alpha[i,l]) # tendon length
-                self.eps_T[i,l] = (self.l_T[i,l] - self.P['l_T_slack'])/self.P['l_T_slack'] # new tendon strain    
+                self.eps_T[i,l] = (self.l_T[i,l] - self.l_T_slack)/self.l_T_slack # new tendon strain    
                 self.SE_force[i,l] = self.T_force(self.eps_T[i,l]) # tendon force
-                self.PE_force[i,l] = self.PEE_force(self.l_M[i,l]/self.P['l_M_opt']) # passive el. force 
+                self.PE_force[i,l] = self.PEE_force(self.l_M[i,l]/self.l_M_opt) # passive el. force 
                 self.CE_force[i,l] = self.SE_force[i,l]/np.cos(self.alpha[i,l]) - self.PE_force[i,l] # contractile element force
                     
-                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.P['l_M_opt'], self.P['alpha_0']) # update pennation angle
-
-        MU_Force_list = self.yielding * self.active_state * self.CE_force + self.PE_force
-        F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # Newtons
-        Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in Newton)
+                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
+        
+        if MU_type == 'slow': # yielding only for slow twitch MUs
+            MU_Force_list = self.yielding * self.active_state * self.CE_force + self.PE_force
+        elif MU_type == 'fast':
+            MU_Force_list = self.active_state * self.CE_force + self.PE_force
+            
+        F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
+        Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
         
         return Tot_Muscle_force  # Return the force
             
