@@ -41,8 +41,7 @@ class MN_driven_model():
         self.vmax = self.P['vmax']
         self.alpha_0 = self.P['alpha_0']
         self.spread = self.P['spread']
-        self.l_MT = np.zeros(len(self.time) + 1)  # Initialize l_MT
-        self.l_MT[:] = self.P['l_MT_0'] # Set MT lengths
+        self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
         self.l_M_0 = self.P['l_M_0']
         self.l_M_opt = self.P['l_M_opt']
         self.l_T_slack = self.P['l_T_slack']
@@ -315,8 +314,9 @@ class MN_driven_model():
 
     " Active state "
     
-    def MU_active_state_func(self, t, Ca, act, Y):
+    def MU_active_state_func(self, y):
         
+        Ca, act = y[2], y[4]
         amin = 1*10**-9
         ac = (act - amin)/(1 - amin)
     
@@ -342,18 +342,20 @@ class MN_driven_model():
     
     " FL relationship (Lloyd-Besier 2003) "
 
-    def Force_Length_func(self, X, active_state):
+    def Force_Length_func(self, y, l_M_opt):
         
+        X, act = y[5]/l_M_opt, y[4]
         a = 0.45
-        b = (0.15*(1-active_state))+1
+        b = (0.15*(1-act))+1
         
         return np.exp(-((X-b)/a)**2)
     
     
     " FV relationship (adapted from Arnault caillet PhD thesis) "
     
-    def velo_fFV(self, t, y, CE_force, FL_force, act, l_M, MU_type, vmax):
+    def velo_fFV(self, y, CE_force, FL_force, l_M_opt, MU_type, vmax):
         
+        act, l_M = y[4], y[5]/l_M_opt
         fmax = 1.4
         
         # Defining fFV involved parameters
@@ -389,7 +391,7 @@ class MN_driven_model():
 
     " Muscle yielding (Brown 1999) "    
 
-    def Yield(self, dt, t, y, V):
+    def Yield(self, y, V):
         
         cy, Vy, Ty = 0.35, 0.1, 0.2
         Y = y[6]
@@ -430,13 +432,13 @@ class MN_driven_model():
 
                 dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, y[5]/l_M_opt, MU_type, Matrix_AP) # Free Ca (remember to avoid negligible negative values)
 
-                dadt = self.MU_active_state_func(t, y[2], y[4], y[6]) # Active state
+                dadt = self.MU_active_state_func(y) # Active state
 
-                FL = self.Force_Length_func(y[5]/l_M_opt, y[4]) # F-L relationship    
+                FL = self.Force_Length_func(y, l_M_opt) # F-L relationship    
 
-                dldt = self.velo_fFV(t, y, CE_force/FL, FL, y[4], y[5]/l_M_opt, MU_type, vmax) # velocity
+                dldt = self.velo_fFV(y, CE_force/FL, FL, l_M_opt, MU_type, vmax) # velocity
 
-                dY = self.Yield(dt, t, y, dldt/vmax) # yielding (Brown 1999)
+                dY = self.Yield(y, dldt/vmax) # yielding (Brown 1999)
 
                 return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt, dldt, dY]
 
