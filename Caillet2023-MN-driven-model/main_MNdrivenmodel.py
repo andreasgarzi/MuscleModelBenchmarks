@@ -23,9 +23,9 @@ cwd = os.getcwd()
 
 user = 'z5517249' # z5517249 or Andrea
 test = 'S01_TD' # participant ID
-muscle = 'GM' # dorsi/plantar
+muscle = 'TA' # dorsi/plantar
 MN_pool = 400
-MVC_trapez = '50' # theoretical plateau MVC
+MVC_trapez = '10' # theoretical plateau MVC
 spread = 'identified' # evenly or identified
 species = 'human' # human/animal
 save = 'n' # save results 'y' or 'n'
