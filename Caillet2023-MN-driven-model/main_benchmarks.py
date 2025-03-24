@@ -22,10 +22,11 @@ cwd = os.getcwd()
 user = 'z5517249'
 benchmark = 'sub' # max or sub
 muscle = 'SOL' # dorsi/plantar
+sim = 'act' # MT or act
 MN_pool = 1  # n. of theoretical MUs in the real pool 
 Nr = 1 # n. of (exp.) MUs to represent in the pool
 pool = 'n' # exp or pool
-spread = 'evenly' # evenly, identified F0M distribution
+spread = 'evenly' # evenly or identified 
 species = 'animal' # human/animal
 yielding = 'y'
 stim = 'v' # c (constant) or v (variable)
@@ -90,22 +91,31 @@ parameters = {
     'spread': spread,
     'MN_pool': MN_pool,
     'yielding': yielding,
+    'sim': sim,
     'Nr': Nr,
     'l_T_slack': l_T_slack, # scaled with respect to Rajagopal model
     'l_M_opt': l_M_opt, # scaled with respect to Rajagopal model
     'alpha_0': alpha_0*np.pi / 180,
     'l_MT': l_MT,
     'species': species,
-    'vmax': 10.5428 *l_M_opt,
-    'l_M_0': l_M_0
+    'vmax': 10.5428 *l_M_opt
+}
+
+states = {
+    'MUAP_0': 0,
+    'Ca_0': 0,
+    'act_0': 1e-9,
+    'l_M_0': l_M_0,
+    'y_0': 1 
 }
 
 #%%
 # Create an instance of the MN_driven_model class
-model = MN_driven_model(parameters, Distimes)
+model = MN_driven_model(parameters, states, Distimes)
 
 # Run the simulation
-force_sim = model.run_simulation()
+force_sim, _, _, _, _, _ = model.run_simulation()
+# _, Ca, _ = model.run_simulation()
     
 #%%
 " Visual validation and result saving "  

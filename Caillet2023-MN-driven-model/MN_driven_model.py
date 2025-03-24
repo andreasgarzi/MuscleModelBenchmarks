@@ -15,7 +15,10 @@ from scipy.integrate import solve_ivp
 
 class MN_driven_model():
 
-    def __init__(self, parameters, distimes):
+    def __init__(self, parameters, states, distimes):
+
+        #######################################################################
+        " Check and assign parameters "
 
         if parameters is None:
             raise ValueError('No parameters set!')
@@ -23,32 +26,77 @@ class MN_driven_model():
             raise ValueError('Parameters are not in dict format!')
         else:
             self.P = parameters  # set parameters
-
-        if distimes is None:
-            raise ValueError("Discharge times must be provided")
-        else:
-            self.distimes = distimes  # Use provided discharges
         
         # Assign attributes from input dictionary
         self.time = self.P['time']
-        self.pool = self.P['pool']
+        
+        if self.P['pool'] != 'y' or self.P['pool'] != 'n':
+            raise ValueError("Expected either 'y' or 'n' for pool parameter")
+        else:
+            self.pool = self.P['pool']
+            
         self.dt = self.P['dt']
-        self.muscle = self.P['muscle']
-        self.species = self.P['species']
+        
+        if self.P['muscle'] != 'TA' or self.P['muscle'] != 'GM' or self.P['muscle'] != 'SOL':
+            raise ValueError("Expected either 'TA', 'GM', or 'SOL' for muscle parameter")
+        else:
+            self.muscle = self.P['muscle']
+        
+        if self.P['species'] != 'TA' or self.P['species'] != 'GM' or self.P['species'] != 'SOL':
+            raise ValueError("Expected either 'human', or 'animal' for species parameter")
+        else:
+            self.species = self.P['species']
+            
+        if self.P['spread'] != 'evenly' or self.P['spread'] != 'identified':
+            raise ValueError("Expected either 'evenly', or 'identified' for spread parameter")
+        else:
+            self.spread = self.P['spread']
+        
+        if self.P['yielding'] != 'y' or self.P['yielding'] != 'n':
+            raise ValueError("Expected either 'y', or 'n' for yielding parameter")
+        else:
+            self.y = self.P['yielding']
+            
+        if self.P['sim'] != 'MT' or self.P['sim'] != 'act':
+            raise ValueError("Expected either 'MT', or 'act' for sim parameter")
+        else:  
+            self.sim = self.P['sim']
+        
         self.MVC = self.P['MVC']
         #self.path = self.P['path']
         self.Nr = self.P['Nr'] # Number of identified motor units
         self.MN_pool = self.P['MN_pool'] # Number of theoretical MNs in the muscle pool
         self.vmax = self.P['vmax']
         self.alpha_0 = self.P['alpha_0']
-        self.spread = self.P['spread']
         #self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
         self.l_MT = self.P['l_MT']
-        self.l_M_0 = self.P['l_M_0']
         self.l_M_opt = self.P['l_M_opt']
         self.l_T_slack = self.P['l_T_slack']
-        self.y = self.P['yielding']
         self.distimes = distimes
+    
+        #######################################################################    
+        " Check and assign states "
+    
+        if states is None:
+            raise ValueError('No states set!')
+        elif not isinstance(states, dict):
+            raise ValueError('States are not in dict format!')
+        else:
+            self.S = states  # set parameters
+        
+        self.MUAP_0 = self.S['MUAP_0']
+        self.Ca_0 = self.S['Ca_0']
+        self.act_0 = self.S['act_0']
+        self.l_M_0 = self.S['l_M_0']
+        self.y_0 = self.S['y_0']
+        
+        #######################################################################
+        " Check and assign discharge times input "
+        
+        if distimes is None:
+            raise ValueError("Discharge times must be provided")
+        else:
+            self.distimes = distimes  # Use provided discharges
         
         # Sort MUs according to recruitment   
         #sorted_indices = np.argsort([self.distimes[0, i][0, 0] for i in range(np.size(self.distimes, axis=1))])
@@ -58,6 +106,8 @@ class MN_driven_model():
         # self.F_thr = np.empty((self.Nr))
         # for f in range(np.size(self.distimes, axis=1)):
         #     self.F_thr[f] = self.path[0, self.distimes[0, f][0, 0]]*100 
+        
+        #######################################################################
         
         # Preallocate output arrays 
         self.initialize_arrays()
@@ -75,16 +125,17 @@ class MN_driven_model():
         self.vel = np.empty((self.Nr, len(self.time)))
         self.F_M = np.empty((self.Nr, len(self.time)))
         self.l_M = np.empty((self.Nr, len(self.time)))
+        self.MUAP = np.empty((self.Nr, len(self.time)))
         self.active_state = np.empty((self.Nr, len(self.time)))
         self.free_Ca = np.empty((self.Nr, len(self.time)))
         self.yielding = np.empty((self.Nr, len(self.time)))
 
 
+#%%
     " MU type (so far for TA and GM) "    
     
     def MU_type_id_func(self, i):
     
-        
         if self.muscle == 'TA' and self.species == 'human':
             if i/self.Nr < 0.9:
                 MU_type='slow' # TA
@@ -167,8 +218,7 @@ class MN_driven_model():
             
         elif self.pool == 'n':
             F0MU_distribution = np.reshape(F0MU_distribution_complete_MU_pool, (self.Nr,1))
-            
-            
+              
         return F0MU_distribution
 
     
@@ -333,15 +383,16 @@ class MN_driven_model():
         ac = (act - amin)/(1 - amin)
     
         if self.species == 'human' and self.muscle == 'TA':
-            Ca = Ca/(1.37*10**-4) # Ca normalisation
+            Ca_max = 1.37e-4 # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'human' and self.muscle == 'GM':
-            Ca = Ca/(1.37*10**-4) # Ca normalisation
+            Ca_max = 1.37e-4 # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'animal':
-            Ca = Ca/(9*10**-6) 
+            Ca_max = 9e-6
             n = 2.5
             
+        Ca = Ca/Ca_max
         if Ca > ac:
             K = 15.79 
             dadt = (Ca**n - ac)*(ac + K)*(1 - ac) # ascending phase limited to 1
@@ -413,7 +464,7 @@ class MN_driven_model():
         return dY
 
     
-    " Solve ODE system and calculate new states "
+    " Solve ODE system and calculate new states (dyn/act cases) "
 
     def run_simulation(self):
         
@@ -430,9 +481,9 @@ class MN_driven_model():
             Matrix_AP = self.distimes.astype(float)
             #Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
 
-            def ODE_system(t, y, l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha, vmax):
+            def ODE_system_MT(t, y, l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha, vmax):
             
-                if int(t/dt) == 0:        # initial pennation angle
+                if int(t/dt) == 0:  # initial pennation angle
                     alpha[int(t/dt)] = alpha_0
                 l_T = l_MT[int(t/dt)] - (y[5])*np.cos(alpha[int(t/dt)]) # tendon length
                 eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
@@ -456,34 +507,62 @@ class MN_driven_model():
                 return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt, dldt, dY]
 
 
-            y0 = [0, 0, 0, 0, 1*10**-9, self.l_M_opt, 1]  # set initial states
-            p = (self.l_MT, self.l_M_0, self.l_M_opt, self.l_T_slack, Matrix_AP, MU_type, self.alpha_0, self.dt, self.alpha[i,:], self.vmax)  # set ODE parameters
-            sol = solve_ivp(ODE_system, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
+            def ODE_system_act(t, y, l_M_0, Matrix_AP, MU_type):
+                        
+                dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
 
-            self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
-            self.active_state[i,:] = sol.y[4]  # get active state
-            self.l_M[i,:] = sol.y[5]  # get l_M
-            self.yielding[i,:] = sol.y[6]  # get yielding coeff.
+                dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, l_M_0, MU_type) # Free Ca (remember to avoid negligible negative values)
 
-            # now recalculate data based on l_M values..
-            self.alpha[i,0] = self.alpha_0
-            for l in range(len(self.time)):
-                self.l_T[i,l] = self.l_MT[l] - (self.l_M[i,l])*np.cos(self.alpha[i,l]) # tendon length
-                self.eps_T[i,l] = (self.l_T[i,l] - self.l_T_slack)/self.l_T_slack # new tendon strain    
-                self.SE_force[i,l] = self.T_force(self.eps_T[i,l]) # tendon force
-                self.PE_force[i,l] = self.PEE_force(self.l_M[i,l]/self.l_M_opt) # passive el. force 
-                self.CE_force[i,l] = self.SE_force[i,l]/np.cos(self.alpha[i,l]) - self.PE_force[i,l] # contractile element force
+                dadt = self.MU_active_state_func(y) # Active state
+
+                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt]            
+
+
+            if self.sim == 'MT':  # full MT dynamic case
+                
+                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.l_M_opt, self.y_0]  # set initial states
+                p = (self.l_MT, self.l_M_0, self.l_M_opt, self.l_T_slack, Matrix_AP, MU_type, self.alpha_0, self.dt, self.alpha[i,:], self.vmax)  # set ODE parameters
+                sol = solve_ivp(ODE_system_MT, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
+
+                self.MUAP[i,:] = sol.y[0]  # get MUAP
+                self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
+                self.active_state[i,:] = sol.y[4]  # get active state
+                self.l_M[i,:] = sol.y[5]  # get l_M
+                self.yielding[i,:] = sol.y[6]  # get yielding coeff.
+
+                # now recalculate data based on l_M values..
+                self.alpha[i,0] = self.alpha_0
+                
+                for l in range(len(self.time)):
+                    self.l_T[i,l] = self.l_MT[l] - (self.l_M[i,l])*np.cos(self.alpha[i,l]) # tendon length
+                    self.eps_T[i,l] = (self.l_T[i,l] - self.l_T_slack)/self.l_T_slack # new tendon strain    
+                    self.SE_force[i,l] = self.T_force(self.eps_T[i,l]) # tendon force
+                    self.PE_force[i,l] = self.PEE_force(self.l_M[i,l]/self.l_M_opt) # passive el. force 
+                    self.CE_force[i,l] = self.SE_force[i,l]/np.cos(self.alpha[i,l]) - self.PE_force[i,l] # contractile element force
                     
-                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
+                    self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
         
-        if self.y == 'y' and MU_type == 'slow': # yielding only for slow twitch MUs
-            MU_Force_list = self.yielding * self.active_state * self.CE_force + self.PE_force
-        else:
-            MU_Force_list = self.active_state * self.CE_force + self.PE_force
+                if self.y == 'y' and MU_type == 'slow': # yielding only for slow twitch MUs
+                    MU_Force_list = self.yielding * self.active_state * self.CE_force + self.PE_force
+                else:
+                    MU_Force_list = self.active_state * self.CE_force + self.PE_force
             
-        F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
-        Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
+                F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
+                Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
         
-        return Tot_Muscle_force  # Return the force
+                return Tot_Muscle_force, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding  # Return force and solutions
+            
+            
+            elif self.sim == 'act':   # excitation-activation only case
+                
+                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0]  # set initial states
+                p = (self.l_M_0, Matrix_AP, MU_type)  # set ODE parameters
+                sol = solve_ivp(ODE_system_act, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
+
+                self.MUAP[i,:] = sol.y[0]  # get MUAP
+                self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
+                self.active_state[i,:] = sol.y[4]  # get active state
+ 
+                return self.MUAP, self.free_Ca, self.active_state  # Return solutions
             
 
