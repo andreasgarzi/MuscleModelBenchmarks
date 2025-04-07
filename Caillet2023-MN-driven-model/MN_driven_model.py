@@ -333,11 +333,10 @@ class MN_driven_model():
     def MU_free_Ca_ODE_func(self, t, l_M_norm, MU_type, beta, gamma,  dgammadt):
         
         if MU_type == 'fast':
-           c_1, c_2, c_3 = 2.5*10.**3,  3.9*10.**5, 0.82  # C2 = decay constant, C3 = pk2pk
+           c_1, c_2, c_3 = 2.5*10.**3,  4.3*10.**5, 0.8  # 0.7
 
         elif MU_type == 'slow':
-           c_1, c_2, c_3 = 1.5*10.**4, 1.8*10.**5, 1.4
-           #c_1, c_2, c_3 =2.5*10.**3, 1.5*10.**5, 0.4
+           c_1, c_2, c_3 = 9.5*10.**3, 1.8*10.**5, 0.8 
            
         if l_M_norm <= 1.0:
             amp = 0.8
@@ -361,7 +360,7 @@ class MN_driven_model():
             
         return DDgammaDDt
     
-    def MU_free_Ca_func(self, t, y, l_M, MU_type): 
+    def MU_free_Ca_func(self, t, y, l_M, MU_type, Matrix_AP): 
 
         #CA_delay = 2.1*10**-3
         CA_delay = 0
@@ -383,23 +382,29 @@ class MN_driven_model():
         ac = (act - amin)/(1 - amin)
     
         if self.species == 'human' and self.muscle == 'TA':
-            Ca_max = 1.37e-4 # Ca normalisation
+            Ca = Ca/(4*10**-5) # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'human' and self.muscle == 'GM':
-            Ca_max = 1.37e-4 # Ca normalisation
+            Ca = Ca/(1.4*10**-5) # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'animal':
-            Ca_max = 9e-6
+            Ca = Ca/(2*10**-5) 
             n = 2.5
             
-        Ca = Ca/Ca_max
-        if Ca > ac:
-            K = 15.79 
-            dadt = (Ca**n - ac)*(ac + K)*(1 - ac) # ascending phase limited to 1
-        else:
-            K = 60.8329 
-            dadt = (Ca - ac)*(ac + K) # decay following a non-normalized trend
+        # if Ca > ac:
+        #     K = 15.79 # 25.79
+        #     dadt = (Ca**n - ac)*(ac + K)*(1 - ac) # ascending phase limited to 1
+        # else:
+        #     K = 60.8329 
+        #     dadt = (Ca - ac)*(ac + K) # decay following a non-normalized trend
     
+        k3, k4 = 15.5, 22.2  
+        
+        if Ca > ac:
+            dadt = -(k4*ac - k3*Ca)*(1 - ac)
+        else:
+            dadt = -(k4*ac - k3*Ca)
+        
         return dadt
 
     
