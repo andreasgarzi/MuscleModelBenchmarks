@@ -30,34 +30,34 @@ class MN_driven_model():
         # Assign attributes from input dictionary
         self.time = self.P['time']
         
-        if self.P['pool'] != 'y' or self.P['pool'] != 'n':
+        if self.P['pool'] != 'y' and self.P['pool'] != 'n':
             raise ValueError("Expected either 'y' or 'n' for pool parameter")
         else:
             self.pool = self.P['pool']
             
         self.dt = self.P['dt']
         
-        if self.P['muscle'] != 'TA' or self.P['muscle'] != 'GM' or self.P['muscle'] != 'SOL':
+        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL':
             raise ValueError("Expected either 'TA', 'GM', or 'SOL' for muscle parameter")
         else:
             self.muscle = self.P['muscle']
         
-        if self.P['species'] != 'TA' or self.P['species'] != 'GM' or self.P['species'] != 'SOL':
+        if self.P['species'] != 'animal' and self.P['species'] != 'human':
             raise ValueError("Expected either 'human', or 'animal' for species parameter")
         else:
             self.species = self.P['species']
             
-        if self.P['spread'] != 'evenly' or self.P['spread'] != 'identified':
+        if self.P['spread'] != 'evenly' and self.P['spread'] != 'identified':
             raise ValueError("Expected either 'evenly', or 'identified' for spread parameter")
         else:
             self.spread = self.P['spread']
         
-        if self.P['yielding'] != 'y' or self.P['yielding'] != 'n':
+        if self.P['yielding'] != 'y' and self.P['yielding'] != 'n':
             raise ValueError("Expected either 'y', or 'n' for yielding parameter")
         else:
             self.y = self.P['yielding']
             
-        if self.P['sim'] != 'MT' or self.P['sim'] != 'act':
+        if self.P['sim'] != 'MT' and self.P['sim'] != 'act':
             raise ValueError("Expected either 'MT', or 'act' for sim parameter")
         else:  
             self.sim = self.P['sim']
@@ -360,7 +360,7 @@ class MN_driven_model():
             
         return DDgammaDDt
     
-    def MU_free_Ca_func(self, t, y, l_M, MU_type, Matrix_AP): 
+    def MU_free_Ca_func(self, t, y, l_M, MU_type): 
 
         #CA_delay = 2.1*10**-3
         CA_delay = 0
@@ -401,7 +401,7 @@ class MN_driven_model():
         k3, k4 = 15.5, 22.2  
         
         if Ca > ac:
-            dadt = -(k4*ac - k3*Ca)*(1 - ac)
+            dadt = -(k4*ac - k3*Ca**n)*(1 - ac)
         else:
             dadt = -(k4*ac - k3*Ca)
         
