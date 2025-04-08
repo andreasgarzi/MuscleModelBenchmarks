@@ -388,7 +388,7 @@ class MN_driven_model():
             Ca = Ca/(1.4*10**-5) # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'animal':
-            Ca = Ca/(2*10**-5) 
+            Ca = Ca*2e5
             n = 2.5
             
         # if Ca > ac:
