@@ -378,8 +378,8 @@ class MN_driven_model():
     def MU_active_state_func(self, y):
         
         Ca, act = y[2], y[4]
-        amin = 1*10**-9
-        ac = (act - amin)/(1 - amin)
+        # amin = 1*10**-9
+        # ac = (act - amin)/(1 - amin)
     
         if self.species == 'human' and self.muscle == 'TA':
             Ca = Ca/(4*10**-5) # Ca normalisation
@@ -400,10 +400,10 @@ class MN_driven_model():
     
         k3, k4 = 15.5, 22.2  
         
-        if Ca > ac:
-            dadt = -(k4*ac - k3*Ca**n)*(1 - ac)
+        if Ca > act:
+            dadt = -(k4*act - k3*Ca**n)*(1 - act)
         else:
-            dadt = -(k4*ac - k3*Ca)
+            dadt = -(k4*act - k3*Ca)
         
         return dadt
 

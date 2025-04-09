@@ -20,7 +20,7 @@ def MU_active_state_func(t, Ca, act):
     k3, k4 = 15.5, 22.2  
     
     if Ca > ac:
-        dadt = -(k4*ac - k3*Ca**2.5)*(1 - ac)
+        dadt = -(k4*ac - k3*Ca)*(1 - ac)
     else:
         dadt = -(k4*ac - k3*Ca)
     

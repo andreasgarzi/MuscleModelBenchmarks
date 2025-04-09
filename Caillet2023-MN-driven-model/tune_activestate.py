@@ -256,7 +256,7 @@ cg4 = get_color_gradient(c7, c8, 5)
 #%%
 """ Extract experimental digitized data from Rincon 2021 """
 
-os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Digitized_Hollingworth_Rincon_Ca") # max activation BB dir path
+os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Digitized_Hollingworth_Rincon_Ca") # max activation BB dir path
 
 path_slow = "slow_23_mouse_100hz_spaceseparator.csv"  #.csv files locations
 path_fast = "fast_23_mouse_100hz_spaceseparator.csv"
