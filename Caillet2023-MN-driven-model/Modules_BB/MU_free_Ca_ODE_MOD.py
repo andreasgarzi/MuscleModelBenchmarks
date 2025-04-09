@@ -9,25 +9,21 @@ Function necessary to compute the results presented in the manuscript Caillet et
 
 Description of the MU type- length-dependent ODE describing the dynamics of free Calcium concentration in the MUs
 """
-import numpy as np
-import math as math
 
 def coef_CA(MU_type, i, f):  #c1, c2, c3
-    if MU_type == 'fast' and i == 1 and f == 5:
-        #c_1, c_2, c_3= 2.4*10.**3,  4.3*10.**5, 0.9
-        c_1, c_2, c_3 = 5*10.**3,  3.9*10.**5, 0.6  # C2=decay constant, C3=pk2pk
-    elif  MU_type == 'fast':
-       c_1, c_2, c_3 = 2.5*10.**3,  3.9*10.**5, 0.82
+    if MU_type == 'fast' and i == 1 and f == 4: # 16°C
+        c_1, c_2, c_3 = 9*10.**3,  3.9*10.**5, 1.8  # C2 = decay constant, C3 = pk2pk 0-5
+    elif  MU_type == 'fast': # 35°C
+        c_1, c_2, c_3 = 2.5*10.**3,  4.3*10.**5, 0.8  # 0.7
        
-    if MU_type == 'slow' and i == 0 and f == 4:
-       c_1, c_2, c_3 = 1*10.**4,  1.8*10.**5, 0.8
-    elif MU_type == 'slow':
-       c_1, c_2, c_3 = 1.5*10.**4, 1.8*10.**5, 1.4
-       #c_1, c_2, c_3 = 2.5*10.**3, 1.8*10.**5, 0.6 
-       #c_1, c_2, c_3 = 1.6*10.**4, 1.8*10.**5, 1.2
+    if MU_type == 'slow' and i == 0 and f == 4: # 16°C
+       c_1, c_2, c_3 = 8.5*10.**3,  1.8*10.**5, 0.5  # 1.8*10.**5
+    elif MU_type == 'slow': # 23°C
+       c_1, c_2, c_3 = 9.5*10.**3, 1.8*10.**5, 0.8
+       
     return c_1, c_2, c_3
 
-def Ca_l_amplitude_func(l_M_norm): #F1 function
+def Ca_l_amplitude_func(l_M_norm): # F1 function
     if l_M_norm <=1.0:
         amp = 0.8
     elif l_M_norm <=1.15:
@@ -54,9 +50,6 @@ def MU_free_Ca_ODE_func(t, l_M_norm, MU_type, beta, gamma,  dgammadt, i, f):
     if MU_type == 'slow':
         DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) #Actual 2nd ord. ODE
     elif MU_type == 'fast':
-        c_2 = c_2*(gamma*10**5)
-        
-        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) 
-        
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma*(gamma*10**5)) 
     return DDgammaDDt
 
