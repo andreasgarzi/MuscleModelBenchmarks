@@ -353,10 +353,9 @@ class MN_driven_model():
             width = (1.0 - 0.4*(l_M_norm - 1.15))
         
         if MU_type == 'slow':
-            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma)   # #Actual 2nd ord. ODE
+            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) #Actual 2nd ord. ODE
         elif MU_type == 'fast':
-            c_2 = c_2*(gamma*10**5)
-            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) 
+            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma*(gamma*10**5)) 
             
         return DDgammaDDt
     
@@ -373,14 +372,12 @@ class MN_driven_model():
         return dgammadt, DDgammaDDt
 
 
-    " Active state "
+    " Active state (2 steps) "
     
-    def MU_active_state_func(self, y):
+    def active_state_1(self, y):
         
-        Ca, act = y[2], y[4]
-        # amin = 1*10**-9
-        # ac = (act - amin)/(1 - amin)
-    
+        Ca, a1 = y[2], y[4]
+
         if self.species == 'human' and self.muscle == 'TA':
             Ca = Ca/(4*10**-5) # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
@@ -388,31 +385,37 @@ class MN_driven_model():
             Ca = Ca/(1.4*10**-5) # Ca normalisation
             n = 3  # species & exp conditions dependent parameter 
         elif self.species == 'animal':
-            Ca = Ca*2e5
-            n = 2.5
+            Ca = Ca*2.1e5
+            n = 4
             
-        # if Ca > ac:
-        #     K = 15.79 # 25.79
-        #     dadt = (Ca**n - ac)*(ac + K)*(1 - ac) # ascending phase limited to 1
-        # else:
-        #     K = 60.8329 
-        #     dadt = (Ca - ac)*(ac + K) # decay following a non-normalized trend
-    
-        k3, k4 = 15.5, 22.2  
-        
-        if Ca > act:
-            dadt = -(k4*act - k3*Ca**n)*(1 - act)
+        if Ca > a1:
+            K = 15.79 
+            dadt1 = (Ca**n - a1)*(a1 + K)*(1 - a1) # ascending phase limited to 1
         else:
-            dadt = -(k4*act - k3*Ca)
-        
-        return dadt
+            K = 60.8329 
+            dadt1 = (Ca - a1)*(a1 + K) # decay following a non-normalized trend
 
+        return dadt1
+    
+    def active_state_2(self, y):
+
+        a1, a2 = y[4], y[5]
+        
+        if a1 > a2:
+            K = 15.79 
+        else:
+            K = 60.8329 
+            
+        dadt2 = (a1 - a2)*(a2 + K)
+        
+        return dadt2
+        
     
     " FL relationship (Lloyd-Besier 2003) "
 
     def Force_Length_func(self, y, l_M_opt):
         
-        X, act = y[5]/l_M_opt, y[4]
+        X, act = y[6]/l_M_opt, y[5]
         a = 0.45
         b = (0.15*(1-act))+1
         
@@ -423,7 +426,7 @@ class MN_driven_model():
     
     def velo_fFV(self, y, CE_force, FL_force, l_M_opt, MU_type, vmax):
         
-        act, l_M = y[4], y[5]/l_M_opt
+        act, l_M = y[5], y[6]/l_M_opt
         fmax = 1.4
         
         # Defining fFV involved parameters
@@ -462,7 +465,7 @@ class MN_driven_model():
     def Yield(self, y, V):
         
         cy, Vy, Ty = 0.35, 0.1, 0.2
-        Y = y[6]
+        Y = y[7]
         
         dY = (1 - cy*(1 - np.exp((-np.abs(V))/Vy)) - Y)/Ty
         
@@ -490,26 +493,27 @@ class MN_driven_model():
             
                 if int(t/dt) == 0:  # initial pennation angle
                     alpha[int(t/dt)] = alpha_0
-                l_T = l_MT[int(t/dt)] - (y[5])*np.cos(alpha[int(t/dt)]) # tendon length
+                l_T = l_MT[int(t/dt)] - (y[6])*np.cos(alpha[int(t/dt)]) # tendon length
                 eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
                 SE_force = self.T_force(eps_T) # tendon force
-                PE_force = self.PEE_force(y[5]/l_M_opt) # passive el. force    
+                PE_force = self.PEE_force(y[6]/l_M_opt) # passive el. force    
                 CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
-                alpha[int((t+dt)/dt)] = self.penn_ang(l_MT[int((t+dt)/dt)], y[5], l_T, l_M_0*l_M_opt, alpha_0) # update pennation angle
+                alpha[int((t+dt)/dt)] = self.penn_ang(l_MT[int((t+dt)/dt)], y[6], l_T, l_M_0*l_M_opt, alpha_0) # update pennation angle
 
                 dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
 
-                dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, y[5]/l_M_opt, MU_type) # Free Ca (remember to avoid negligible negative values)
+                dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, y[6]/l_M_opt, MU_type) # Free Ca (remember to avoid negligible negative values)
 
-                dadt = self.MU_active_state_func(y) # Active state
-
+                dadt1 = self.active_state_1(y) # Active state (intermediate step)
+                dadt2 = self.active_state_2(y) # Active state
+                
                 FL = self.Force_Length_func(y, l_M_opt) # F-L relationship    
 
                 dldt = self.velo_fFV(y, CE_force/FL, FL, l_M_opt, MU_type, vmax) # velocity
 
                 dY = self.Yield(y, dldt/vmax) # yielding (Brown 1999)
 
-                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt, dldt, dY]
+                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt1, dadt2, dldt, dY]
 
 
             def ODE_system_act(t, y, l_M_0, Matrix_AP, MU_type):
@@ -518,22 +522,23 @@ class MN_driven_model():
 
                 dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, l_M_0, MU_type) # Free Ca (remember to avoid negligible negative values)
 
-                dadt = self.MU_active_state_func(y) # Active state
+                dadt1 = self.active_state_1(y) # Active state (intermediate step)
+                dadt2 = self.active_state_2(y) # Active state
 
-                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt]            
+                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt1, dadt2]            
 
 
             if self.sim == 'MT':  # full MT dynamic case
                 
-                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.l_M_opt, self.y_0]  # set initial states
+                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.act_0, self.l_M_opt, self.y_0]  # set initial states
                 p = (self.l_MT, self.l_M_0, self.l_M_opt, self.l_T_slack, Matrix_AP, MU_type, self.alpha_0, self.dt, self.alpha[i,:], self.vmax)  # set ODE parameters
                 sol = solve_ivp(ODE_system_MT, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
 
                 self.MUAP[i,:] = sol.y[0]  # get MUAP
                 self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
-                self.active_state[i,:] = sol.y[4]  # get active state
-                self.l_M[i,:] = sol.y[5]  # get l_M
-                self.yielding[i,:] = sol.y[6]  # get yielding coeff.
+                self.active_state[i,:] = sol.y[5]  # get active state
+                self.l_M[i,:] = sol.y[6]  # get l_M
+                self.yielding[i,:] = sol.y[7]  # get yielding coeff.
 
                 # now recalculate data based on l_M values..
                 self.alpha[i,0] = self.alpha_0
@@ -560,13 +565,13 @@ class MN_driven_model():
             
             elif self.sim == 'act':   # excitation-activation only case
                 
-                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0]  # set initial states
+                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.act_0]  # set initial states
                 p = (self.l_M_0, Matrix_AP, MU_type)  # set ODE parameters
                 sol = solve_ivp(ODE_system_act, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
 
                 self.MUAP[i,:] = sol.y[0]  # get MUAP
                 self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
-                self.active_state[i,:] = sol.y[4]  # get active state
+                self.active_state[i,:] = sol.y[5]  # get active state
  
                 return self.MUAP, self.free_Ca, self.active_state  # Return solutions
             

@@ -30,8 +30,8 @@ spread = 'evenly' # evenly or identified
 species = 'animal' # human/animal
 yielding = 'y'
 stim = 'c' # c (constant) or v (variable)
-trial = 'dynamic' # isometric or dynamic
-d = 8 # displacement amplitude (1 or 8mm)
+trial = 'isometric' # isometric or dynamic
+d = 1 # displacement amplitude (1 or 8mm)
 fs = 20 # Stimulation freq.
 T = 1/fs # corresponding time period
 dt = 1e-04 # time step (x-data)
@@ -123,9 +123,9 @@ force_sim, _, _, _, _, _ = model.run_simulation()
 plt.rcParams['figure.dpi'] = 400
 
 # Plot the force profiles
-plt.plot(time_dt, force_sim/MVC, 'r', label='Simulated Force')
-plt.plot(time_dt, exp_force/MVC, 'k', label='Exp. Force')
-plt.ylabel('Normalised force [F0]', weight='bold', fontsize=12)
+plt.plot(time_dt, force_sim, 'r', label='Simulated Force')
+plt.plot(time_dt, exp_force, 'k', label='Exp. Force')
+plt.ylabel('Force [N]', weight='bold', fontsize=12)
 plt.xlabel('Time [s]', weight='bold', fontsize=12)
 plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
 plt.legend(loc='upper right')

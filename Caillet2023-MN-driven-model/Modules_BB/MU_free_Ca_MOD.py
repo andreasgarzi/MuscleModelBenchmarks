@@ -9,8 +9,49 @@ Function necessary to compute the results presented in the manuscript Caillet et
 
 Computation of the free Calcium concentration (in Mols) in the MUs from an input MU action potential (in V)
 """
+  
+def coef_CA(MU_type, i, f):  #c1, c2, c3
+    if MU_type == 'fast' and i == 1 and f == 4: # 16°C
+        c_1, c_2, c_3 = 9*10.**3,  3.9*10.**5, 1.8  # C2 = decay constant, C3 = pk2pk 0-5
+    elif  MU_type == 'fast': # 35°C
+        c_1, c_2, c_3 = 2.5*10.**3,  4.3*10.**5, 0.8  # 0.7
+       
+    if MU_type == 'slow' and i == 0 and f == 4: # 16°C
+       c_1, c_2, c_3 = 8.5*10.**3,  1.8*10.**5, 0.5  # 1.8*10.**5
+    elif MU_type == 'slow': # 23°C
+       c_1, c_2, c_3 = 9.5*10.**3, 1.8*10.**5, 0.8
+       
+    return c_1, c_2, c_3
 
-from MU_free_Ca_ODE_MOD import MU_free_Ca_ODE_func
+def Ca_l_amplitude_func(l_M_norm): # F1 function
+    if l_M_norm <=1.0:
+        amp = 0.8
+    elif l_M_norm <=1.15:
+        amp = 0.8+1.33*(l_M_norm-1.0)
+    elif l_M_norm <=1.3:
+        amp=1.0
+    else:
+        amp = 1.0-0.6*(l_M_norm-1.3)
+    return amp
+
+def Ca_l_width_func(l_M_norm): #F2 function
+    if l_M_norm <=1.15:
+        width = 1.0
+    else:
+        width = (1.0-0.4*(l_M_norm-1.15))
+    return width
+
+def MU_free_Ca_ODE_func(t, l_M_norm, MU_type, beta, gamma,  dgammadt, i, f):
+    c_1, c_2, c_3 = coef_CA(MU_type, i, f) 
+
+    amp=Ca_l_amplitude_func(l_M_norm) #impact of l_M_norm on Ca amplitude
+    width=Ca_l_width_func(l_M_norm) #impact of l_M_norm on Ca half-width
+    
+    if MU_type == 'slow':
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) #Actual 2nd ord. ODE
+    elif MU_type == 'fast':
+        DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma*(gamma*10**5)) 
+    return DDgammaDDt
 
 def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP, i, f): 
 
@@ -20,6 +61,6 @@ def MU_free_Ca_func(t, y, MU_AP_train, l_M, MU_type, Matrix_AP, i, f):
     gamma = y[2] 
     dgammadt = y[3]
     beta = MU_AP_train  #from previously solved ODE for MUAP
+    
     DDgammaDDt = MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, gamma, dgammadt, i, f)    
     return dgammadt, DDgammaDDt
-  

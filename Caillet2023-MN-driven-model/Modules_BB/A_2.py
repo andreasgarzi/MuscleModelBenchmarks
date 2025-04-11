@@ -11,17 +11,18 @@ ODE that defines the dynamics of MU active state, from an input concentration of
 
 """
 
-def MU_active_state_func(t, Ca, act):
 
-    Ca = Ca*2e5
-    amin = 1*10**-9
-    ac = (act - amin)/(1 - amin)
+def active_state_2(t, y):
+
+    a1, a2 = y[4], y[5]
     
-    k3, k4 = 15.5, 22.2  
-    
-    if Ca > ac:
-        dadt = -(k4*ac - k3*Ca)*(1 - ac)
+    if a1 > a2:
+        K = 15.79 
     else:
-        dadt = -(k4*ac - k3*Ca)
+        K = 60.8329 
+        
+    dadt2 = (a1 - a2)*(a2 + K)
     
-    return dadt
+    return dadt2
+
+
