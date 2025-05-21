@@ -1,3 +1,4 @@
+
 """
 Author: Andrea Sgarzi
 a.sgarzi@ad.unsw.edu.au
@@ -38,7 +39,7 @@ f_PE3 = np.empty((points),dtype=object)
 f_PE4 = np.empty((points),dtype=object)
 f_PE5 = np.empty((points),dtype=object)
 f_PE6 = np.empty((points),dtype=object)
-fl = np.empty((n_a,points),dtype=object)
+fl = np.empty((n_a,points,fibre_type),dtype=object)
 fv = np.empty((n_a,points,fibre_type),dtype=object)
 vf = np.empty((n_a,points,fibre_type),dtype=object)
 
@@ -46,8 +47,10 @@ vf = np.empty((n_a,points,fibre_type),dtype=object)
 a = np.linspace(0.2,1,n_a)
 MU_type = ['fast','slow']
 l_M = np.linspace(0.7, 1.8,points)
-l_M_PE = np.linspace(0.9, 2.2,points)
+l_M_v = np.linspace(0.6, 1.4, n_a)
+l_M_PE = np.linspace(0, 2.2,points)
 v_M = np.linspace(-1.2,1.2,points)
+f_M_v = np.linspace(0,1.4,points)
 eps_T = np.linspace(0,0.07,points)
 l_T = (eps_T*l_T_slack + l_T_slack)/l_T_slack
 yielding = np.empty((points), dtype=object)
@@ -75,34 +78,34 @@ for i in range(points):
     f_T3[i] = T_force(eps_T[i], 3) # Rat soleus
     f_T4[i] = T_force(eps_T[i], 4) # Cat soleus
     
-    f_PE0[i] = PEE_force(l_M_PE[i], 0) # Thelen
-    f_PE1[i] = PEE_force(l_M_PE[i], 1)
-    f_PE2[i] = PEE_force(l_M_PE[i], 2)
-    f_PE3[i] = PEE_force(l_M_PE[i], 3)
-    f_PE4[i] = PEE_force(l_M_PE[i], 4)
-    f_PE5[i] = PEE_force(l_M_PE[i], 5)
-    f_PE6[i] = PEE_force(l_M_PE[i], 6)
+    f_PE0[i] = PEE_force(l_M_PE[i]) # Thelen
+    # f_PE1[i] = PEE_force(l_M_PE[i], 1)
+    # f_PE2[i] = PEE_force(l_M_PE[i], 2)
+    # f_PE3[i] = PEE_force(l_M_PE[i], 3)
+    # f_PE4[i] = PEE_force(l_M_PE[i], 4)
+    # f_PE5[i] = PEE_force(l_M_PE[i], 5)
+    # f_PE6[i] = PEE_force(l_M_PE[i], 6)
     
     for l in range(n_a):
-        fl[l,i] = Force_Length_func(l_M[i],a[l])*a[l]
         for t in range(fibre_type):
-            fv[l,i,t] = f_fFV(v_M[i], fl[l,i], a[l], 1, MU_type[t]) # for fixed l_M = 1
-            vf[l,i,t] = velo_fFV(fv[l,i,t], fl[l,i], a[l], 1, MU_type[t])
+            fl[l,i,t] = Force_Length_func(l_M[i], t, a[l])*a[l]
+            fv[l,i,t] = f_fFV(v_M[i], l_M_v[l], t) # for fixed l_M = 1
+            vf[l,i,t] = velo_fFV(f_M_v[i], l_M_v[l], t)
 
  # f_T_2 = np.empty((points),dtype=object)
  # for i in range(points):
  #     f_T_2[i] = T_force(eps_T[i])
 
-cy, Vy, Ty = 0.35, 0.1, 0.2
-dY = np.empty((points),dtype=object)
-for n in range(2000):
+# cy, Vy, Ty = 0.35, 0.1, 0.2
+# dY = np.empty((points),dtype=object)
+# for n in range(2000):
 
-    if n == 0:
-        j = 1
-    else:
-        j = dY[n-1]
+#     if n == 0:
+#         j = 1
+#     else:
+#         j = dY[n-1]
         
-    dY[n] = (1 - cy*(1 - np.exp((-np.abs(vf[4,n,0]))/Vy)) - j)/Ty
+#     dY[n] = (1 - cy*(1 - np.exp((-np.abs(vf[4,n,0]))/Vy)) - j)/Ty
     
 #______________________________________________________________________________
 """Create color map and plot relationships"""
@@ -120,7 +123,7 @@ c1PE2 = '#7ac1eb' #light blue 2
 c2PE2 = '#5205ed'
 
 c3 = '#e31010'  #red
-c4 = '#ff9900'  #orange
+c4 = '#fffe00'  #orange
 
 def get_color_gradient(c1, c2, n):
     """
@@ -145,14 +148,14 @@ cgPE1 = get_color_gradient(c1PE1, c2PE1, 3)
 cgPE2 = get_color_gradient(c1PE2, c2PE2, 3)
 cg2 = get_color_gradient(c1, c2, 3)
 cg3 = get_color_gradient(c3, c4, 3)
-
+cg12 = get_color_gradient(c3, c4, 5)
 
 # plotting...
 plt.rcParams['figure.dpi'] = 250
 figure(figsize=(14, 12))
 fig = plt.subplot(2,2,1)
 ax = fig
-# plt.plot(eps_T*100, f_T0, color=cgt[0], label = r'$\epsilon^T_0$ = 1.3%')
+plt.plot(eps_T*100, f_T0, color=cgt[0], label = r'$\epsilon^T_0$ = 1.3%')
 # plt.plot(eps_T*100, f_T1, color=cgt[1], label = r'$\epsilon^T_0$ = 2.3%')
 # plt.plot(eps_T*100, f_T2, color=cgt[2], label = r'$\epsilon^T_0$ = 3.3%')
 plt.plot(eps_T*100, f_T3, color=cgt[0], label = 'Rat soleus')
@@ -168,8 +171,8 @@ plt.legend(fontsize=15)
 
 fig = plt.subplot(2,2,2)
 plt.rcParams['figure.dpi'] = 250
-#plt.plot(l_M_PE, f_PE0, 'k--', label='k1 = 5, k2 = 0.6')
-plt.plot(l_M_PE, f_PE1, color=cg2[1], label='k1 = 5, k2 = 0.8') 
+plt.plot(l_M_PE, f_PE0, 'k', label='k1 = 5, k2 = 0.6')
+#plt.plot(l_M_PE, f_PE1, color=cg2[1], label='k1 = 5, k2 = 0.8') 
 #plt.plot(l_M_PE, f_PE2, color=cg2[1], linestyle='dashed') 
 # plt.plot(l_M_PE, f_PE3, color=cg2[1], linestyle='dashdot', label='k1 = 5, k2 = 1.2') 
 # plt.plot(l_M_PE, f_PE4, color=cg3[0], label='k1 = 4, k2 = 0.6') 
@@ -180,15 +183,22 @@ plt.plot(l_M_PE, f_PE1, color=cg2[1], label='k1 = 5, k2 = 0.8')
 plt.grid()
 plt.title('PE', weight='bold', fontsize=17)
 #plt.legend()
-#plt.ylim((-0.25, 4))
+plt.ylim((-0.4, 0.4))
+plt.xlim((0.4,1.3))
 
 fig = plt.subplot(2,2,3)
 plt.rcParams['figure.dpi'] = 250
-plt.plot(l_M, fl[0,:], color=cg1[0], label = 'a = 0.2')
-plt.plot(l_M, fl[1,:], color=cg1[1], label = 'a = 0.4')
-plt.plot(l_M, fl[2,:], color=cg1[2], label = 'a = 0.6')
-plt.plot(l_M, fl[3,:], color=cg1[3], label = 'a = 0.8')
-plt.plot(l_M, fl[4,:], color=cg1[4], label = 'a = 1.0')
+plt.plot(l_M, fl[0,:,0], color=cg1[0], label = 'a = 0.2, slow')
+plt.plot(l_M, fl[1,:,0], color=cg1[1], label = 'a = 0.4, slow')
+plt.plot(l_M, fl[2,:,0], color=cg1[2], label = 'a = 0.6, slow')
+plt.plot(l_M, fl[3,:,0], color=cg1[3], label = 'a = 0.8, slow')
+plt.plot(l_M, fl[4,:,0], color=cg1[4], label = 'a = 1.0, slow')
+
+plt.plot(l_M, fl[0,:,1], color=cg12[0], label = 'a = 0.2, fast')
+plt.plot(l_M, fl[1,:,1], color=cg12[1], label = 'a = 0.4, fast')
+plt.plot(l_M, fl[2,:,1], color=cg12[2], label = 'a = 0.6, fast')
+plt.plot(l_M, fl[3,:,1], color=cg12[3], label = 'a = 0.8, fast')
+plt.plot(l_M, fl[4,:,1], color=cg12[4], label = 'a = 1.0, fast')
 #plt.xlabel('$\overline {L^M}$', weight='bold', fontsize=15)
 #plt.ylabel('$\overline {F^M_l}$', weight='bold', fontsize=15)
 plt.grid()
@@ -204,20 +214,38 @@ plt.rcParams['figure.dpi'] = 250
 # plt.plot(v_M, fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
 # plt.plot(v_M, fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
 
-plt.plot(vf[0,:,0], fv[0,:,0], color=cg2[0], label = 'a = 0.2, fast')
-#plt.plot(vf[2,:,0], fv[2,:,0], color=cg2[0], linestyle='dashed', label = 'a = 0.6, fast')
-plt.plot(vf[4,:,0], fv[4,:,0], color=cg2[0], linestyle='dashdot',label = 'a = 1.0, fast')
-plt.plot(vf[0,:,1], fv[0,:,1], color=cg3[1], label = 'a = 0.2, slow')
-#plt.plot(vf[2,:,1], fv[2,:,1], color=cg3[1], linestyle='dashed', label = 'a = 0.6, slow')
-plt.plot(vf[4,:,1], fv[4,:,1], color=cg3[1], linestyle='dashdot',label = 'a = 1.0, slow')
+# plt.plot(v_M, fv[0,:,0], color=cg1[0], label = 'l=0.6, slow')
+# plt.plot(v_M, fv[1,:,0], color=cg1[1], label = 'l=0.8, slow')
+# plt.plot(v_M, fv[2,:,0], color=cg1[2], label = 'l=1.0, slow')
+# plt.plot(v_M, fv[3,:,0], color=cg1[3], label = 'l=1.2, slow')
+# plt.plot(v_M, fv[4,:,0], color=cg1[4], label = 'l=1.4, slow')
+
+plt.plot(v_M, fv[0,:,1], color=cg12[0], label = 'l=0.6, fast')
+plt.plot(v_M, fv[1,:,1], color=cg12[1], label = 'l=0.8, fast')
+plt.plot(v_M, fv[2,:,1], color=cg12[2], label = 'l=1.0, fast')
+plt.plot(v_M, fv[3,:,1], color=cg12[3], label = 'l=1.2, fast')
+plt.plot(v_M, fv[4,:,1], color=cg12[4], label = 'l=1.4, fast')
+
+# plt.plot(vf[0,:,0], f_M_v, color=cg1[0], label = 'l=0.6, slow')
+# plt.plot(vf[1,:,0], f_M_v, color=cg1[1], label = 'l=0.8, slow')
+# plt.plot(vf[2,:,0], f_M_v, color=cg1[2], label = 'l=1.0, slow')
+# plt.plot(vf[3,:,0], f_M_v, color=cg1[3], label = 'l=1.2, slow')
+# plt.plot(vf[4,:,0], f_M_v, color=cg1[4], label = 'l=1.4, slow')
+
+# plt.plot(vf[0,:,1], f_M_v, color=cg12[0], label = 'l=0.6, fast')
+# plt.plot(vf[1,:,1], f_M_v, color=cg12[1], label = 'l=0.8, fast')
+# plt.plot(vf[2,:,1], f_M_v, color=cg12[2], label = 'l=1.0, fast')
+# plt.plot(vf[3,:,1], f_M_v, color=cg12[3], label = 'l=1.2, fast')
+# plt.plot(vf[4,:,1], f_M_v, color=cg12[4], label = 'l=1.4, fast')
 
 #plt.xlabel('$\overline {V^M}$')
 #plt.ylabel('$\overline {F^M_v}$')
 plt.grid()
+plt.ylim((0.4, 1.8))
+plt.xlim((-1.2,1.2))
 plt.legend(fontsize=15, loc='lower right')
 plt.title('CE, F-V relationship', weight='bold', fontsize=17)
 
 plt.suptitle('MN-driven model sensitivity (contractile part)', weight='bold', y=0.94)
 plt.show()
-
 

@@ -22,6 +22,7 @@ from scipy.signal import find_peaks
 #from scipy.optimize import minimize
 from matplotlib.pyplot import figure
 import matplotlib.pyplot as plt
+import pandas as pd
 from scipy.integrate import solve_ivp
 from pennation_angle import penn_ang
 from PE_force import PEE_force
@@ -72,42 +73,107 @@ save = 'n'
 " Load time, displacement and force form BB tests, create virtual MU spikes "
 
 dt = 0.0001 # time step (x-data)
-t_end = 2 # total seconds
-time_dt = np.arange(0, t_end, dt) # time for BB
-fd = [10, 20, 30, 10, 20, 30] # paper stimulation freq. Hz d.r. 
+t_end = 0.6 # total seconds
+fd = [10, 20, 40, 10, 20, 30] # paper stimulation freq. Hz d.r. 
 
 # if d.r. is fixed (first 3 trials)
-fd = fd[s]
+fd = fd[0]
 T = 1/fd # correspondend d.r. period
     
 Nr = 1 # n. of MNs in the pool
-muscle_F0M = 25.1 # muscle max. isom. force [N]
+#muscle_F0M = 25.1 # muscle max. isom. force [N]
+muscle_F0M = 23
    
 #os.chdir("C:\\Users\\Andrea\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation") # max activation BB dir path
-os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation")
+#os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation")
     
-disp_1 = np.genfromtxt('displacement_1mm.dat', delimiter='') #BB time & displacement data
-disp_2 = np.genfromtxt('displacement_8mm.dat', delimiter='') #BB time & displacement data
-disp_1_int = sp.interpolate.interp1d(disp_1[:,0], disp_1[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate with time_dt+1 points (l_MT must be longer)
-disp_2_int = sp.interpolate.interp1d(disp_2[:,0], disp_2[:,1], kind='cubic')(np.arange(0,2+dt,dt))
+# disp_1 = np.genfromtxt('displacement_1mm.dat', delimiter='') #BB time & displacement data
+# disp_2 = np.genfromtxt('displacement_8mm.dat', delimiter='') #BB time & displacement data
+# disp_1_int = sp.interpolate.interp1d(disp_1[:,0], disp_1[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate with time_dt+1 points (l_MT must be longer)
+# disp_2_int = sp.interpolate.interp1d(disp_2[:,0], disp_2[:,1], kind='cubic')(np.arange(0,2+dt,dt))
 
-force_bb = (np.genfromtxt('force_forcedot_trial'+str(s+1)+'.dat', delimiter='')) #list of lists (6 BB time & forces data)
+#force_bb = (np.genfromtxt('force_forcedot_trial'+str(s+1)+'.dat', delimiter='')) #list of lists (6 BB time & forces data)
  
-os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
+#os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
 #os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
 
+os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
+
+path = 'iso_15_1'
+pathh = path + '.csv'
+exp_force = pd.read_csv(pathh, delimiter = ' ', decimal = '.')
+exp_force = exp_force.to_numpy() 
+
+exp_force[:,0] = exp_force[:,0] + 0.017
+#exp_force = np.vstack(([0,0], [0.016,0.02], exp_force[8:-1,:], [t_end-0.1, 0], [t_end-0.07, 0], [t_end, 0])) # add zero final value
+exp_force = np.vstack(([0,0], exp_force[0:-9,:], [t_end, 0])) # add zero final value
+
+
+for i in range(len(exp_force)):
+    if exp_force[i,1] < 0:
+        exp_force[i,1] = 0
+
+time_dt = np.arange(0, t_end, dt) # time for BB
+exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(time_dt)
+for i in range(len(exp_force)):
+    if exp_force[i] < 0:
+        exp_force[i] = 0
+
+#idx = np.argmin(exp_force[100:-1000])
+
+# for i in range(len(exp_force)):
+#     if i > idx:
+#         exp_force[i] = 0
+
+# disch = np.arange(0, 0.54, 1/150)
+#disch = time_dt[start]
+
+
+from scipy.signal import butter, filtfilt
+b, a = butter(4, 30/(0.5 * 1/dt), btype='low')
+exp_force = filtfilt(b, a, exp_force)
+
+# disch_indices = np.searchsorted(time_dt, disch)
+# force_at_disch = exp_force[disch_indices]
+
+for i in range(len(exp_force)):
+    if exp_force[i] < 0:
+        exp_force[i] = 0
+
+#%%
+os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
+
+exp_force = np.load('iso_15_1_interp.npy')
+exp_force = exp_force[0:6000]
+
+plt.rcParams['figure.dpi'] = 400
+plt.plot(time_dt[0:6000], exp_force, 'k')
+#plt.scatter(disch, force_at_disch)
+plt.grid()
+
+
+#%%
+np.save('iso_15_1_interp', exp_force, allow_pickle=True) 
+#np.save(path + '_times', disch, allow_pickle=True)
+
+#%%
+
+
+
 #force_bb_disp = (np.genfromtxt('force_trial'+str(s)+'.dat', delimiter=''))
-force_bb_disp = (np.genfromtxt('force_trial5.dat', delimiter=''))
-force_bb_disp_int = sp.interpolate.interp1d(force_bb_disp[:,0], force_bb_disp[:,1], kind='cubic')(np.arange(0,t_end,dt))
+# force_bb_disp = (np.genfromtxt('force_trial5.dat', delimiter=''))
+# force_bb_disp_int = sp.interpolate.interp1d(force_bb_disp[:,0], force_bb_disp[:,1], kind='cubic')(np.arange(0,t_end,dt))
     
 os.chdir(cwd)
     
-force_bb_int = sp.interpolate.interp1d(force_bb[:,0], force_bb[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # cubic interpolation of force signal (with 20000+1 length to then differentiate)
-b, a = signal.butter(4, 120/(10000/2), 'low') # LPF over 120 Hz (applied to a signal that now is sampled at 10000 Hz)
-force_bb_int = signal.filtfilt(b, a, force_bb_int) # Filter for interpolated force signal 
+# force_bb_int = sp.interpolate.interp1d(force_bb[:,0], force_bb[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # cubic interpolation of force signal (with 20000+1 length to then differentiate)
+# b, a = signal.butter(4, 120/(10000/2), 'low') # LPF over 120 Hz (applied to a signal that now is sampled at 10000 Hz)
+# force_bb_int = signal.filtfilt(b, a, force_bb_int) # Filter for interpolated force signal 
     
-force_bb_diff = np.diff(force_bb_int) # get first derivative differentiating (from a 20000+1 length vector)
-    
+# force_bb_diff = np.diff(force_bb_int) # get first derivative differentiating (from a 20000+1 length vector)
+  
+
+#%%  
 # Select LPF cutoff freq. based on the imposed max. discharge freq. (2*mean d.r.)
 if s == 0:
     cutoff = 20
@@ -122,10 +188,10 @@ elif s == 2:
 elif s == 5:
     cutoff = 100
         
-b, a = signal.butter(4, cutoff/(10000/2), 'low') # LPF over 60 Hz = max. discharge freq. (applied to a signal that now is sampled at 10000 Hz)
-force_bb_diff = signal.filtfilt(b, a, force_bb_diff) # Filter for differentiated signal (to get true actual peaks)
+# b, a = signal.butter(4, cutoff/(10000/2), 'low') # LPF over 60 Hz = max. discharge freq. (applied to a signal that now is sampled at 10000 Hz)
+# force_bb_diff = signal.filtfilt(b, a, force_bb_diff) # Filter for differentiated signal (to get true actual peaks)
     
-force_bb_int = force_bb_int[0:(int(t_end/dt))] # make force vector length 20000 again 
+# force_bb_int = force_bb_int[0:(int(t_end/dt))] # make force vector length 20000 again 
 
 #%% 
 

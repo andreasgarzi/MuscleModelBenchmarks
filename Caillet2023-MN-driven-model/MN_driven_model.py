@@ -10,8 +10,16 @@ MN-driven model based on Caillet et al. 2023 for simulating isometric and dynami
 
 """
 
+import os
+import scipy as sp
 import numpy as np
+import tkinter as tk
+import pandas as pd
+from scipy.optimize import minimize
 from scipy.integrate import solve_ivp
+from tkinter import simpledialog
+import matplotlib.pyplot as plt
+cwd = os.getcwd()
 
 class MN_driven_model():
 
@@ -37,7 +45,7 @@ class MN_driven_model():
             
         self.dt = self.P['dt']
         
-        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL':
+        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL' and self.P['muscle'] != 'CF':
             raise ValueError("Expected either 'TA', 'GM', or 'SOL' for muscle parameter")
         else:
             self.muscle = self.P['muscle']
@@ -56,23 +64,32 @@ class MN_driven_model():
             raise ValueError("Expected either 'y', or 'n' for yielding parameter")
         else:
             self.y = self.P['yielding']
-            
-        if self.P['sim'] != 'MT' and self.P['sim'] != 'act':
-            raise ValueError("Expected either 'MT', or 'act' for sim parameter")
-        else:  
-            self.sim = self.P['sim']
+           
+        if self.P['sag'] != 'y' and self.P['sag'] != 'n':
+            raise ValueError("Expected either 'y', or 'n' for yielding parameter")
+        else:
+            self.s = self.P['sag']
+        
         
         self.MVC = self.P['MVC']
-        #self.path = self.P['path']
         self.Nr = self.P['Nr'] # Number of identified motor units
         self.MN_pool = self.P['MN_pool'] # Number of theoretical MNs in the muscle pool
         self.vmax = self.P['vmax']
         self.alpha_0 = self.P['alpha_0']
-        #self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
         self.l_MT = self.P['l_MT']
         self.l_M_opt = self.P['l_M_opt']
         self.l_T_slack = self.P['l_T_slack']
         self.distimes = distimes
+        
+        # self.path = self.P['path']    # only for experimental inputs...
+        # self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
+        
+        # self.Ca_max = self.P['Ca_max']  # only for optimization procedures...
+        # self.c_1 = self.P['c_1'] 
+        # self.c_2 = self.P['c_2'] 
+        # self.c_3 = self.P['c_3'] 
+        # self.vmax = self.P['vmax']
+        # self.vmax = self.P['vmax']
     
         #######################################################################    
         " Check and assign states "
@@ -86,9 +103,11 @@ class MN_driven_model():
         
         self.MUAP_0 = self.S['MUAP_0']
         self.Ca_0 = self.S['Ca_0']
+        self.CaTn_0 = self.S['CaTn_0']
         self.act_0 = self.S['act_0']
         self.l_M_0 = self.S['l_M_0']
         self.y_0 = self.S['y_0']
+        self.s_0 = self.S['s_0']
         
         #######################################################################
         " Check and assign discharge times input "
@@ -99,8 +118,8 @@ class MN_driven_model():
             self.distimes = distimes  # Use provided discharges
         
         # Sort MUs according to recruitment   
-        #sorted_indices = np.argsort([self.distimes[0, i][0, 0] for i in range(np.size(self.distimes, axis=1))])
-        #self.distimes = self.distimes[:, sorted_indices]
+        # sorted_indices = np.argsort([self.distimes[0, i][0, 0] for i in range(np.size(self.distimes, axis=1))])
+        # self.distimes = self.distimes[:, sorted_indices]
             
         # Extract Fth recruitment in % of MVC (first discharge indeces)
         # self.F_thr = np.empty((self.Nr))
@@ -118,17 +137,19 @@ class MN_driven_model():
         self.alpha = np.empty((self.Nr, len(self.time) + 1))
         self.l_T = np.empty((self.Nr, len(self.time)))
         self.eps_T = np.empty((self.Nr, len(self.time)))
-        self.SE_force = np.empty((self.Nr, len(self.time)))
-        self.CE_force = np.empty((self.Nr, len(self.time)))
-        self.PE_force = np.empty((self.Nr, len(self.time)))
-        self.FL_force = np.empty((self.Nr, len(self.time)))
+        self.f_SE = np.empty((self.Nr, len(self.time)))
+        self.f_CE = np.empty((self.Nr, len(self.time)))
+        self.f_PE = np.empty((self.Nr, len(self.time)))
+        self.f_FL = np.empty((self.Nr, len(self.time)))
         self.vel = np.empty((self.Nr, len(self.time)))
         self.F_M = np.empty((self.Nr, len(self.time)))
         self.l_M = np.empty((self.Nr, len(self.time)))
         self.MUAP = np.empty((self.Nr, len(self.time)))
         self.active_state = np.empty((self.Nr, len(self.time)))
         self.free_Ca = np.empty((self.Nr, len(self.time)))
+        self.CaTn = np.empty((self.Nr, len(self.time)))
         self.yielding = np.empty((self.Nr, len(self.time)))
+        self.sag = np.empty((self.Nr, len(self.time)))
 
 
 #%%
@@ -147,7 +168,9 @@ class MN_driven_model():
             else: 
                 MU_type='fast'
         elif self.muscle == 'SOL' and self.species == 'animal':
-            MU_type = 'slow'
+            MU_type = 'slow' # GM
+        elif self.muscle == 'CF' and self.species == 'animal':
+            MU_type = 'fast' # CF
     
         return MU_type
     
@@ -227,7 +250,7 @@ class MN_driven_model():
     def T_force(self, eps):
         
         if self.species == 'animal':
-            eps_0 = 0.055 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
+            eps_0 = 0.06 # strain at max. isometric force in rat soleus (5-6% from Monti et al.2003)
             klin = 1.212/eps_0 
         elif self.species == 'human':
             eps_0 = 0.033
@@ -247,19 +270,29 @@ class MN_driven_model():
         return f_T
 
     
-    " PEE (Thelen 2003) "
+    " PE 1 & 2 (Virtual Muscle, Brown 1999) "
 
-    def PEE_force(self, l_M):
+    def PE_force(self, l_M):
         
-        k1, k2 = 5, 0.6
+        k1, k2 = 5, 0.6  # Thelen 2003
         
         if l_M < 1:
-            normalized_PE_force_list = 0
+            f_PE = 0
         elif l_M >= 1:
-            normalized_PE_force_list = (np.exp((k1*(l_M-1))/k2)-1)/(np.exp(k1)-1)
+            f_PE = (np.exp((k1*(l_M-1))/k2)-1)/(np.exp(k1)-1)
+        
+        # c1, k1, lR1 = 23, 0.046, 1.17   # Virtual muscle, Cheng 2000
+        # f_PE = c1*k1*np.log(np.exp((l_M - lR1)/k1) + 1) 
             
-        return normalized_PE_force_list
+        return f_PE
 
+    # def PE2_force(self, l_M):
+        
+    #     c2, k2, lR2 = -0.02, -21, 0.7   # Virtual muscle, Cheng 2000
+    #     f_PE2 = c2*(np.exp(k2*(l_M - lR2)) - 1)
+        
+    #     return f_PE2
+    
     
     " Calculate pennation angle "
 
@@ -330,103 +363,127 @@ class MN_driven_model():
 
     " Free Ca2+ transients (exp. validated) "
 
-    def MU_free_Ca_ODE_func(self, t, l_M_norm, MU_type, beta, gamma,  dgammadt):
+    def MU_free_Ca_ODE_func(self, t, l, MU_type, beta, Ca, dCadt):
         
         if MU_type == 'fast':
-           c_1, c_2, c_3 = 2.5*10.**3,  4.3*10.**5, 0.8  # 0.7
+            c_1, c_2, c_3 = 3*10.**3, 4.3*10.**5, 0.7  # 0.7
 
-        elif MU_type == 'slow':
-           c_1, c_2, c_3 = 9.5*10.**3, 1.8*10.**5, 0.8 
+        elif MU_type == 'slow': 
+            c_1, c_2, c_3 = 6.037*10.**3, 1.8*10.**5, 0.54 
+            
+        #c_1, c_2, c_3 = self.c_1, 4.3*10.**5, self.c_3
+        #c_1, c_2, c_3 = self.c_1, 1.8*10.**5, self.c_3
            
-        if l_M_norm <= 1.0:
-            amp = 0.8
-        elif l_M_norm <= 1.15:
-            amp = 0.8 + 1.33*(l_M_norm - 1.0)
-        elif l_M_norm <= 1.3:
-            amp = 1.0
-        else:
-            amp = 1.0 - 0.6*(l_M_norm - 1.3)
+        p4 = [-0.4688, 3.7127, -11.0323, 14.063, -5.4709]
+        amp = (l**4)*p4[0] + (l**3)*p4[1] + (l**2)*p4[2] + l*p4[3] + p4[4]
         
-        if l_M_norm <= 1.15:
-            width = 1.0
-        else:
-            width = (1.0 - 0.4*(l_M_norm - 1.15))
+        if l < 1:
+            amp = 0.1*l + 0.2
+        #amp = 1
+        
+        p2 = [0.3783, -0.8320, 1.1885]
+        width = (l**2)*p2[0] + l*p2[1] + p2[2]
+        
+        if l < 1.23:
+            width = 0.73
+        elif l > 2.04:
+            width = 1.072
         
         if MU_type == 'slow':
-            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma) #Actual 2nd ord. ODE
+            DDCaDDt = c_3*beta - 1/amp*(c_1*dCadt + width*c_2*Ca) #Actual 2nd ord. ODE
         elif MU_type == 'fast':
-            DDgammaDDt = c_3*beta - 1/amp*(c_1*dgammadt + width*c_2*gamma*(gamma*10**5)) 
+            DDCaDDt = c_3*beta - 1/amp*(c_1*dCadt + width*c_2*Ca*(Ca*10**5)) 
             
-        return DDgammaDDt
+        return DDCaDDt
     
     def MU_free_Ca_func(self, t, y, l_M, MU_type): 
 
         #CA_delay = 2.1*10**-3
         CA_delay = 0
         MU_AP_train = y[0]
-        gamma = y[2] 
-        dgammadt = y[3]
+        Ca = y[2] 
+        dCadt = y[3]
         beta = MU_AP_train  #from previously solved ODE for MUAP
-        DDgammaDDt = self.MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, gamma, dgammadt)  
+        DDCaDDt = self.MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, Ca, dCadt)  
         
-        return dgammadt, DDgammaDDt
-
-
-    " Active state (2 steps) "
+        return dCadt, DDCaDDt
     
-    def active_state_1(self, y):
-        
-        Ca, a1 = y[2], y[4]
-
-        if self.species == 'human' and self.muscle == 'TA':
-            Ca = Ca/(4*10**-5) # Ca normalisation
-            n = 3  # species & exp conditions dependent parameter 
-        elif self.species == 'human' and self.muscle == 'GM':
-            Ca = Ca/(1.4*10**-5) # Ca normalisation
-            n = 3  # species & exp conditions dependent parameter 
-        elif self.species == 'animal':
-            Ca = Ca*2.1e5
-            n = 4
-            
-        if Ca > a1:
-            K = 15.79 
-            dadt1 = (Ca**n - a1)*(a1 + K)*(1 - a1) # ascending phase limited to 1
-        else:
-            K = 60.8329 
-            dadt1 = (Ca - a1)*(a1 + K) # decay following a non-normalized trend
-
-        return dadt1
     
-    def active_state_2(self, y):
+    " CaTn bounding (exp. validated) "
+    
+    def Ca_Tn(self, t, y, MU_type):     
 
-        a1, a2 = y[4], y[5]
+        Ca, CaTn = y[2], y[4]
         
-        if a1 > a2:
-            K = 15.79 
-        else:
-            K = 60.8329 
+        if Ca < 0:
+            Ca = 0 
+        
+        if MU_type == 'slow':
+            k1, k2, T0 = 2e13, 12, 8.7e-5
             
-        dadt2 = (a1 - a2)*(a2 + K)
+        elif MU_type == 'fast':
+            k1, k2, T0 = 5e12, 16, 2.4e-4
         
-        return dadt2
+        dCaTndt = k1*(T0-CaTn)*Ca**2 - k2*CaTn
+
+        return dCaTndt
+
+
+    " Active state "
+    
+    def act(self, y, MU_type):
         
+        # CaTn, a = y[4], y[5]
+        
+        # if MU_type == 'slow':
+        #     d1, d2, d3 = 2.5e5, 0.026, 270
+
+        #     dadt = (CaTn*d1 - a/(d2 + d3*CaTn))    
+              
+        # elif MU_type == 'fast':
+        #     d1, d2, d3 = 1e4, 20, 200
+            
+        #     dadt = (CaTn*d1 - a/(d2 + d3*CaTn)) 
+        
+        if MU_type == 'slow':
+            k1, k2 = 11.5, 15.2
+            Ca, a = y[2]*9e5, y[4] 
+            
+        elif MU_type == 'fast':
+            k1, k2 = 18.5, 35.2
+            Ca, a = y[2]*2e5, y[4] 
+                
+        if Ca > a:
+            dadt = -(k2*a - k1*Ca)*(1 - a)
+        else:
+            dadt = -(k2*a - k1*Ca) 
+           
+        return dadt
     
     " FL relationship (Lloyd-Besier 2003) "
 
-    def Force_Length_func(self, y, l_M_opt):
+    def Force_Length_func(self, act, MU_type, l_M):
         
-        X, act = y[6]/l_M_opt, y[5]
-        a = 0.45
+        X = l_M
+        a = 0.45   
         b = (0.15*(1-act))+1
+        f_FL = np.exp(-((X-b)/a)**2)  # Lloyd Besier
         
-        return np.exp(-((X-b)/a)**2)
-    
-    
-    " FV relationship (adapted from Arnault caillet PhD thesis) "
-    
-    def velo_fFV(self, y, CE_force, FL_force, l_M_opt, MU_type, vmax):
+        # if MU_type == 'slow': # slow
+        #     omega, beta, ro, b = 1.12, 2.30, 1.62, (0.15*(1 - act))+1
+        # elif MU_type == 'fast': # fast
+        #     omega, beta, ro, b = 0.75, 1.55, 2.12, (0.15*(1 - act))+1
         
-        act, l_M = y[5], y[6]/l_M_opt
+        # f_FL = np.exp(-np.abs((X**beta - 1)/omega)**ro)  # Virtual muscle
+        
+        return f_FL
+    
+    
+    " FV relationship (adapted from Arnault Caillet PhD thesis) "
+    
+    def velo_fFV(self, y, f_CE, FL_force, MU_type, vmax):
+        
+        act, l_M = y[4], y[5]/self.l_M_opt
         fmax = 1.4
         
         # Defining fFV involved parameters
@@ -451,30 +508,94 @@ class MN_driven_model():
         K = (kMU*fv*g)
         
         #fFV relationship inverted
-        if CE_force >= 1:
-            vel = b*((CE_force-1)/(fmax-CE_force)) # rat soleus (Krylow, Sandercock)
+        if f_CE >= 1:
+            vel = b*((f_CE - 1)/(fmax - f_CE)) # rat soleus (Krylow, Sandercock)
             vel = vel*K
         else:
-            vel = (CE_force-1)/(CE_force/(af*K))
+            vel = (f_CE - 1)/(f_CE/(af*K))
         
         return vel*vmax
 
 
-    " Muscle yielding (Brown 1999) "    
+    " Muscle yield & sag (Brown 1999) "    
 
     def Yield(self, y, V):
         
         cy, Vy, Ty = 0.35, 0.1, 0.2
-        Y = y[7]
+        Y = y
         
         dY = (1 - cy*(1 - np.exp((-np.abs(V))/Vy)) - Y)/Ty
         
         return dY
 
+    def Sag(self, act, s, t):
+        
+        Ts = 0.043
+        #if act < 0.1:
+        if t > 0 and t < 0.07:   
+            As = 1.3
+        else:
+            As = 0.9
+            
+        dS = (As - s)/Ts
+        
+        return dS
+    
+    
+    """ ODE SYSTEMS """
+    " Full MT dynamics "
+    
+    def ODE_system_MT(self, t, y, alpha, Matrix_AP, MU_type):
+            
+        if int(t/self.dt) == 0:  # initial pennation angle
+            alpha[int(t/self.dt)] = self.alpha_0
+            
+        l_T = self.l_MT[int(t/self.dt)] - (y[5])*np.cos(alpha[int(t/self.dt)]) # tendon length
+        eps_T = (l_T - self.l_T_slack)/self.l_T_slack # new tendon strain    
+        f_SE = self.T_force(eps_T) # tendon force
+        f_PE = self.PE_force(y[5]/self.l_M_opt) # passive el. force    
+        f_CE = f_SE/np.cos(alpha[int(t/self.dt)]) - f_PE  # contractile el. force
+        alpha[int((t + self.dt)/self.dt)] = self.penn_ang(self.l_MT[int((t + self.dt)/self.dt)], y[6], l_T, self.l_M_0*self.l_M_opt, self.alpha_0) # update pennation angle
+
+        dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
+
+        dCadt, DDCaDDt = self.MU_free_Ca_func(t, y, y[5]/self.l_M_opt, MU_type) # Free Ca (remember to avoid negligible negative values)
+
+        # dCaTndt = self.Ca_Tn(t, y, MU_type)
+
+        dadt = self.act(y, MU_type) # Active state (intermediate step)
+                
+        FL = self.Force_Length_func(y[4], MU_type, y[5]/self.l_M_opt) # F-L relationship    
+
+        dldt = self.velo_fFV(y, f_CE/FL, FL, MU_type, self.vmax) # velocity
+
+        dY = self.Yield(y[6], dldt/self.vmax) # yielding (Brown 1999)
+                
+        dS = self.Sag(y[4], y[7], t)
+
+        return [dbetadt, DDbetaDDt, dCadt, DDCaDDt, dadt, dldt, dY, dS]
+    
+    
+    def ODE_system_M(self, t, y, Matrix_AP, MU_type):
+                        
+        dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
+
+        dCadt, DDCaDDt = self.MU_free_Ca_func(t, y, self.l_M_0, MU_type) # Free Ca (remember to avoid negligible negative values)
+
+        #dCaTndt = self.Ca_Tn(t, y, MU_type)
+
+        dadt = self.act(y, MU_type) # Active state (intermediate step)
+        
+        dS = self.Sag(y[4], y[5], t)
+
+        return [dbetadt, DDbetaDDt, dCadt, DDCaDDt, dadt, dS]  
+    
+    
     
     " Solve ODE system and calculate new states (dyn/act cases) "
+    " Muscle-tendon unit simulation "
 
-    def run_simulation(self):
+    def run_MT_simulation(self):
         
         print('There are ', self.Nr, ' discharging MUs in this simulation')
         self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
@@ -485,94 +606,553 @@ class MN_driven_model():
 
             #sp_matrix = self.time[self.distimes[0,i]]
             
+            #Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
             MU_type = self.MU_type_id_func(i)  # i-th MU type identification (fast/slow)
             Matrix_AP = self.distimes.astype(float)
-            #Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
-
-            def ODE_system_MT(t, y, l_MT, l_M_0, l_M_opt, l_T_slack, Matrix_AP, MU_type, alpha_0, dt, alpha, vmax):
-            
-                if int(t/dt) == 0:  # initial pennation angle
-                    alpha[int(t/dt)] = alpha_0
-                l_T = l_MT[int(t/dt)] - (y[6])*np.cos(alpha[int(t/dt)]) # tendon length
-                eps_T = (l_T-l_T_slack)/l_T_slack # new tendon strain    
-                SE_force = self.T_force(eps_T) # tendon force
-                PE_force = self.PEE_force(y[6]/l_M_opt) # passive el. force    
-                CE_force = SE_force/np.cos(alpha[int(t/dt)]) - PE_force # contractile el. force
-                alpha[int((t+dt)/dt)] = self.penn_ang(l_MT[int((t+dt)/dt)], y[6], l_T, l_M_0*l_M_opt, alpha_0) # update pennation angle
-
-                dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
-
-                dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, y[6]/l_M_opt, MU_type) # Free Ca (remember to avoid negligible negative values)
-
-                dadt1 = self.active_state_1(y) # Active state (intermediate step)
-                dadt2 = self.active_state_2(y) # Active state
-                
-                FL = self.Force_Length_func(y, l_M_opt) # F-L relationship    
-
-                dldt = self.velo_fFV(y, CE_force/FL, FL, l_M_opt, MU_type, vmax) # velocity
-
-                dY = self.Yield(y, dldt/vmax) # yielding (Brown 1999)
-
-                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt1, dadt2, dldt, dY]
-
-
-            def ODE_system_act(t, y, l_M_0, Matrix_AP, MU_type):
-                        
-                dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
-
-                dgammadt, DDgammaDDt = self.MU_free_Ca_func(t, y, l_M_0, MU_type) # Free Ca (remember to avoid negligible negative values)
-
-                dadt1 = self.active_state_1(y) # Active state (intermediate step)
-                dadt2 = self.active_state_2(y) # Active state
-
-                return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt1, dadt2]            
-
-
-            if self.sim == 'MT':  # full MT dynamic case
-                
-                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.act_0, self.l_M_opt, self.y_0]  # set initial states
-                p = (self.l_MT, self.l_M_0, self.l_M_opt, self.l_T_slack, Matrix_AP, MU_type, self.alpha_0, self.dt, self.alpha[i,:], self.vmax)  # set ODE parameters
-                sol = solve_ivp(ODE_system_MT, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
-
-                self.MUAP[i,:] = sol.y[0]  # get MUAP
-                self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
-                self.active_state[i,:] = sol.y[5]  # get active state
-                self.l_M[i,:] = sol.y[6]  # get l_M
-                self.yielding[i,:] = sol.y[7]  # get yielding coeff.
-
-                # now recalculate data based on l_M values..
-                self.alpha[i,0] = self.alpha_0
-                
-                for l in range(len(self.time)):
-                    self.l_T[i,l] = self.l_MT[l] - (self.l_M[i,l])*np.cos(self.alpha[i,l]) # tendon length
-                    self.eps_T[i,l] = (self.l_T[i,l] - self.l_T_slack)/self.l_T_slack # new tendon strain    
-                    self.SE_force[i,l] = self.T_force(self.eps_T[i,l]) # tendon force
-                    self.PE_force[i,l] = self.PEE_force(self.l_M[i,l]/self.l_M_opt) # passive el. force 
-                    self.CE_force[i,l] = self.SE_force[i,l]/np.cos(self.alpha[i,l]) - self.PE_force[i,l] # contractile element force
                     
-                    self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
-        
-                if self.y == 'y' and MU_type == 'slow': # yielding only for slow twitch MUs
-                    MU_Force_list = self.yielding * self.active_state * self.CE_force + self.PE_force
-                else:
-                    MU_Force_list = self.active_state * self.CE_force + self.PE_force
-            
-                F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
-                Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
-        
-                return Tot_Muscle_force, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding  # Return force and solutions
-            
-            
-            elif self.sim == 'act':   # excitation-activation only case
-                
-                y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.act_0]  # set initial states
-                p = (self.l_M_0, Matrix_AP, MU_type)  # set ODE parameters
-                sol = solve_ivp(ODE_system_act, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
+            y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.l_M_opt, self.y_0, self.s_0]  # set initial states
+            p = (self.alpha[i,:], Matrix_AP, MU_type)  # set ODE parameters
+            sol = solve_ivp(self.ODE_system_MT, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
 
-                self.MUAP[i,:] = sol.y[0]  # get MUAP
-                self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
-                self.active_state[i,:] = sol.y[5]  # get active state
- 
-                return self.MUAP, self.free_Ca, self.active_state  # Return solutions
+            self.MUAP[i,:] = sol.y[0]  # get MUAP
+            self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
+            #self.CaTn[i,:] = sol.y[4]
+            self.active_state[i,:] = sol.y[4]  # get active state
+            self.l_M[i,:] = sol.y[5]  # get l_M
+            self.yielding[i,:] = sol.y[6]  # get yielding coeff.
+            self.sag[i,:] = sol.y[7] # get sag
+
+            # now recalculate data based on l_M values..
+            self.alpha[i,0] = self.alpha_0
+                
+            for l in range(len(self.time)):
+                self.l_T[i,l] = self.l_MT[l] - (self.l_M[i,l])*np.cos(self.alpha[i,l]) # tendon length
+                self.eps_T[i,l] = (self.l_T[i,l] - self.l_T_slack)/self.l_T_slack # new tendon strain    
+                self.f_SE[i,l] = self.T_force(self.eps_T[i,l]) # tendon force
+                self.f_PE[i,l] = self.PE_force(self.l_M[i,l]/self.l_M_opt) # passive el. force 
+                self.f_CE[i,l] = self.f_SE[i,l]/np.cos(self.alpha[i,l]) - self.f_PE[i,l] # contractile element force
+                    
+                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
+        
+        if self.y == 'y' and MU_type == 'slow':   # yielding only for slow twitch MUs
+            MU_Force_list = self.yielding * self.active_state * self.f_CE + self.f_PE
+        elif self.s == 'y' and MU_type == 'fast': 
+            MU_Force_list = 1* self.active_state * self.f_CE + self.f_PE
+        else:
+            MU_Force_list = self.active_state * self.f_CE + self.f_PE
             
+        F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
+        Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
+        
+        return Tot_Muscle_force, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding, self.sag  # Return force and solutions
+
+
+    " Excitation-activation simulation (no tendon) "
+
+    def run_M_simulation(self):
+        
+        print('There are ', self.Nr, ' discharging MUs in this simulation')
+        self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
+        
+        "Run the muscle model simulation."
+        for i in range(self.Nr):
+            print('Computing Force for MU n°', str(i + 1))
+
+            #sp_matrix = self.time[self.distimes[0,i]]
+            
+            #Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
+            MU_type = self.MU_type_id_func(i)  # i-th MU type identification (fast/slow)
+            Matrix_AP = self.distimes.astype(float)
+                    
+            y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.s_0]  # set initial states
+            p = (Matrix_AP, MU_type)  # set ODE parameters
+            sol = solve_ivp(self.ODE_system_M, [self.time[0], self.time[-1]], y0, args=p, method='LSODA', t_eval=self.time, max_step=self.dt/4)  # solve IVP
+
+            self.MUAP[i,:] = sol.y[0]  # get MUAP
+            self.free_Ca[i,:] = sol.y[2]  # get free [Ca]
+            self.active_state[i,:] = sol.y[4]  # get active state
+            self.sag[i,:] = sol.y[5] # get sag
+                
+            for l in range(len(self.time)):
+                self.f_PE[i,l] = self.PE_force(self.l_M_0) # passive el. force 
+                self.f_CE[i,l] = self.Force_Length_func(self.active_state[i,l], MU_type, l_M_0)
+                
+        if self.y == 'y' and MU_type == 'slow':   # yielding only for slow twitch MUs
+            MU_Force_list = self.yielding * self.active_state * self.f_CE + self.f_PE
+        elif self.s == 'y' and MU_type == 'fast': 
+            MU_Force_list = self.sag * self.active_state * self.f_CE + self.f_PE
+        else:
+            MU_Force_list = self.active_state * self.f_CE + self.f_PE
+            
+        F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
+        Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)
+        
+        return Tot_Muscle_force, self.MUAP, self.free_Ca, self.active_state, self.sag  # Return force and solutions
+    
+
+
+
+
+
+
+
+
+
+
+
+#%%
+###############################################################################
+""" MODIFY parameters according to the benchmark """
+###############################################################################
+
+user = 'Andrea'
+MN_pool = 1  # n. of theoretical MUs in the real pool 
+Nr = 1 # n. of (exp.) MUs to represent in the pool
+pool = 'n' # exp or pool
+spread = 'evenly' # evenly or identified 
+species = 'animal' # human/animal
+
+dt = 1e-4 # time step (x-data)
+
+input_folder = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input'
+
+save = 'y' # save results 'y' or 'n'
+
+#%%
+
+root = tk.Tk() # Initialise input window
+root.withdraw()  # Hide the root window
+
+benchmark = simpledialog.askstring("Input", "Select benchmark ('max', 'sub', 'len', 'fast', 'Ca', 'CaTn'):") # max or sub
+
+""" MAXIMAL benchmark (Sandercock 1997) """
+
+if benchmark == 'max':
+    
+    scale = simpledialog.askstring("Input", "Amplitude displacement scale (e.g., 0.1, 0.5, 2):")
+    
+    os.chdir(input_folder + '\\' + benchmark)
+    t_end = 2
+    muscle = 'SOL' # dorsi/plantar
+    time_dt = np.arange(0, t_end, dt) # time for BB
+    Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
+    disp = np.genfromtxt('displacement.dat', delimiter='')
+    disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
+    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 1, 6*np.pi/180] # MVC and M/T lengths
+    l_MT_0 = l_T_slack + (l_M_opt)*np.cos(alpha_0)-2 # Musculo-tendon length (mm)
+    l_MT = l_MT_0 + disp*float(scale) # scaled MT length    
+    exp_force = np.genfromtxt('force' + scale + '.dat', delimiter='') # load experimental force
+    exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,2,dt)) # interpolate to have equal n of points
+    yielding = 'n' # yielding not included
+    sag = 'n'
+    
+    """ SUB-MAXIMAL benchmark (Perreault 2003) """
+    
+elif benchmark == 'sub':
+    
+    trial = simpledialog.askstring("Input", "Trial type? ('iso' or 'dyn'):")
+    stim = simpledialog.askstring("Input", "Stimulation type? ('c' or 'v'):")
+    fs = simpledialog.askstring("Input", "Stimulation frequency (Hz):")
+    muscle = 'SOL' # dorsi/plantar
+    yielding = 'y' # yielding included
+    sag = 'y'
+    
+    os.chdir(input_folder + '\\' + benchmark) # load displacement, MVC and update MT lengths
+    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [25.1, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
+    l_MT_0 = l_T_slack + (l_M_opt)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
+    
+    t_end = 2
+    time_dt = np.arange(0, t_end, dt) # time for BB
+    os.chdir(input_folder + '\\' + benchmark + '\\' + stim + '_freq') 
+    Distimes = np.load(fs + '_' + stim + '_times.npy') # exp. discharge times
+    
+    if trial == 'iso':
+        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
+        exp_force = np.genfromtxt('force_isometric_' + stim + fs + '.dat', delimiter='')
+        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
+    
+    elif trial == 'dyn':
+        
+        d = simpledialog.askstring("Input", "Displacement amplitude (1 or 8mm):")
+        
+        disp = np.genfromtxt('displacement_' +  d + '.dat', delimiter='') # load displacement
+        disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate displacement
+        l_MT = l_MT_0 + (disp+8) # scaled MT length
+        exp_force = np.genfromtxt('force_' + stim + fs + '_' + d + '.dat', delimiter='')
+        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
+
+
+    """ TWITCH, SUB-TETANIC, TETANIC at different lengths (Kim 2015) """
+
+elif benchmark == 'len':
+    
+    l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
+    fs = simpledialog.askstring("Input", '"Stimulation frequency (Hz):", or "twitch"')
+    yielding = 'y'
+    sag = 'n'
+    
+    os.chdir(input_folder + '\\' + benchmark)
+    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [25.1, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
+    t_end = 1.4
+    muscle = 'SOL' # dorsi/plantar
+    time_dt = np.arange(0, t_end, dt) # time for BB
+    
+    if l == '0':
+        d = 8
+    elif l == '8':
+        d = 0 
+    elif l == '16':
+        d = -8
+        
+    l_MT_0 = l_T_slack + (l_M_opt)*np.cos(alpha_0) - 4   # Musculo-tendon length (mm)
+    l_MT_0 = l_MT_0 + d  # apply displacement
+    l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+
+    exp_force = np.load(l + '_' + fs + '_interp.npy')
+    if fs == 'twitch':
+        Distimes = np.array(np.load(l + '_' + fs + '_times.npy'))
+    else:
+        Distimes = np.load(l + '_' + fs + '_times.npy') # exp. discharge times
+    
+    """ Test fast fibres (Brown 1999 - Cat CF, Brown 1999) """
+
+elif benchmark == 'fast':
+    
+    trial = simpledialog.askstring("Input", "Trial type? ('iso' or 'dyn'):")
+    yielding = 'n'
+    sag = 'y'
+    
+    os.chdir(input_folder + '\\' + benchmark)
+    
+    if trial == 'iso':
+        fs = simpledialog.askstring("Input", "Stimulation frequency (Hz):")
+        
+        exp_force = np.load(trial + '_' + fs + '_1_interp.npy')
+        
+        if fs == '15': # define end time for setting discharges
+            t_dis = 0.5
+        elif fs == '30':
+            t_dis = 0.25
+        elif fs == '40':
+            t_dis = 0.18
+        elif fs == '50':
+            t_dis = 0.13
+        elif fs == '120':
+            t_dis = 0.09
+            
+        Distimes = np.arange(0, t_dis, 1/float(fs)) # exp. discharge times
+        t_end = 0.6
+        muscle = 'CF' # dorsi/plantar
+        time_dt = np.arange(0, t_end, dt)
+    
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [25.1, 0, 0, 1, 0] # MVC and M/T lengths
+        l_MT_0 = l_T_slack + (l_M_opt)*np.cos(alpha_0)  # Musculo-tendon length (mm)
+        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+    
+    
+    """ Test Ca dynamics (Hollingworth, Rincon exp. data) """
+    
+elif benchmark == 'Ca':
+    
+    fibre = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
+    yielding = 'n'
+    sag = 'n'
+    
+    os.chdir(input_folder + '\\' + benchmark)
+    
+    Ca_slow_23 = "Ca_slow_23_100Hz.csv" # load digitized slow fibre data
+    Ca_slow_23 = pd.read_csv(Ca_slow_23, delimiter = ' ')
+    Ca_slow_23 = Ca_slow_23.to_numpy()  
+    
+    Ca_fast_35 = "Ca_fast_35_125Hz.csv" # load digitized fast fibre data
+    Ca_fast_35 = pd.read_csv(Ca_fast_35, delimiter = ' ')
+    Ca_fast_35 = Ca_fast_35.to_numpy()
+
+    t_end = 1.4
+    time_dt = np.arange(0, t_end, dt)
+    
+    if fibre == 'slow':
+        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 0, 0, 30, 1, 0] # at optimal sarcomere length (assumption)
+        T = 1/102 # frequency = 100 Hz (corrected)
+        Distimes = np.arange(0, 0.04, T)
+        muscle = 'SOL' # slow fibre muscle
+    elif fibre == 'fast':
+        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 0, 0, 30, 1.6, 0] # at longer sarcomere length (see article)
+        T = 1/125 # frequency = 125 Hz
+        Distimes = np.arange(0, 0.08, T)
+        muscle = 'CF' # fast fibre muscle
+ 
+    
+    """ Test Ca dynamics (Hollingworth, Rincon exp. data) """
+    
+elif benchmark == 'CaTn':
+    
+    fibre = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
+    yielding = 'n'
+    sag = 'n'
+    
+    os.chdir(input_folder + '\\' + benchmark)
+    
+    CaTn_slow = "CaTn_slow_twitch.csv" # load digitized slow fibre data
+    CaTn_slow = pd.read_csv(CaTn_slow, delimiter = ' ', decimal=',')
+    CaTn_slow = CaTn_slow.to_numpy()  
+    
+    CaTn_fast = "CaTn_fast_twitch.csv" # load digitized fast fibre data
+    CaTn_fast = pd.read_csv(CaTn_fast, delimiter = ' ', decimal=',')
+    CaTn_fast = CaTn_fast.to_numpy()
+    
+    t_end = 0.045
+    time_dt = np.arange(0, t_end, dt)
+    
+    if fibre == 'slow':
+        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 0, 0, 30, 1.6, 0] # at optimal sarcomere length (assumption)
+        Distimes = np.arange(0, 0.1, 0.1)
+        muscle = 'SOL' # slow fibre muscle
+    elif fibre == 'fast':
+        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 0, 0, 30, 1.6, 0] # at longer sarcomere length (see article)
+        Distimes = np.arange(0, 0.1, 0.1)
+        muscle = 'CF' # fast fibre muscle
+    
+os.chdir(cwd)
+
+#%%
+" Create dictionary as model's input "
+
+parameters = {
+    'muscle': muscle, 
+    'time': time_dt, 
+    'pool': pool,
+    'dt': dt,
+    'MVC': MVC,
+    'spread': spread,
+    'MN_pool': MN_pool,
+    'yielding': yielding,
+    'sag': sag,
+    'Nr': Nr,
+    'l_T_slack': l_T_slack, # scaled with respect to Rajagopal model
+    'l_M_opt': l_M_opt, # scaled with respect to Rajagopal model
+    'alpha_0': alpha_0,
+    'l_MT': l_MT,
+    'species': species,
+    'vmax': 10.5428 *l_M_opt,
+    # 'c_1': 0,  # for Ca ODE optimization
+    # 'c_3': 0
+}
+
+states = {
+    'MUAP_0': 0,
+    'Ca_0': 0,
+    'CaTn_0': 0,
+    'act_0': 1e-9,
+    'l_M_0': l_M_0,
+    'y_0': 1,
+    's_0': 1
+}
+
+#%%
+###############################################################################
+""" PARAMETERS OPTIMIZATION (Nelder-Mead-lstsq)"""
+###############################################################################
+
+""" 1) MAXIMAL benchmark [MVC, Vmax] estimation """
+
+# def obj(x, parameters, states, Distimes, exp_force): 
+    
+#     parameters['MVC'] =  x[0]
+#     parameters['vmax'] = x[1]
+    
+#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, _, _, _ = model.run_MT_simulation() # Run the simulation
+    
+#     residuals = force_sim - exp_force  # assuming both are in same units
+#     return np.sum(residuals**2)  
+
+# x0 = [1.2, 10]
+# bnds = [(1, 1.5), (8, 12)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+
+"""  2) SUB-MAXIMAL benchmark [MVC, Ca_max] estimation """
+
+# def obj(x, parameters, states, Distimes, exp_force): 
+    
+#     parameters['MVC'] =  x[0]
+#     parameters['Ca_max'] = x[1]
+    
+#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, Ca, a, l_M, _ = model.run_MT_simulation() # Run the simulation
+    
+#     residuals = force_sim - exp_force  # assuming both are in same units
+#     return np.sum(residuals**2)  
+
+# x0 = [26, 2.3e5]
+# bnds = [(25, 29), (1e5, 5e5)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+
+""" 3) Ca transient ODE [c1, c2, c3] parameters estimation """
+
+# def obj(x, parameters, states, Distimes, exp_data): 
+    
+#     parameters['c_1'] = x[0]
+#     parameters['c_3'] = x[1]
+    
+#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     _, _, Ca, _, _ = model.run_M_simulation() # Run the simulation
+
+#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
+
+#     residuals = Ca[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
+#     return np.sum(residuals**2)  
+
+# if fibre == 'slow':
+#     exp_data = Ca_slow_23
+#     x0 = [8*10.**3, 0.6]
+#     bnds = [(1e2, 1e5), (0.1, 2)]
+# elif fibre == 'fast':
+#     exp_data = Ca_fast_35
+#     x0 = [2.8*10.**3, 0.7]
+#     bnds = [(1e2, 1e5), (0.1, 2)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
+#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
+
+""" 4) CaTn bounding ODE parameters estimation """
+
+# def obj(x, parameters, states, Distimes, exp_data): 
+    
+#     parameters['c_1'] = x[0]
+#     parameters['c_3'] = x[1]
+    
+#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     _, _, Ca, _, _, _ = model.run_M_simulation() # Run the simulation
+
+#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
+
+#     residuals = CaTn[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
+#     return np.sum(residuals**2)  
+
+# if fibre == 'slow':
+#     exp_data = CaTn_slow
+#     x0 = [8*10.**3, 0.6]
+#     bnds = [(1e2, 1e5), (0.1, 2)]
+# elif fibre == 'fast':
+#     exp_data = CaTn_fast
+#     x0 = [2.8*10.**3, 0.7]
+#     bnds = [(1e2, 1e5), (0.1, 2)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
+#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
+
+#%% 
+###############################################################################
+""" Running simulations and plot solutions """
+###############################################################################
+
+model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+
+
+if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len':
+    
+    force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation() # Run the simulation
+
+    # Plot the force profiles
+    plt.rcParams['figure.dpi'] = 400
+    plt.plot(time_dt, force_sim, 'r', label='Simulated Force')
+    plt.plot(time_dt, exp_force, 'k', label='Exp. Force')
+    #plt.plot(time_dt, a[0,:])
+    #plt.ylabel('Active state', weight='bold', fontsize=12)
+    plt.ylabel('Force [N]', weight='bold', fontsize=12)
+    plt.xlabel('Time [s]', weight='bold', fontsize=12)
+    plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
+    plt.legend(loc='lower right')
+    plt.grid()
+
+
+elif benchmark == 'fast':
+    
+    force_sim, _, _, _, _ = model.run_M_simulation() # Run the simulation
+    
+    # Plot the force profiles
+    plt.rcParams['figure.dpi'] = 400
+    plt.plot(time_dt, force_sim/MVC, 'r', label='Simulated Force')
+    plt.plot(time_dt, exp_force, 'k', label='Exp. Force')
+    plt.ylabel('Force [N]', weight='bold', fontsize=12)
+    plt.xlabel('Time [s]', weight='bold', fontsize=12)
+    plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
+    plt.legend(loc='lower right')
+    plt.grid()
+
+
+elif benchmark == 'Ca':
+    
+    _, _, Ca, _, _ = model.run_M_simulation()
+    
+    plt.rcParams['figure.dpi'] = 400
+
+    # Plot excitation/activation quantities
+    if fibre == 'slow':
+        plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (23°C)')
+        plt.plot((Ca_slow_23[:,0] - Ca_slow_23[0,0])*10**-3, Ca_slow_23[:,1], 'k--', label = 'Rincon et al. 2021 (23°C)')
+        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        plt.title('Free [$Ca^{2+}$] for slow mouse fibres', weight='bold', fontsize=15)
+        plt.legend(loc='upper right')
+        plt.xlim((0, 0.12))
+        plt.grid()
+    elif fibre == 'fast':
+        plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (35°C)')
+        plt.plot((Ca_fast_35[:,0] - Ca_fast_35[0,0])*10**-3, Ca_fast_35[:,1], 'k--', label = 'Hollingworth 1996 (35°C)')
+        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        plt.title('Free [$Ca^{2+}$] for fast mouse fibres', weight='bold', fontsize=15)
+        plt.legend(loc='upper right')
+        plt.xlim((0, 0.12))
+        plt.grid()
+        
+        
+elif benchmark == 'CaTn':
+    
+    _, _, _, CaTn, _, _ = model.run_M_simulation()
+    
+    plt.rcParams['figure.dpi'] = 400
+
+    # Plot excitation/activation quantities
+    if fibre == 'slow':
+        plt.plot(time_dt, CaTn[0,:]*10**6, 'm', label='Simulated (16°C)')
+        plt.plot((CaTn_slow[:,0] - CaTn_slow[0,0]), CaTn_slow[:,1], 'k--', label = 'Baylor 2003 model (16°C)')
+        plt.ylabel('[CaTn] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        plt.title('[CaTn] - slow mouse fibre twitch', weight='bold', fontsize=15)
+        plt.legend(loc='lower right')
+        plt.xlim((0, 0.045))
+        plt.grid()
+    elif fibre == 'fast':
+        plt.plot(time_dt, CaTn[0,:]*10**6, 'm', label='Simulated (16°C)')
+        plt.plot(CaTn_fast[:,0]-0.0011, CaTn_fast[:,1], 'k--', label = 'Baylor 2003 model (16°C)')
+        plt.ylabel('[CaTn] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        plt.title('[CaTn] - fast mouse fibre twitch', weight='bold', fontsize=15)
+        plt.legend(loc='lower right')
+        plt.xlim((0, 0.045))
+        plt.grid()
+
+
+#%%
+# # Error metrics (%mAE, %MAE)
+# mean_abs_error = np.mean((np.abs(force_sim - exp_force)/MVC)*100)
+# max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
+
+#%%
+# Save the figure if needed
+
+# os.chdir('C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\variablefreq_yielding')
+
+# if save == 'y':
+#     print("Saving results...")
+#     np.save('R5', force_sim, allow_pickle=True)
 

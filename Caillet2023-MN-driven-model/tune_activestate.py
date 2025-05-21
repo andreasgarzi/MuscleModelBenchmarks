@@ -8,12 +8,10 @@ ___________________________________
 Tuning of the active state ODE coefficients based on rat soleus MU twitch.
 """
 
-#%%____________________________________________________________________________
 import sys
 sys.path.insert(0,'Modules_BB')
 import os
 cwd = os.getcwd()
-#%%____________________________________________________________________________
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -23,8 +21,8 @@ from MU_type_id_MOD import MU_type_id_func
 from MU_AP_MOD import MU_AP_func
 from MN_AP_MOD import MN_AP_func
 from MU_free_Ca_MOD import MU_free_Ca_func
-from A_1 import active_state_1
-from A_2 import active_state_2
+from Ca_Tn import CaTn
+from A import active_state
 
 #%%____________________________________________________________________________
 """ Load time, displacement and force form BB tests, create virtual MU spikes"""
@@ -109,6 +107,19 @@ l_MT_0 = l_T_slack + (l_M_opt)*np.cos(alpha_0) - 4 # Musculo-tendon length (mm)
 # l_MT = np.zeros((len(time_dt)+1), dtype=object) 
 # l_MT = l_MT + l_MT_0
 
+def Sag(y):
+        
+    Ts = 0.043
+    if y[4] < 0.1:
+        As = 1.76
+    else:
+         As = 0.96
+            
+    dS = (As - y[5])/Ts
+        
+    return dS
+
+
 #______________________________________________________________________________
 " ARRAYS PREALLOCATION "
 
@@ -117,8 +128,8 @@ free_Ca = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # free [Ca] course
 l_M = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # MU lengths
 MUAP_nerve = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # MU AP
 MN_nerve = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # MN AP
-a_1 = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state 1
-a_2 = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state 2
+Ca_Tn = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state 1
+a = np.empty((len(fd), Nr, len(time_dt)), dtype=object) # active state 2
 #______________________________________________________________________________
 " RUNNING THE MN-DRIVEN MODEL FOR ALL FIRING MUS USED AS INPUTS "
 
@@ -150,7 +161,7 @@ for f in range(3):
         print('Computing Force for MU n°', str(i+1))
        
         if f == 4 or f == 6:
-            l_M_0 = 1.8 # Baylor or Hollingworth
+            l_M_0 = 1.6 # Baylor, Hollingworth
         else:
             l_M_0 = 1  # Rincon & Giraldo
         
@@ -163,25 +174,29 @@ for f in range(3):
             
             dgammadt, DDgammaDDt = MU_free_Ca_func(t, y, y[0], l_M_0, MU_type, Matrix_AP, i, f) # Free Ca (remember to avoid negligible negative values)
             
-            dadt1 = active_state_1(t, y) # Ca-Tn
+            dCaTndt = CaTn(t, y, MU_type) # Ca-Tn
             
-            dadt2 = active_state_2(t, y) # Active state
+            dadt = active_state(y, MU_type) # Active state
             
-            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dadt1, dadt2]
+            #dS = Sag(y)
+            
+            return [dbetadt, DDbetaDDt, dgammadt, DDgammaDDt, dCaTndt, dadt]
     
-        y0 = [0, 0, 0, 0, 1*10**-9, 1*10**-9] # set initial states (active state can't be 0 otherwise you'll divide by 0 in FV)
+        y0 = [0, 0, 0, 0, 0, 1*10**-9] # set initial states (active state can't be 0 otherwise you'll divide by 0 in FV)
         p = (l_M_0, Matrix_AP, MU_type, dr, i, f) # set ODE parameters
         sol = solve_ivp(ODE_system, [time_dt[0], time_dt[-1]], y0, args=p, method='LSODA', t_eval = time_dt, max_step = dt/2) # solve IVP
-    
-        a_2[f,i,:] = sol.y[5]  # get active state
-        a_1[f,i,:] = sol.y[4]
+        
+        #a_1[f,i,:] = sol.y[4]
         MUAP_nerve[f,i,:] = sol.y[0]
         free_Ca[f,i,:] = sol.y[2]  # get [Ca2+]
         
         for l in range (len(time_dt)):  # correct the negative values of free [Ca++]
-            MN_nerve[f,i,l] = MN_AP_func(time_dt[l], Matrix_AP)
-            if free_Ca[f,i,l] < 0:
-                free_Ca[f,i,l] = 0
+            if free_Ca[f,i,l] <= 0:
+                free_Ca[f,i,l] = 1e-20
+         
+        Ca_Tn[f,i,:] = sol.y[4]  
+        a[f,i,:] = sol.y[5]
+
     
 #%%------------------------------------------------------------------------------
 
@@ -216,67 +231,183 @@ def hex_to_RGB(hex_str):
     #Pass 16 to the integer function for change of base
     return [int(hex_str[i:i+2], 16) for i in range(1,6,2)]
 
-cg1 = get_color_gradient(c1, c2, 4)
-cg2 = get_color_gradient(c3, c4, 3)
+cg1 = get_color_gradient(c1, c2, 3)
+cg2 = get_color_gradient(c3, c4, 5)
 cg3 = get_color_gradient(c5, c6, 3)
 cg4 = get_color_gradient(c7, c8, 5)
 
 #%%
 """ Extract experimental digitized data from Rincon 2021 """
 
-os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Digitized_Hollingworth_Rincon_Ca") # max activation BB dir path
+# os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Data\\Digitized_Hollingworth_Rincon_Ca") # max activation BB dir path
 
-path_slow = "slow_16_mouse_67Hz.csv"  #.csv files locations
-path_slow_23 = "slow_23_mouse_100hz_spaceseparator.csv"
-path_fast = "fast_16_mouse_67Hz.csv"
-path_fast_35 = "fast_35_mouse_125hz.csv"
+# path_slow = "Ca_slow_16_67Hz.csv"  #.csv files locations
+# path_slow_23 = "Ca_slow_23_100hz.csv"
+# path_fast = "Ca_fast_16_67Hz.csv"
+# path_fast_35 = "Ca_fast_35_125hz.csv"
 
-data_slow = pd.read_csv(path_slow, delimiter = ' ', decimal=',')
-data_slow = data_slow.to_numpy()    
+# data_slow = pd.read_csv(path_slow, delimiter = ' ', decimal=',')
+# data_slow = data_slow.to_numpy()    
 
-data_slow_23 = pd.read_csv(path_slow_23, delimiter = ' ')
-data_slow_23 = data_slow_23.to_numpy()    
+# data_slow_23 = pd.read_csv(path_slow_23, delimiter = ' ')
+# data_slow_23 = data_slow_23.to_numpy()    
          
-data_fast = pd.read_csv(path_fast, delimiter = ' ', decimal=',')
-data_fast = data_fast.to_numpy()
+# data_fast = pd.read_csv(path_fast, delimiter = ' ', decimal=',')
+# data_fast = data_fast.to_numpy()
 
-data_fast_35 = pd.read_csv(path_fast_35, delimiter = ' ')
-data_fast_35 = data_fast_35.to_numpy()
+# data_fast_35 = pd.read_csv(path_fast_35, delimiter = ' ')
+# data_fast_35 = data_fast_35.to_numpy()
 
-os.chdir(cwd)
+# os.chdir(cwd)
+
+#%%
+""" Extract experimental digitized data from Blinks, Konishi """
+
+# os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Data\\Digitized_Blinks_Konishi") # max activation BB dir path
+
+# konishi = pd.read_csv("Konishi_l_Capeak.csv", delimiter = ' ')
+# konishi = (konishi.to_numpy())    
+
+# konishi2 = pd.read_csv("Konishi_l_Catimetopeak.csv", delimiter = ' ')
+# konishi2 = (konishi2.to_numpy())  
+
+# blinks = pd.read_csv("Blinks_l_Capeak.csv", delimiter = ' ')
+# blinks = (blinks.to_numpy()) 
+# blinks = np.delete(blinks, 4, axis=0)
+# blinks[:,1] = blinks[:,1]/100
+
+# #l_compr = 
+
+# os.chdir(cwd)
+
+# l_Ca = np.concatenate((blinks[0:4,:], konishi))
+# l_Ca = l_Ca[np.argsort(l_Ca[:,0])]
+# l_Ca[:,0] = l_Ca[:,0]/2.1
+
+# p = np.polyfit(l_Ca[:, 0], l_Ca[:, 1], 4)
+# fit = np.poly1d(p)
+# l_sm = np.linspace(l_Ca[:, 0].min(), l_Ca[:, 0].max(), 500)
+# #l_sm = np.linspace(0.5, 3, 500)
+# Ca_sm = (l_sm**4)*p[0] + (l_sm**3)*p[1] + (l_sm**2)*p[2] + (l_sm)*p[3] + p[4]
+# #Ca_sm = fit(l_sm)
+
+# l_Cattp = konishi2
+# l_Cattp = l_Cattp[np.argsort(l_Cattp[:,0])]
+# l_Cattp[:,0] = l_Cattp[:,0]/2.1
+
+# p2 = np.polyfit(l_Cattp[:, 0], l_Cattp[:, 1], 2)
+# fit2 = np.poly1d(p2)
+# l_smttp = np.linspace(l_Cattp[:, 0].min(), l_Cattp[:, 0].max(), 500)
+# Ca_sm = (l_sm**4)*p[0] + (l_sm**3)*p[1] + (l_sm**2)*p[2] + (l_sm)*p[3] + p[4]
+# Ca_smttp = fit2(l_smttp)
+
+# plt.subplot(2,1,1)
+# plt.rcParams['figure.dpi'] = 400
+# plt.plot(l_Ca[0:5,0], l_Ca[0:5,1], 'rx', label = 'Blinks 1978')
+# plt.plot(l_Ca[5:-1,0], l_Ca[5:-1,1], 'gx', label = 'Konishi 1991')
+# plt.plot(l_sm, Ca_sm, 'k')
+# #plt.xlabel('Normalised sarcomere length', weight='bold')
+# plt.ylabel('Norm. p $\Delta$[$Ca^{2+}$]', weight='bold')
+# plt.legend(loc = 'upper right')
+# plt.grid()
+
+# plt.subplot(2,1,2)
+# plt.rcParams['figure.dpi'] = 400
+# plt.plot(l_Cattp[:,0], l_Cattp[:,1], 'gx', label = 'Konishi 1991')
+# plt.plot(l_smttp, Ca_smttp, 'k')
+# plt.xlabel('Normalised sarcomere length', weight='bold')
+# plt.ylabel('Norm. ttp $\Delta$[$Ca^{2+}$]', weight='bold')
+# plt.legend(loc = 'upper right')
+# plt.grid()
+
+#%%
+""" Extract experimental digitized data from Matsuo 2010 """
+
+# os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Data\\Digitized_Blinks_Konishi") # max activation BB dir path
+
+# matsuo = pd.read_csv("Matsuo_CaTn.csv", delimiter = ' ')
+# matsuo = (matsuo.to_numpy())   
+# #matsuo = [[0,0], [matsuo]]
+
+# os.chdir(cwd)
+
+# plt.rcParams['figure.dpi'] = 360
+# plt.plot(matsuo[:,0]*1e-3, matsuo[:,1], 'k--', label='Matsuo 2010')
+# plt.plot(time_dt, Ca_Tn[0,1,:]*10**6, 'r', label = 'Simulated')
+# plt.ylabel('CaTn [$\mu$M]', weight='bold')
+# plt.xlabel('Time [s]', weight='bold')
+# plt.legend(loc='lower right')
+# plt.xlim([0,matsuo[-1,0]*1e-3])
+# plt.grid()
 
 #%% Visual validation
 #ACTIVATION General
 #Single twitch & 20Hz
-figure(figsize=(17, 10))
-plt.subplot(1,2,1)
-plt.rcParams['figure.dpi'] = 360
+plt.rcParams['figure.dpi'] = 400
 
-plt.plot(time_dt, a_1[0,0,:], color=cg1[0], label='d.r. = 10Hz')
-plt.plot(time_dt, a_1[1,0,:], color=cg1[1], label='d.r. = 20Hz')
-plt.plot(time_dt, a_1[2,0,:], color=cg1[2], label='d.r. = 30Hz')
-# # plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz')
-#plt.plot(time_dt, active_state[4,0,:], color=cg1[3], label='d.r. = 67Hz')
-plt.ylabel('Active state (intermediate)', weight='bold', fontsize=17)
-plt.xlabel('Time [s]', weight='bold', fontsize=17)
-plt.legend(loc='lower right', fontsize=17)
-#plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
-plt.grid()
 
-plt.subplot(1,2,2)
-plt.rcParams['figure.dpi'] = 360
-
-plt.plot(time_dt, a_2[0,0,:], color=cg1[0], label='d.r. = 10Hz')
-plt.plot(time_dt, a_2[1,0,:], color=cg1[1], label='d.r. = 20Hz')
-plt.plot(time_dt, a_2[2,0,:], color=cg1[2], label='d.r. = 30Hz')
-# # plt.plot(time_dt, active_state[3,0,:], color=cg1[3], label='d.r. = 40Hz')
-#plt.plot(time_dt, active_state[4,0,:], color=cg1[3], label='d.r. = 67Hz')
+#plt.subplot(1,2,1)
+plt.plot(time_dt, a[0,0,:], color=cg1[0], label='d.r. = 10Hz')
+plt.plot(time_dt, a[1,0,:], color=cg1[1], label='d.r. = 20Hz')
+plt.plot(time_dt, a[2,0,:], color=cg1[2], label='d.r. = 30Hz')
 plt.ylabel('Active state', weight='bold', fontsize=17)
 plt.xlabel('Time [s]', weight='bold', fontsize=17)
-plt.legend(loc='lower right', fontsize=17)
-#plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
+plt.title('Slow MU, at optimal $\overline {L^M}$', weight='bold', fontsize=15)
+plt.ylim((-0.05,1.05))
 plt.grid()
+plt.legend(loc='lower right')
 
+# plt.subplot(1,2,2)
+# plt.plot(time_dt, a[0,1,:], color=cg2[0], label='d.r. = 10Hz')
+# plt.plot(time_dt, a[1,1,:], color=cg2[1], label='d.r. = 20Hz')
+# plt.plot(time_dt, a[2,1,:], color=cg2[2], label='d.r. = 30Hz')
+# plt.xlabel('Time [s]', weight='bold', fontsize=17)
+# plt.title('Fast MU, at optimal $\overline {L^M}$', weight='bold', fontsize=15)
+# plt.ylim((-0.05,1.05))
+# plt.grid()
+# plt.legend(loc='lower right')
+
+#%%
+
+# os.chdir('C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\sub\\c_freq')
+
+# iso_slow_10 = np.genfromtxt('force_isometric_c10.dat', delimiter='')
+# iso_slow_20 = np.genfromtxt('force_isometric_c20.dat', delimiter='')
+# iso_slow_30 = np.genfromtxt('force_isometric_c30.dat', delimiter='')
+
+# plt.rcParams['figure.dpi'] = 400
+# figure(figsize=(12, 5))
+
+# plt.subplot(1,2,1)
+# plt.plot(iso_slow_10[:,0], iso_slow_10[:,1], color=cg1[0], label='d.r. = 10Hz')
+# plt.plot(iso_slow_20[:,0], iso_slow_20[:,1], color=cg1[1], label='d.r. = 20Hz')
+# plt.plot(iso_slow_30[:,0], iso_slow_30[:,1], color=cg1[2], label='d.r. = 30Hz')
+# plt.xlabel('Time [s]', weight='bold', fontsize=17)
+# plt.ylabel('Force [N]', weight='bold', fontsize=17)
+# plt.title('Isometric trials - cat SOL', weight='bold', fontsize=15)
+# plt.grid()
+# plt.legend(loc='lower right')
+
+# os.chdir('C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
+
+# iso_fast_25 = np.load('iso_25_interp.npy')
+# iso_fast_30 = np.load('iso_30_interp.npy')
+# iso_fast_35 = np.load('iso_35_interp.npy')
+# iso_fast_40 = np.load('iso_40_interp.npy')
+# iso_fast_150 = np.load('iso_150_interp.npy')
+# time = np.arange(0, 0.7, dt) # time 
+
+# plt.subplot(1,2,2)
+# plt.plot(time, iso_fast_25, color=cg2[0], label='d.r. = 25Hz')
+# plt.plot(time, iso_fast_30, color=cg2[1], label='d.r. = 30Hz')
+# plt.plot(time, iso_fast_35, color=cg2[2], label='d.r. = 35Hz')
+# plt.plot(time, iso_fast_40, color=cg2[3], label='d.r. = 40Hz')
+# plt.plot(time, iso_fast_150, color=cg2[4], label='d.r. = 150Hz')
+
+# plt.xlabel('Time [s]', weight='bold', fontsize=17)
+# plt.title('Isometric trials - rat FR MU', weight='bold', fontsize=15)
+# plt.grid()
+# plt.legend(loc='lower right')
 
 #%%
 # plt.rcParams['figure.dpi'] = 360
@@ -312,283 +443,8 @@ plt.grid()
 # #plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
 # plt.grid()
 
-#%%
-
-# cwd = os.getcwd()
-# os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation")
-# #os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
-# force_sample = np.empty((3, len(time_dt)), dtype=object)
-
-# force_sample1 = (np.genfromtxt('force_forcedot_trial1.dat', delimiter=''))
-# force_sample2 = (np.genfromtxt('force_forcedot_trial2.dat', delimiter=''))
-# force_sample3 = (np.genfromtxt('force_forcedot_trial3.dat', delimiter=''))
-
-# os.chdir(cwd)
-
-# plt.rcParams['figure.dpi'] = 360
-# figure(figsize=(10, 8))
-# plt.plot(force_sample1[:,0], force_sample1[:,1], color=cg1[0], label='d.r. = 10Hz')
-# plt.plot(force_sample2[:,0], force_sample2[:,1], color=cg1[1], label='d.r. = 20Hz')
-# plt.plot(force_sample3[:,0], force_sample3[:,1], color=cg1[2], label='d.r. = 30Hz')
-
-# plt.ylabel('Force [N]', weight='bold', fontsize=17)
-# plt.xlabel('Time [s]', weight='bold', fontsize=17)
-# plt.legend(loc='lower right', fontsize=17)
-# #plt.title('Slow MU - A(t)', weight='bold', fontsize=15)
-# plt.grid()
-
-
-#%% Visual validation
-# # ACTIVATION Thelen
-# #Single twitch
-# plt.rcParams['figure.dpi'] = 360
-# figure(figsize=(12, 9))
-# plt.subplot(2,2,1)
-# plt.plot(time_dt[0:5000], active_state[0,0,0:5000], color=cg1[0], label='t_up = 0.01')
-# plt.plot(time_dt[0:5000], active_state[0,1,0:5000], color=cg1[1], label='t_up = 0.04')
-# plt.plot(time_dt[0:5000], active_state[0,2,0:5000], color=cg1[2], label='t_up = 0.8')
-# plt.plot(time_dt[0:5000], active_state[0,3,0:5000], color=cg1[3], label='t_up = 1.2')
-# plt.plot(time_dt[0:5000], active_state[0,4,0:5000], color=cg1[4], label='t_up = 1.6')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,2)
-# plt.plot(time_dt[0:5000], active_state[0,5,0:5000], color=cg2[0], label='t_down = 0.01')
-# plt.plot(time_dt[0:5000], active_state[0,6,0:5000], color=cg2[1], label='t_down = 0.04')
-# plt.plot(time_dt[0:5000], active_state[0,7,0:5000], color=cg2[2], label='t_down = 0.8')
-# plt.plot(time_dt[0:5000], active_state[0,8,0:5000], color=cg2[3], label='t_down = 1.2')
-# plt.plot(time_dt[0:5000], active_state[0,9,0:5000], color=cg2[4], label='t_down = 1.6')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,3) 
-# plt.plot(time_dt[0:5000], active_state[0,10,0:5000], color=cg3[0], label='a = 0.2')
-# plt.plot(time_dt[0:5000], active_state[0,11,0:5000], color=cg3[1], label='a = 0.5')
-# plt.plot(time_dt[0:5000], active_state[0,12,0:5000], color=cg3[2], label='a = 0.8')
-# plt.plot(time_dt[0:5000], active_state[0,13,0:5000], color=cg3[3], label='a = 1.2')
-# plt.plot(time_dt[0:5000], active_state[0,14,0:5000], color=cg3[4], label='a = 1.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,4)
-# plt.plot(time_dt[0:5000], active_state[0,15,0:5000], color=cg4[0], label='b = 0.2')
-# plt.plot(time_dt[0:5000], active_state[0,16,0:5000], color=cg4[1], label='b = 0.5')
-# plt.plot(time_dt[0:5000], active_state[0,17,0:5000], color=cg4[2], label='b = 0.8')
-# plt.plot(time_dt[0:5000], active_state[0,18,0:5000], color=cg4[3], label='b = 1.2')
-# plt.plot(time_dt[0:5000], active_state[0,19,0:5000], color=cg4[4], label='b = 1.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.suptitle('A(t) sensitivity - Single twitch', weight='bold', y = 0.92)
-
-#%% # 20 Hz Thelen
-# plt.rcParams['figure.dpi'] = 360
-# figure(figsize=(12, 9))
-# plt.subplot(2,2,1)
-# plt.plot(time_dt, active_state[2,0,:], color=cg1[0], label='t_up = 0.01')
-# plt.plot(time_dt, active_state[2,1,:], color=cg1[1], label='t_up = 0.04')
-# plt.plot(time_dt, active_state[2,2,:], color=cg1[2], label='t_up = 0.8')
-# plt.plot(time_dt, active_state[2,3,:], color=cg1[3], label='t_up = 1.2')
-# plt.plot(time_dt, active_state[2,4,:], color=cg1[4], label='t_up = 1.6')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,2)
-# plt.plot(time_dt, active_state[2,5,:], color=cg2[0], label='t_down = 0.01')
-# plt.plot(time_dt, active_state[2,6,:], color=cg2[1], label='t_down = 0.04')
-# plt.plot(time_dt, active_state[2,7,:], color=cg2[2], label='t_down = 0.8')
-# plt.plot(time_dt, active_state[2,8,:], color=cg2[3], label='t_down = 1.2')
-# plt.plot(time_dt, active_state[2,9,:], color=cg2[4], label='t_down = 1.6')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,3) 
-# plt.plot(time_dt, active_state[2,10,:], color=cg3[0], label='a = 0.2')
-# plt.plot(time_dt, active_state[2,11,:], color=cg3[1], label='a = 0.5')
-# plt.plot(time_dt, active_state[2,12,:], color=cg3[2], label='a = 0.8')
-# plt.plot(time_dt, active_state[2,13,:], color=cg3[3], label='a = 1.2')
-# plt.plot(time_dt, active_state[2,14,:], color=cg3[4], label='a = 1.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,4)
-# plt.plot(time_dt, active_state[2,15,:], color=cg4[0], label='b = 0.2')
-# plt.plot(time_dt, active_state[2,16,:], color=cg4[1], label='b = 0.5')
-# plt.plot(time_dt, active_state[2,17,:], color=cg4[2], label='b = 0.8')
-# plt.plot(time_dt, active_state[2,18,:], color=cg4[3], label='b = 1.2')
-# plt.plot(time_dt, active_state[2,19,:], color=cg4[4], label='b = 1.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.suptitle('A(t) sensitivity - 20 Hz d.r.', weight='bold', y = 0.92)
-    
-#%% pars = [12, 17, 20, 22.5, 25, 5, 10, 15, 19.2, 22.5]
-# ACTIVATION Hussein
-#Single twitch
-# plt.rcParams['figure.dpi'] = 360
-# figure(figsize=(12, 9))
-# plt.subplot(2,2,1)
-# plt.plot(time_dt[0:5000], active_state[0,0,0:5000], color=cg3[0], label='k1 = 12')
-# plt.plot(time_dt[0:5000], active_state[0,1,0:5000], color=cg3[1], label='k1 = 17')
-# plt.plot(time_dt[0:5000], active_state[0,2,0:5000], color=cg3[2], label='k1 = 20')
-# plt.plot(time_dt[0:5000], active_state[0,3,0:5000], color=cg3[3], label='k1 = 22.5')
-# plt.plot(time_dt[0:5000], active_state[0,4,0:5000], color=cg3[4], label='k1 = 25')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,2)
-# plt.plot(time_dt[0:5000], active_state[0,5,0:5000], color=cg4[0], label='k2 = 5')
-# plt.plot(time_dt[0:5000], active_state[0,6,0:5000], color=cg4[1], label='k2 = 10')
-# plt.plot(time_dt[0:5000], active_state[0,7,0:5000], color=cg4[2], label='k2 = 15')
-# plt.plot(time_dt[0:5000], active_state[0,8,0:5000], color=cg4[3], label='k2 = 19.2')
-# plt.plot(time_dt[0:5000], active_state[0,9,0:5000], color=cg4[4], label='k2 = 22.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.suptitle('A(t) sensitivity - Single twitch & 20 Hz', weight='bold', y = 0.92)
-
-# plt.subplot(2,2,3) 
-# plt.plot(time_dt, active_state[2,0,:], color=cg3[0], label='k1 = 12')
-# plt.plot(time_dt, active_state[2,1,:], color=cg3[1], label='k1 = 17')
-# plt.plot(time_dt, active_state[2,2,:], color=cg3[2], label='k1 = 20')
-# plt.plot(time_dt, active_state[2,3,:], color=cg3[3], label='k1 = 22.5')
-# plt.plot(time_dt, active_state[2,4,:], color=cg3[4], label='k1 = 25')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-# plt.subplot(2,2,4)
-# plt.plot(time_dt, active_state[2,5,:], color=cg4[0], label='k2 = 5')
-# plt.plot(time_dt, active_state[2,6,:], color=cg4[1], label='k2 = 10')
-# plt.plot(time_dt, active_state[2,7,:], color=cg4[2], label='k2 = 15')
-# plt.plot(time_dt, active_state[2,8,:], color=cg4[3], label='k2 = 19.2')
-# plt.plot(time_dt, active_state[2,9,:], color=cg4[4], label='k2 = 22.5')
-# plt.ylabel('Active state')
-# plt.xlabel('Time [s]')
-# plt.legend(loc='lower right')
-# plt.grid()
-
-#%% EXCITATION (2)
-
-# figure(figsize=(12, 10))
-# plt.subplot(2,1,1)
-# plt.rcParams['figure.dpi'] = 360
-# #plt.plot(time_dt, Ca_Tn[0,0,:]*10**6, label='d.r. = 10Hz')
-# # plt.plot(time_dt, free_Ca[1,0,:]*10**6, label='d.r. = 20Hz')
-# # plt.plot(time_dt, free_Ca[2,0,:]*10**6, label='d.r. = 30Hz')
-# # plt.plot(time_dt, free_Ca[3,0,:]*10**6, label='d.r. = 40Hz')
-# plt.plot(time_dt, Ca_Tn[4,0,:]*10**6, label='d.r. = 50Hz')
-# #plt.plot(time_dt[pks_slow], free_Ca[4,0,pks_slow]*10**6, 'ro')
-
-# #plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')           
-# plt.legend(loc='lower right')
-# plt.grid()
-# plt.title('Slow type fibre')
-# plt.xlim((0, 0.3))
-
-# plt.subplot(2,1,2)
-# plt.rcParams['figure.dpi'] = 360
-# plt.plot(time_dt, Ca_Tn[0,1,:]*10**6, label='d.r. = 10Hz')
-# # plt.plot(time_dt, free_Ca[1,1,:]*10**6, label='d.r. = 20Hz')
-# # plt.plot(time_dt, free_Ca[2,1,:]*10**6, label='d.r. = 30Hz')
-# # plt.plot(time_dt, free_Ca[3,1,:]*10**6, label='d.r. = 40Hz')
-# plt.plot(time_dt, Ca_Tn[4,1,:]*10**6, label='d.r. = 50Hz')
-# #plt.plot(time_dt[pks_fast], free_Ca[4,1,pks_fast]*10**6, 'ro')
-
-# plt.xlabel('Time [s]')
-# #plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')
-# plt.legend(loc='lower right')
-# plt.grid()
-# plt.title('Fast type fibre')
-# plt.xlim((0, 0.3))
-
-# plt.suptitle('MN-driven model sensitivity (excitation, [Ca_Tn]) ', weight='bold',  y=0.94)
-# plt.show()
-
-
-#%%
-# EXCITATION (3)
-# pks_slow, _ = find_peaks(-free_Ca[4,0,:]) # 3.64*10**-6
-# pks_fast, _ = find_peaks(-free_Ca[4,1,:]) # 5.34*10**-7
-
-# figure(figsize=(12, 10))
-# plt.subplot(2,1,1)
-# plt.rcParams['figure.dpi'] = 360
-# plt.plot(time_dt, free_Ca[0,0,:]*10**6, label='d.r. = 10Hz')
-# #plt.plot(time_dt, free_Ca[1,0,:]*10**6, label='d.r. = 20Hz')
-# #plt.plot(time_dt, free_Ca[2,0,:]*10**6, label='d.r. = 30Hz')
-# #plt.plot(time_dt, free_Ca[3,0,:]*10**6, label='d.r. = 40Hz')
-# plt.plot(time_dt, free_Ca[4,0,:]*10**6, label='d.r. = 50Hz')
-# #plt.plot(time_dt[pks_slow], free_Ca[4,0, pks_slow]*10**6, 'ro')
-
-# plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')           
-# plt.legend(loc='lower right')
-# plt.grid()
-# plt.title('Slow type fibre')
-# plt.xlim((0, 0.3))
-
-# plt.subplot(2,1,2)
-# plt.rcParams['figure.dpi'] = 360
-# plt.plot(time_dt, free_Ca[0,1,:]*10**6, label='d.r. = 10Hz')
-# #plt.plot(time_dt, free_Ca[1,1,:]*10**6, label='d.r. = 20Hz')
-# #plt.plot(time_dt, free_Ca[2,1,:]*10**6, label='d.r. = 30Hz')
-# #plt.plot(time_dt, free_Ca[3,1,:]*10**6, label='d.r. = 40Hz')
-# plt.plot(time_dt, free_Ca[4,1,:]*10**6, label='d.r. = 50Hz')
-# #plt.plot(time_dt[pks_fast], free_Ca[4,1,pks_fast]*10**6, 'ro')
-
-# plt.xlabel('Time [s]')
-# plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]')
-# plt.legend(loc='lower right')
-# plt.grid()
-# plt.title('Fast type fibre')
-# plt.xlim((0, 0.3))
-
-# plt.suptitle('MN-driven model sensitivity (excitation, [$Ca^{2+}$]) ', weight='bold',  y=0.94)
-# plt.show()
 
 #%% COMPARISON WITH RINCON & HOLLINGORTH DATA
-
-# _, ind_slow = np.unique(data_slow[:,0], return_index=True)
-# time_slow = (np.linspace(data_slow[0,0],data_slow[-1,0],len(time_dt)))
-# data_slow = data_slow[ind_slow,:]
-
-# _, ind_slow_23 = np.unique(data_slow_23[:,0], return_index=True)
-# time_slow_23 = (np.linspace(data_slow_23[0,0],data_slow_23[-1,0],len(time_dt)))
-# data_slow_23 = data_slow_23[ind_slow_23,:]
-
-# _, ind_fast = np.unique(data_fast[:,0], return_index=True)
-# time_fast = (np.linspace(data_fast[0,0],data_fast[-1,0],len(time_dt)))
-# data_fast = data_fast[ind_fast,:]
-
-# _, ind_fast_35 = np.unique(data_fast_35[:,0], return_index=True)
-# time_fast_35 = (np.linspace(data_fast_35[0,0],data_fast_35[-1,0],len(time_dt)))
-# data_fast_35 = data_fast_35[ind_fast_35,:]
-
-# data_slow = sp.interpolate.interp1d(data_slow[:,0], data_slow[:,1], kind='cubic')(time_slow) # interpolate with time_dt points (l_MT must be longer)
-# data_slow_23 = sp.interpolate.interp1d(data_slow_23[:,0], data_slow_23[:,1], kind='cubic')(time_slow_23) # interpolate with time_dt points (l_MT must be longer)
-# data_fast = sp.interpolate.interp1d(data_fast[:,0], data_fast[:,1], kind='cubic')(time_fast) # interpolate with time_dt points (l_MT must be longer)
-# data_fast_35 = sp.interpolate.interp1d(data_fast_35[:,0], data_fast_35[:,1], kind='cubic')(time_fast_35)
 
 # fig, axs = plt.subplots(2, 1, figsize=(13, 8))
 
@@ -627,7 +483,7 @@ plt.grid()
 
 # plt.xlabel('Time [s]', weight='bold', fontsize=16)
 # #fig.supylabel('Free [$Ca^{2+}$] [$\mu$M]', x=0.06, weight='bold', fontsize=15)
-# fig.supylabel('[$Ca^{2+}$] [$\mu$M]', x=0.06, weight='bold', fontsize=17)
+# fig.supylabel('$\Delta$[$Ca^{2+}$] [$\mu$M]', x=0.06, weight='bold', fontsize=17)
 # plt.legend(loc='upper right', fontsize=16)
 # plt.grid()
 # #plt.title('Fast MU', weight='bold', fontsize=16)
