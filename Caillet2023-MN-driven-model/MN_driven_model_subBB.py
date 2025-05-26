@@ -73,7 +73,7 @@ save = 'n'
 " Load time, displacement and force form BB tests, create virtual MU spikes "
 
 dt = 0.0001 # time step (x-data)
-t_end = 0.6 # total seconds
+t_end = 0.16 # total seconds
 fd = [10, 20, 40, 10, 20, 30] # paper stimulation freq. Hz d.r. 
 
 # if d.r. is fixed (first 3 trials)
@@ -97,27 +97,30 @@ muscle_F0M = 23
 #os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
 #os.chdir("C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\fixedfreq_yielding")
 
-os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
+os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast\\muscle\\dyn')
 
-path = 'iso_15_1'
+path = 'disp_short'
 pathh = path + '.csv'
-exp_force = pd.read_csv(pathh, delimiter = ' ', decimal = '.')
+exp_force = pd.read_csv(pathh, delimiter = ' ', decimal = ',')
 exp_force = exp_force.to_numpy() 
+#exp_force = exp_force[0:-1,:] 
+n = 100
+start_time = np.linspace(0, exp_force[0,0]-0.001, n)  # n equidistant values from 0 to t_end
+start = np.column_stack((start_time, np.ones(n)))
 
-exp_force[:,0] = exp_force[:,0] + 0.017
 #exp_force = np.vstack(([0,0], [0.016,0.02], exp_force[8:-1,:], [t_end-0.1, 0], [t_end-0.07, 0], [t_end, 0])) # add zero final value
-exp_force = np.vstack(([0,0], exp_force[0:-9,:], [t_end, 0])) # add zero final value
-
+exp_force = np.vstack((start, exp_force)) # add zero final value
+#exp_force[:,0] = exp_force[:,0] - exp_force[0,0] 
 
 for i in range(len(exp_force)):
-    if exp_force[i,1] < 0:
-        exp_force[i,1] = 0
+    if exp_force[i,0] < 0.107:
+        exp_force[i,1] = 0.1
 
 time_dt = np.arange(0, t_end, dt) # time for BB
 exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(time_dt)
-for i in range(len(exp_force)):
-    if exp_force[i] < 0:
-        exp_force[i] = 0
+# for i in range(len(exp_force)):
+#     if exp_force[i] < 0:
+#         exp_force[i] = 0
 
 #idx = np.argmin(exp_force[100:-1000])
 
@@ -129,31 +132,30 @@ for i in range(len(exp_force)):
 #disch = time_dt[start]
 
 
-from scipy.signal import butter, filtfilt
-b, a = butter(4, 30/(0.5 * 1/dt), btype='low')
-exp_force = filtfilt(b, a, exp_force)
+# from scipy.signal import butter, filtfilt
+# b, a = butter(2, 50/(0.5 * 1/dt), btype='low')
+# exp_force = filtfilt(b, a, exp_force)
 
 # disch_indices = np.searchsorted(time_dt, disch)
 # force_at_disch = exp_force[disch_indices]
 
-for i in range(len(exp_force)):
-    if exp_force[i] < 0:
-        exp_force[i] = 0
+# for i in range(len(exp_force)):
+#     if exp_force[i] < 0:
+#         exp_force[i] = 0
 
-#%%
-os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
+# os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast')
 
-exp_force = np.load('iso_15_1_interp.npy')
-exp_force = exp_force[0:6000]
+# exp_force = np.load('iso_15_1_interp.npy')
+# exp_force = exp_force[0:6000]
 
 plt.rcParams['figure.dpi'] = 400
-plt.plot(time_dt[0:6000], exp_force, 'k')
+plt.plot(time_dt, exp_force, 'k')
 #plt.scatter(disch, force_at_disch)
 plt.grid()
 
 
 #%%
-np.save('iso_15_1_interp', exp_force, allow_pickle=True) 
+np.save(path + '_interp', exp_force, allow_pickle=True) 
 #np.save(path + '_times', disch, allow_pickle=True)
 
 #%%

@@ -64,14 +64,17 @@ cg2 = get_color_gradient(c3, c4, 4)
 #%%
 #Choose Trial the results of which you wish to plot
 #Trial = 'BBmax'
-Trial = 'BBsub_iso'
+#Trial = 'BBsub_iso'
+#Trial = 'BBsub'
+#Trial = 'fastGMrat'
+Trial = 'fastCFcat'
 
-user = 'z5517249'
+user = 'Andrea'
 
 #%%
 
 if Trial == 'BBsub_iso':
-    os.chdir('C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\isometric')
+    os.chdir('C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\isometric')
     freq = ['10', '20', '30']
     for i in range(3):
         
@@ -92,7 +95,7 @@ if Trial == 'BBsub_iso':
         
         plt.ylabel('Force [N]', weight='bold', fontsize=12)
         plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Cat SOL + tendon (slow) isometric force at Lopt', weight='bold')
+        plt.title('Cat SOL + tendon (slow) isometric force', weight='bold')
         plt.legend(loc='lower right')
         plt.grid()
 
@@ -132,38 +135,38 @@ if Trial == 'BBmax':
         R = np.load('R'+str(i)+'.npy', allow_pickle=True)
         
         #______________________________________________________________________
-        os.chdir('C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\Benchmarks results + digitized calcium curves\\Benchmarks outputs\\Hatze\\Maximal-Activation')
-        force_bb_Hatze.append(pd.read_csv('maximalActivationBenchmark_Trial'+str(i+1)+'.csv', delimiter = ','))
-        os.chdir(dir1)
-        #______________________________________________________________________
-        os.chdir('C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\maximalActivation')
-        force_bb_Millard.append(pd.read_csv('results_damped_equilibrium_trial'+str(i+1)+'.csv', delimiter = ','))
-        force_bb_Millard[i] = sp.interpolate.interp1d(force_bb_Millard[i]['time'], force_bb_Millard[i]['force'], kind='cubic')(np.arange(0,1.999,dt))
-        os.chdir(dir1)
+        # os.chdir('C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\Benchmarks results + digitized calcium curves\\Benchmarks outputs\\Hatze\\Maximal-Activation')
+        # force_bb_Hatze.append(pd.read_csv('maximalActivationBenchmark_Trial'+str(i+1)+'.csv', delimiter = ','))
+        # os.chdir(dir1)
+        # #______________________________________________________________________
+        # os.chdir('C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\maximalActivation')
+        # force_bb_Millard.append(pd.read_csv('results_damped_equilibrium_trial'+str(i+1)+'.csv', delimiter = ','))
+        # force_bb_Millard[i] = sp.interpolate.interp1d(force_bb_Millard[i]['time'], force_bb_Millard[i]['force'], kind='cubic')(np.arange(0,1.999,dt))
+        # os.chdir(dir1)
         #______________________________________________________________________
         
         #Errors metrics
         abs_err.append((np.abs(force_bb[i]/muscle_F0M - R))*100)
-        abs_err_Hatze.append((np.abs(force_bb[i]/1.234 - force_bb_Hatze[i]['F_TOT(t)']))*100)
-        abs_err_Millard.append((np.abs(force_bb[i][0:19990]/1.27 - force_bb_Millard[i]/1.27))*100)
+        # abs_err_Hatze.append((np.abs(force_bb[i]/1.234 - force_bb_Hatze[i]['F_TOT(t)']))*100)
+        # abs_err_Millard.append((np.abs(force_bb[i][0:19990]/1.27 - force_bb_Millard[i]/1.27))*100)
           
         mean_err[i] = (np.mean(abs_err[i]))
         max_err[i] = (np.max(abs_err[i]))
-        mean_err_Hatze[i] = (np.mean(abs_err_Hatze[i]))
-        max_err_Hatze[i] = (np.max(abs_err_Hatze[i]))
-        mean_err_Millard[i] = (np.mean(abs_err_Millard[i]))
-        max_err_Millard[i] = (np.max(abs_err_Millard[i]))
+        # mean_err_Hatze[i] = (np.mean(abs_err_Hatze[i]))
+        # max_err_Hatze[i] = (np.max(abs_err_Hatze[i]))
+        # mean_err_Millard[i] = (np.mean(abs_err_Millard[i]))
+        # max_err_Millard[i] = (np.max(abs_err_Millard[i]))
         #______________________________________________________________________
         
         plt.subplot(6,1,i+1)
         plt.rcParams['figure.dpi'] = 400
-        plt.plot(time_dt, force_bb[i]/1.234, 'k', label = 'Experimental')
+        plt.plot(time_dt, force_bb[i], 'k', label = 'Experimental')
         #plt.plot(force_bb_Hatze[i]['t'], force_bb_Hatze[i]['F_TOT(t)'], 'g', label = 'Hatze model')
-        plt.plot(time_dt, R*muscle_F0M/1.234, 'r', label = 'MN-driven model')
+        plt.plot(time_dt, R*muscle_F0M/1.36, 'r', label = 'MN-driven model')
         #plt.plot(time_dt[0:19990], force_bb_Millard[i], 'b', label = 'Millard model')
         plt.grid()
         plt.xlim((-0.03,2.03))
-        plt.ylim((-0.05,1.6))
+        plt.ylim((-0.05,1.9))
         
         if i == 0:
             plt.title(u"Max. displ. = \u00B1 0.05 mm", x = 0.16, y = 0.97, weight='bold')
@@ -187,9 +190,9 @@ if Trial == 'BBmax':
             plt.gca().tick_params(axis='x', which='both', labelbottom=False)
             
         elif i == 5:
-            path_Theo = "MA_Benchmark_2mm_Hatze_final.csv"
-            data_Theo = pd.read_csv(path_Theo, delimiter = ';')
-            data_Theo = data_Theo.to_numpy() 
+            # path_Theo = "MA_Benchmark_2mm_Hatze_final.csv"
+            # data_Theo = pd.read_csv(path_Theo, delimiter = ';')
+            # data_Theo = data_Theo.to_numpy() 
             #plt.plot(data_Theo[:,0], data_Theo[:,1], 'g')
             
             # path_mill = "results_damped_equilibrium_trial6.csv"
@@ -207,34 +210,34 @@ if Trial == 'BBmax':
     
     os.chdir(cwd)
  
-    t1mean, p1mean = ttest_ind(list(mean_err), list(mean_err_Millard), equal_var=False)
-    t2mean, p2mean = ttest_ind(list(mean_err_Hatze), list(mean_err_Millard))
-    t1max, p1max = ttest_ind(list(max_err), list(max_err_Millard))
-    t2max, p2max = ttest_ind(list(max_err_Hatze), list(max_err_Millard))
+    # t1mean, p1mean = ttest_ind(list(mean_err), list(mean_err_Millard), equal_var=False)
+    # t2mean, p2mean = ttest_ind(list(mean_err_Hatze), list(mean_err_Millard))
+    # t1max, p1max = ttest_ind(list(max_err), list(max_err_Millard))
+    # t2max, p2max = ttest_ind(list(max_err_Hatze), list(max_err_Millard))
     
-    x_err = [1,2,3,4,5,6]
+    # x_err = [1,2,3,4,5,6]
 
-    figure(figsize=(10, 3))
-    plt.subplot(1,2,1)  
-    plt.rcParams['figure.dpi'] = 400 
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.plot(x_err, mean_err, 'r-o', label = 'MN-driven model')
-    plt.plot(x_err, mean_err_Hatze, 'g-o', label='Hatze model')
-    plt.plot(x_err, mean_err_Millard, 'b-o', label='Millard model')
-    plt.ylabel('Mean abs. err. [%F0M]', weight = 'bold', fontsize=15)
-    #plt.xlabel('Displ. amplitude [mm]', weight='bold', fontsize=15)
-    #plt.xlabel('Trial', weight='bold', fontsize=15)
-    plt.grid()
-    plt.subplot(1,2,2)  
-    plt.rcParams['figure.dpi'] = 400 
-    plt.plot(x_err, max_err, 'r-o', label = 'MN-driven model')
-    plt.plot(x_err, max_err_Hatze, 'g-o', label='Hatze model')
-    plt.plot(x_err, max_err_Millard, 'b-o', label='Millard model')
-    plt.ylabel('Max abs. err. [%F0M]', weight = 'bold', fontsize=15)
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    #plt.xlabel('Displ. amplitude [mm]', weight='bold', fontsize=15)
-    plt.legend(loc='upper left', fontsize=15)
-    plt.grid()
+    # figure(figsize=(10, 3))
+    # plt.subplot(1,2,1)  
+    # plt.rcParams['figure.dpi'] = 400 
+    # plt.gca().tick_params(axis='x', which='both', labelbottom=False)
+    # plt.plot(x_err, mean_err, 'r-o', label = 'MN-driven model')
+    # plt.plot(x_err, mean_err_Hatze, 'g-o', label='Hatze model')
+    # plt.plot(x_err, mean_err_Millard, 'b-o', label='Millard model')
+    # plt.ylabel('Mean abs. err. [%F0M]', weight = 'bold', fontsize=15)
+    # #plt.xlabel('Displ. amplitude [mm]', weight='bold', fontsize=15)
+    # #plt.xlabel('Trial', weight='bold', fontsize=15)
+    # plt.grid()
+    # plt.subplot(1,2,2)  
+    # plt.rcParams['figure.dpi'] = 400 
+    # plt.plot(x_err, max_err, 'r-o', label = 'MN-driven model')
+    # plt.plot(x_err, max_err_Hatze, 'g-o', label='Hatze model')
+    # plt.plot(x_err, max_err_Millard, 'b-o', label='Millard model')
+    # plt.ylabel('Max abs. err. [%F0M]', weight = 'bold', fontsize=15)
+    # plt.gca().tick_params(axis='x', which='both', labelbottom=False)
+    # #plt.xlabel('Displ. amplitude [mm]', weight='bold', fontsize=15)
+    # plt.legend(loc='upper left', fontsize=15)
+    # plt.grid()
     
 #%%
 
@@ -642,31 +645,29 @@ if Trial == 'BBsub':
     plt.grid()
 
 #%%
-if Trial == 'fast':
+if Trial == 'fastGMrat':
     
-    dir1 = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\fastCFcat'
-    dir2 = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input\\fast'
+    dir1 = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\fastGMrat'
     os.chdir(dir1) #max activation BB dir path
-    force_bb = []
     
     dt = 0.0001 # time step (x-data)
-    t_end = 0.6 # total seconds
+    t_end = 0.7 # total seconds
     time_dt = np.arange(0, t_end, dt) # time for BB
+    MVC = 0.078
     
     abs_err = []
     mean_err = np.empty((6), dtype=object)
     max_err = np.empty((6), dtype=object)
     RMSE = np.empty((6), dtype=object)
     
+    fig, axs = plt.subplots(1, 5, figsize=(14, 3))
+    
     for i in range(5):
         
-        freq = ['15', '30', '40', '50', '120']
+        freq = ['25', '30', '35', '40', '150']
         
-        os.chdir(dir2)
-        force_bb = np.load('iso_' +  freq[i] + '_1_interp.npy', allow_pickle=True) #list of lists (6 BB time & forces data)
-        os.chdir(dir1)
-        
-        R = np.load('iso_' + freq[i] + '_1.npy', allow_pickle=True)
+        R = np.load('iso_' + freq[i] + '.npy', allow_pickle=True)
+        force_bb = np.load('iso_' + freq[i] + '_interp.npy', allow_pickle=True)
         
         #Errors metrics
         abs_err.append((np.abs(force_bb - R))*100)
@@ -675,20 +676,82 @@ if Trial == 'fast':
         max_err[i] = (np.max(abs_err[i]))
         #______________________________________________________________________
         
+        plt.subplot(1,5,i+1)
+        plt.grid() 
+        ax = axs[i]
         plt.rcParams['figure.dpi'] = 400
+        plt.plot(time_dt, force_bb/MVC, 'k', label = 'Celichowski et al. 1999')
+        plt.plot(time_dt, R/MVC, 'r', label = 'Simulated')
+        #plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        if i == 1:
+            plt.legend(loc='upper right')
+        if i > 0:
+            ax.tick_params(labelleft=False)
+        
+        plt.ylim((-0.05,1.05))
+
+    fig.supylabel('Normalized Force', x=0.08, weight='bold', fontsize=14)
+    #plt.title('Rat GM fast MU isometric force at Lopt', weight='bold')
+    os.chdir(cwd)
+    
+if Trial == 'fastCFcat':
+    
+    dir1 = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\fastCFcat'
+    os.chdir(dir1) #max activation BB dir path
+    
+    dt = 0.0001 # time step (x-data)
+    MVC = 15.4
+    
+    abs_err = []
+    mean_err = np.empty((6), dtype=object)
+    max_err = np.empty((6), dtype=object)
+    RMSE = np.empty((6), dtype=object)
+    
+    fig, axs = plt.subplots(1, 3, figsize=(14, 3))
+    
+    for i in range(3):
+        
+        freq = ['iso_f_120', '120_0.95_short', '120_0.95_length']
+        
+        R = np.load(freq[i] + '.npy', allow_pickle=True)
+        force_bb = np.load(freq[i] + '_interp.npy', allow_pickle=True)
+        
         if i == 0:
-            plt.plot(time_dt, force_bb, color=cg1[i], linestyle='dotted', label = 'Brown et al. 1999')
+            t_end = 0.6 # total seconds
         else:
-            plt.plot(time_dt, force_bb, color=cg1[i], linestyle='dotted')
+            t_end = 0.16
             
-        plt.plot(time_dt, R, 'r', color=cg1[i], label = 'Simulated-' + str(freq[i]) +'Hz')
-        plt.ylabel('Force [F0]', weight='bold', fontsize=12)
-        plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Cat CF (fast) isometric force at Lopt', weight='bold')
-        plt.legend(loc='lower right')
-        plt.grid()
-        # plt.xlim((-0.03,2.03))
-        # plt.ylim((-0.05,1.6))
-    
-    
+        time_dt = np.arange(0, t_end, dt) # time for BB
+        
+        #Errors metrics
+        abs_err.append((np.abs(force_bb - R))*100)
+        
+        mean_err[i] = (np.mean(abs_err[i]))
+        max_err[i] = (np.max(abs_err[i]))
+        #______________________________________________________________________
+        
+        plt.subplot(1,3,i+1)
+        plt.grid() 
+        ax = axs[i]
+        plt.rcParams['figure.dpi'] = 400
+        if i == 2:
+            R = R + 2.3
+            time_dt2 = time_dt + 0.006
+            plt.plot(time_dt2, R/MVC, 'r', label = 'Simulated')
+            plt.plot(time_dt, force_bb, 'k', label = 'Brown et al. 1999')
+        else:
+            plt.plot(time_dt, force_bb, 'k', label = 'Brown et al. 1999')
+            plt.plot(time_dt, R/MVC, 'r', label = 'Simulated')
+        #plt.xlabel('Time [s]', weight='bold', fontsize=12)
+        if i == 0:
+            plt.legend(loc='upper right')
+        else:
+            ax.tick_params(labelleft=False)
+            plt.xlim((0.03,0.17))
+
+        
+        plt.ylim((-0.05,1.7))
+
+    fig.supylabel('Normalized Force', x=0.08, weight='bold', fontsize=14)
+    #plt.title('Rat GM fast MU isometric force at Lopt', weight='bold')
     os.chdir(cwd)

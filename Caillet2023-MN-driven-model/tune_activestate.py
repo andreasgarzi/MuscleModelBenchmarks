@@ -321,6 +321,20 @@ cg4 = get_color_gradient(c7, c8, 5)
 # plt.grid()
 
 #%%
+fs = [25, 30, 35, 40]
+#tt = [0.01, 0.11, 0.16, 0.17]
+tt = [1, 1.4, 1.5, 1.6]
+
+p = np.polyfit(tt, fs, 1)
+fit = np.poly1d(p)
+ttt = np.linspace(1, 1.6, 200)
+fss = (ttt)*p[0] + p[1]
+#fss = (ttt**3)*p[0] + (ttt**2)*p[1] + (ttt)*p[2] + p[3]
+
+plt.plot(tt, fs, 'rx')
+plt.plot(ttt, fss, 'k')
+
+#%%
 """ Extract experimental digitized data from Matsuo 2010 """
 
 # os.chdir("C:\\Users\\z5517249\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Data\\Digitized_Blinks_Konishi") # max activation BB dir path

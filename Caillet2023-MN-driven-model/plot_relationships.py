@@ -89,8 +89,8 @@ for i in range(points):
     for l in range(n_a):
         for t in range(fibre_type):
             fl[l,i,t] = Force_Length_func(l_M[i], t, a[l])*a[l]
-            fv[l,i,t] = f_fFV(v_M[i], l_M_v[l], t) # for fixed l_M = 1
-            vf[l,i,t] = velo_fFV(f_M_v[i], l_M_v[l], t)
+            fv[l,i,t] = f_fFV(v_M[i], fl[l,i,t], 1, a[l], MU_type[t]) # for fixed l_M = 1
+            vf[l,i,t] = velo_fFV(f_M_v[i], fl[l,i,t], 1, a[l], MU_type[t])
 
  # f_T_2 = np.empty((points),dtype=object)
  # for i in range(points):
@@ -220,31 +220,31 @@ plt.rcParams['figure.dpi'] = 250
 # plt.plot(v_M, fv[3,:,0], color=cg1[3], label = 'l=1.2, slow')
 # plt.plot(v_M, fv[4,:,0], color=cg1[4], label = 'l=1.4, slow')
 
-plt.plot(v_M, fv[0,:,1], color=cg12[0], label = 'l=0.6, fast')
-plt.plot(v_M, fv[1,:,1], color=cg12[1], label = 'l=0.8, fast')
-plt.plot(v_M, fv[2,:,1], color=cg12[2], label = 'l=1.0, fast')
-plt.plot(v_M, fv[3,:,1], color=cg12[3], label = 'l=1.2, fast')
-plt.plot(v_M, fv[4,:,1], color=cg12[4], label = 'l=1.4, fast')
+plt.plot(v_M, fv[0,:,1], color=cg12[0], label = 'a=0.2, fast')
+plt.plot(v_M, fv[1,:,1], color=cg12[1], label = 'a=0.4, fast')
+plt.plot(v_M, fv[2,:,1], color=cg12[2], label = 'a=0.6, fast')
+plt.plot(v_M, fv[3,:,1], color=cg12[3], label = 'a=0.8, fast')
+plt.plot(v_M, fv[4,:,1], color=cg12[4], label = 'a=1.0, fast')
 
-# plt.plot(vf[0,:,0], f_M_v, color=cg1[0], label = 'l=0.6, slow')
-# plt.plot(vf[1,:,0], f_M_v, color=cg1[1], label = 'l=0.8, slow')
-# plt.plot(vf[2,:,0], f_M_v, color=cg1[2], label = 'l=1.0, slow')
-# plt.plot(vf[3,:,0], f_M_v, color=cg1[3], label = 'l=1.2, slow')
-# plt.plot(vf[4,:,0], f_M_v, color=cg1[4], label = 'l=1.4, slow')
+# plt.plot(vf[0,:,0], f_M_v, color=cg1[0], label = 'a=0.2, slow')
+# plt.plot(vf[1,:,0], f_M_v, color=cg1[1], label = 'a=0.4, slow')
+# plt.plot(vf[2,:,0], f_M_v, color=cg1[2], label = 'a=0.6, slow')
+# plt.plot(vf[3,:,0], f_M_v, color=cg1[3], label = 'a=0.8, slow')
+# plt.plot(vf[4,:,0], f_M_v, color=cg1[4], label = 'a=1.0, slow')
 
-# plt.plot(vf[0,:,1], f_M_v, color=cg12[0], label = 'l=0.6, fast')
-# plt.plot(vf[1,:,1], f_M_v, color=cg12[1], label = 'l=0.8, fast')
-# plt.plot(vf[2,:,1], f_M_v, color=cg12[2], label = 'l=1.0, fast')
-# plt.plot(vf[3,:,1], f_M_v, color=cg12[3], label = 'l=1.2, fast')
-# plt.plot(vf[4,:,1], f_M_v, color=cg12[4], label = 'l=1.4, fast')
+# plt.plot(vf[0,:,1], f_M_v, color=cg12[0], label = 'a=0.2, fast')
+# plt.plot(vf[1,:,1], f_M_v, color=cg12[1], label = 'a=0.4, fast')
+# plt.plot(vf[2,:,1], f_M_v, color=cg12[2], label = 'a=0.6, fast')
+# plt.plot(vf[3,:,1], f_M_v, color=cg12[3], label = 'a=0.8, fast')
+# plt.plot(vf[4,:,1], f_M_v, color=cg12[4], label = 'a=1.0, fast')
 
 #plt.xlabel('$\overline {V^M}$')
 #plt.ylabel('$\overline {F^M_v}$')
 plt.grid()
-plt.ylim((0.4, 1.8))
+#plt.ylim((0.4, 1.8))
 plt.xlim((-1.2,1.2))
 plt.legend(fontsize=15, loc='lower right')
-plt.title('CE, F-V relationship', weight='bold', fontsize=17)
+plt.title('Fast MU F-V relationship at L_opt', weight='bold', fontsize=17)
 
 plt.suptitle('MN-driven model sensitivity (contractile part)', weight='bold', y=0.94)
 plt.show()
