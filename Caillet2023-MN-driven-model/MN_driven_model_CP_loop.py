@@ -15,7 +15,9 @@ import scipy as sp
 import numpy as np
 import tkinter as tk
 import pandas as pd
+from scipy import signal
 from scipy.optimize import minimize
+import scipy.io as sio
 from scipy.integrate import solve_ivp
 from tkinter import simpledialog
 import matplotlib.pyplot as plt
@@ -76,21 +78,13 @@ class MN_driven_model():
         self.MN_pool = self.P['MN_pool'] # Number of theoretical MNs in the muscle pool
         self.vmax = self.P['vmax']
         self.alpha_0 = self.P['alpha_0']
-        self.l_MT = self.P['l_MT']
         self.l_M_opt = self.P['l_M_opt']
         self.l_T_slack = self.P['l_T_slack']
         self.distimes = distimes
         
-        # self.path = self.P['path']    # only for experimental inputs...
-        # self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
+        self.path = self.P['path']    # only for experimental inputs...
+        self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # Set MT lengths
         
-        # self.Ca_max = self.P['Ca_max']  # only for optimization procedures...
-        # self.c_1 = self.P['c_1'] 
-        # self.c_2 = self.P['c_2'] 
-        # self.c_3 = self.P['c_3'] 
-        # self.vmax = self.P['vmax']
-        # self.vmax = self.P['vmax']
-    
         #######################################################################    
         " Check and assign states "
     
@@ -110,24 +104,11 @@ class MN_driven_model():
         self.s_0 = self.S['s_0']
         
         #######################################################################
-        " Check and assign discharge times input "
-        
-        if distimes is None:
-            raise ValueError("Discharge times must be provided")
-        else:
-            self.distimes = distimes  # Use provided discharges
-        
-        self.fs = np.mean(1/np.diff(self.distimes))
-        
-        
-        # Sort MUs according to recruitment   
-        # sorted_indices = np.argsort([self.distimes[0, i][0, 0] for i in range(np.size(self.distimes, axis=1))])
-        # self.distimes = self.distimes[:, sorted_indices]
             
         # Extract Fth recruitment in % of MVC (first discharge indeces)
-        # self.F_thr = np.empty((self.Nr))
-        # for f in range(np.size(self.distimes, axis=1)):
-        #     self.F_thr[f] = self.path[0, self.distimes[0, f][0, 0]]*100 
+        self.F_thr = np.empty((self.Nr))
+        for f in range(np.size(self.distimes, axis=1)):
+            self.F_thr[f] = self.path[0, self.distimes[0, f][0, 0]]*100 
         
         #######################################################################
         
@@ -158,22 +139,37 @@ class MN_driven_model():
 #%%
     " MU type (so far for TA and GM) "    
     
-    def MU_type_id_func(self, i):
+    def MU_type_id_func(self, i, MU_list_identified):
     
-        if self.muscle == 'TA' and self.species == 'human':
-            if i/self.Nr < 0.9:
-                MU_type='slow' # TA
-            else: 
-                MU_type='fast'
-        elif self.muscle == 'GM' and self.species == 'human':
-            if i/self.Nr < 0.5:
-                MU_type='slow' # GM
-            else: 
-                MU_type='fast'
-        elif self.muscle == 'SOL' and self.species == 'animal':
-            MU_type = 'slow' # GM
-        elif (self.muscle == 'CF' or self.muscle == 'GM') and self.species == 'animal':
-            MU_type = 'fast' # CF
+        if self.pool == 'y':
+            if self.spread == 'identified':
+                if MU_list_identified[i] < 359: 
+                    MU_type='slow'
+                else: 
+                    MU_type='fast'  
+                    
+        # elif self.muscle == 'TA' and self.species == 'human':
+        #     if self.Nr > 30: # use MU types if more than 5 MU was identified
+        #         if i/self.Nr < 0.9:
+        #             MU_type='slow' # TA
+        #         else: 
+        #            MU_type='fast'
+        #     else:
+        #         MU_type='slow'
+                
+        # elif self.muscle == 'GM' and self.species == 'human':
+        #     if self.Nr > 1: # use MU types if more than 1 MU was identified
+        #         if i/self.Nr < 0.5:
+        #             MU_type='slow' # GM
+        #         else: 
+        #             MU_type='fast'
+        #     else:
+        #         MU_type = 'slow'
+                
+        # elif self.muscle == 'SOL' and self.species == 'animal':
+        #     MU_type = 'slow' # GM
+        # elif (self.muscle == 'CF' or self.muscle == 'GM') and self.species == 'animal':
+        #     MU_type = 'fast' # CF
     
         return MU_type
     
@@ -181,9 +177,9 @@ class MN_driven_model():
     " Distribution of force with MU recruitment (TA) "
     
     def Fth_distrib_func(self, MN):  #Obtained from processed literature data, typical muscle-specific distributions of MU force recruitment thresholds (%MVC)
-        if self.muscle == 'TA' or self.muscle == 'SOL':
+        if self.muscle == 'TA' or self.muscle == 'SOL' or self.muscle == 'GM':
             return 0.5052*(58.1*MN/self.MN_pool+120**((MN/self.MN_pool)**1.83)) 
-        elif self.muscle == 'GM':
+        elif self.muscle == 'ND':
             return 0.6562*(46.7*MN/self.MN_pool+90**((MN/self.MN_pool)**1.79))
 
     def F0MU_norm_distrib_func(self, MN): 
@@ -245,7 +241,7 @@ class MN_driven_model():
         elif self.pool == 'n':
             F0MU_distribution = np.reshape(F0MU_distribution_complete_MU_pool, (self.Nr,1))
               
-        return F0MU_distribution
+        return F0MU_distribution, MU_list_identified
 
     
     " Tendon force given tendon strain (John 2013) "
@@ -400,33 +396,13 @@ class MN_driven_model():
         DDCaDDt = self.MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, Ca, dCadt)  
         
         return dCadt, DDCaDDt
-    
-    
-    # " CaTn bounding (exp. validated) "
-    
-    # def Ca_Tn(self, t, y, MU_type):     
-
-    #     Ca, CaTn = y[2], y[4]
-        
-    #     if Ca < 0:
-    #         Ca = 0 
-        
-    #     if MU_type == 'slow':
-    #         k1, k2, T0 = 2e13, 12, 8.7e-5
-            
-    #     elif MU_type == 'fast':
-    #         k1, k2, T0 = 5e12, 16, 2.4e-4
-        
-    #     dCaTndt = k1*(T0-CaTn)*Ca**2 - k2*CaTn
-
-    #     return dCaTndt
 
 
     " Active state "
     
     def act(self, y, MU_type, s):
         
-        if MU_type == 'slow':
+        if MU_type == 'slow' and self.species == 'animal':
             k1, k2 = 11.5, 15.2
             Ca, a = y[2]*8e5, y[4] 
             
@@ -437,6 +413,21 @@ class MN_driven_model():
         elif MU_type == 'fast' and self.muscle == 'GM' and self.species == 'animal':
             k1, k2 = 32.5, 72.2
             Ca, a = y[2]*8e5*s, y[4] 
+            
+        if MU_type == 'slow' and self.species == 'human' and self.muscle == 'TA':
+            k1, k2 = 11.5, 15.2
+            Ca, a = y[2]*8e3, y[4] 
+            
+        if MU_type == 'slow' and self.species == 'human' and self.muscle == 'GM':
+            k1, k2 = 11.5, 15.2
+            Ca, a = y[2]*4e4, y[4] 
+                
+        elif MU_type == 'fast' and self.species == 'human' and self.muscle == 'GM':  # MU 
+            k1, k2 = 32.5, 72.2
+            if s == 'y':
+                Ca, a = y[2]*1e5*s, y[4]
+            else:
+                Ca, a = y[2]*8e4, y[4]
                 
         if Ca > a:
             dadt = -(k2*a - k1*Ca)*(1 - a)
@@ -599,17 +590,18 @@ class MN_driven_model():
     def run_MT_simulation(self):
         
         print('There are ', self.Nr, ' discharging MUs in this simulation')
-        self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
+        self.F0MU_distribution, MU_list_identified = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
         
         "Run the muscle model simulation."
         for i in range(self.Nr):
             print('Computing Force for MU n°', str(i + 1))
 
-            #sp_matrix = self.time[self.distimes[0,i]]
+            sp_matrix = self.time[self.distimes[0,i]-1] # index correction from matlab
             
-            #Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
-            MU_type = self.MU_type_id_func(i)  # i-th MU type identification (fast/slow)
-            Matrix_AP = self.distimes.astype(float)
+            Matrix_AP = sp_matrix.astype(float)  # i-th MU discharge times [s] 
+            MU_type = self.MU_type_id_func(i, MU_list_identified)  # i-th MU type identification (fast/slow)
+            
+            self.fs = np.mean(1/np.diff(Matrix_AP))
                     
             y0 = [self.MUAP_0, self.MUAP_0, self.Ca_0, self.Ca_0, self.act_0, self.l_M_opt, self.y_0, self.s_0]  # set initial states
             p = (self.alpha[i,:], Matrix_AP, MU_type)  # set ODE parameters
@@ -655,7 +647,7 @@ class MN_driven_model():
     def run_M_simulation(self):
         
         print('There are ', self.Nr, ' discharging MUs in this simulation')
-        self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
+        self.F0MU_distribution, self.MU_list_identified = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
         
         "Run the muscle model simulation."
         for i in range(self.Nr):
@@ -695,461 +687,163 @@ class MN_driven_model():
 
 
 
-
-
-
-
-
-
-
-
 #%%
 ###############################################################################
-""" MODIFY parameters according to the benchmark """
+""" INSERT filename, musclename and contraction intensity """
 ###############################################################################
 
 user = 'Andrea'
-MN_pool = 1  # n. of theoretical MUs in the real pool 
-Nr = 1 # n. of (exp.) MUs to represent in the pool
-pool = 'n' # exp or pool
-spread = 'evenly' # evenly or identified 
-species = 'animal' # human/animal
+MN_pool = 400
+pool = 'y'
+spread = 'identified'
+yielding = 'y'
+sag = 'n'
+species = 'human'
+save_results = 'y'  # Now always save
 
-dt = 1e-4 # time step (x-data)
+cwd = os.getcwd()
 
-input_folder = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input'
-
-save = 'n' # save results 'y' or 'n'
-
-#%%
-
-root = tk.Tk() # Initialise input window
-root.withdraw()  # Hide the root window
-
-benchmark = simpledialog.askstring("Input", "Select benchmark ('max', 'sub', 'len', 'fast', 'Ca', 'CaTn'):") # max or sub
-
-""" MAXIMAL benchmark (Sandercock 1997) """
-
-if benchmark == 'max':
-    
-    scale = simpledialog.askstring("Input", "Amplitude displacement scale (e.g., 0.05, 0.1, 0.25, 0.5, 1, 2):")
-    
-    os.chdir(input_folder + '\\' + benchmark)
-    t_end = 2
-    muscle = 'SOL' # dorsi/plantar
-    time_dt = np.arange(0, t_end, dt) # time for BB
-    Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
-    disp = np.genfromtxt('displacement.dat', delimiter='')
-    disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 1, 6*np.pi/180] # MVC and M/T lengths
-    l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)-2 # Musculo-tendon length (mm)
-    l_MT = l_MT_0 + disp*float(scale) # scaled MT length    
-    exp_force = np.genfromtxt('force' + scale + '.dat', delimiter='') # load experimental force
-    exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,2,dt)) # interpolate to have equal n of points
-    yielding = 'n' # yielding not included
-    sag = 'n'
-    
-    """ SUB-MAXIMAL benchmark (Perreault 2003) """
-    
-elif benchmark == 'sub':
-    
-    trial = simpledialog.askstring("Input", "Trial type? ('iso' or 'dyn'):")
-    stim = simpledialog.askstring("Input", "Stimulation type? ('c' or 'v'):")
-    fs = simpledialog.askstring("Input", "Stimulation frequency (Hz):")
-    muscle = 'SOL' # dorsi/plantar
-    yielding = 'y' # yielding included
-    sag = 'y'
-    
-    os.chdir(input_folder + '\\' + benchmark) # load displacement, MVC and update MT lengths
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.8, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
-    l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
-    
-    t_end = 2
-    time_dt = np.arange(0, t_end, dt) # time for BB
-    os.chdir(input_folder + '\\' + benchmark + '\\' + stim + '_freq') 
-    Distimes = np.load(fs + '_' + stim + '_times.npy') # exp. discharge times
-    
-    if trial == 'iso':
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
-        exp_force = np.genfromtxt('force_isometric_' + stim + fs + '.dat', delimiter='')
-        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
-    
-    elif trial == 'dyn':
-        
-        d = simpledialog.askstring("Input", "Displacement amplitude (1 or 8mm):")
-        
-        disp = np.genfromtxt('displacement_' +  d + '.dat', delimiter='') # load displacement
-        disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate displacement
-        l_MT = l_MT_0 + (disp+8) # scaled MT length
-        exp_force = np.genfromtxt('force_' + stim + fs + '_' + d + '.dat', delimiter='')
-        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
-
-
-    """ TWITCH, SUB-TETANIC, TETANIC at different lengths (Kim 2015) """
-
-elif benchmark == 'len':
-    
-    l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
-    fs = simpledialog.askstring("Input", '"Stimulation frequency (Hz):", or "twitch"')
-    yielding = 'y'
-    sag = 'n'
-    
-    os.chdir(input_folder + '\\' + benchmark)
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [27.1, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
-    t_end = 1.4
-    muscle = 'SOL' # dorsi/plantar
-    time_dt = np.arange(0, t_end, dt) # time for BB
-    
-    if l == '0':
-        d = 8
-    elif l == '8':
-        d = 0 
-    elif l == '16':
-        d = -8
-        
-    l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0) - 4    # Musculo-tendon length (mm)
-    l_MT_0 = l_MT_0 + d  # apply displacement
-    l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
-
-    exp_force = np.load(l + '_' + fs + '_interp.npy')
-    if fs == 'twitch':
-        Distimes = np.round(np.array(np.load(l + '_' + fs + '_times.npy')), 3)
-    else:
-        Distimes = np.load(l + '_' + fs + '_times.npy') # exp. discharge times
-    
-    
-    """ Test fast fibres (Brown 1999 - Cat CF, Brown 1999) """
-
-elif benchmark == 'fast':
-    
-    benchmark2 = simpledialog.askstring("Input", "muscle or MU: ")
-    
-    if benchmark2 == 'muscle':
-        
-        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l', 'dyn'):")
-        yielding = 'n'
-        sag = 'y'
-    
-        if trial == 'iso_f':
-            
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'iso')
-            fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (15, 30, 40, 50, 120):")
-            exp_force = np.load(trial + '_' + fs + '_interp.npy')
-        
-            if fs == '15':   # define end time for setting discharges
-                t_dis = 0.5
-            elif fs == '30':
-                t_dis = 0.25
-            elif fs == '40':
-                t_dis = 0.18
-            elif fs == '50':
-                t_dis = 0.13
-            elif fs == '120':
-                t_dis = 0.09
-            
-            Distimes = np.arange(0, t_dis, 1/float(fs)) # exp. discharge times
-            t_end = 0.6
-            muscle = 'CF' # dorsi/plantar
-            time_dt = np.arange(0, t_end, dt)
-    
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 17, 0.37*56, 1, 0] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)
-            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
-        
-        elif trial == 'iso_l':
-            
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'iso')
-            l_M = simpledialog.askstring("Input", "Muscle length (0.8, 0.9, 1.0, 1.1, 1.2):")
-            exp_force = np.load(trial + '_' + l_M + '_interp.npy')
-            
-            Distimes = np.arange(0, 0.25, 1/30) # exp. discharge times
-            t_end = 0.36
-            muscle = 'CF' # dorsi/plantar
-            time_dt = np.arange(0, t_end, dt)
-    
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 17, 0.37*56, float(l_M), 0] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)
-            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
-            
-        elif trial == 'dyn':
-            
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'dyn')
-            d = simpledialog.askstring("Input", "Displacement amplitude ('short' or 'length'):")
-            
-            t_end = 0.16
-            Distimes = np.arange(0, t_end, 1/120) # exp. discharge times
-            muscle = 'CF' # dorsi/plantar
-            time_dt = np.arange(0, t_end, dt)
-    
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 17, 0.37*56, 0.95, 0] # MVC and M/T lengths
-            exp_force = np.load('120_0.95_' + d + '_interp.npy')
-            disp = np.load('disp_' +  d + '_interp.npy') # load displacement
-            l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)
-            l_MT = np.empty((len(time_dt)+1), dtype=object) # full MT length array
-            l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp*l_M_opt)*np.cos(alpha_0)
-            l_MT[-1] = l_MT[-2]
-    
-    
-    elif benchmark2 == 'MU':
-        
-        os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2)
-        trial = 'iso'
-        yielding = 'n'
-        sag = 'y'
-        
-        fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (25, 30, 35, 40, 150):")
-        exp_force = np.load(trial + '_' + fs + '_interp.npy')
-        
-        Distimes = np.load(trial + '_' + fs + '_times.npy') # exp. discharge times
-        t_end = 0.7
-        muscle = 'GM' # dorsi/plantar
-        time_dt = np.arange(0, t_end, dt)
-    
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.078, 24.8, 13.5, 1, 0] # MVC and M/T lengths
-        l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
-        
-    
-    """ Test Ca dynamics (Hollingworth, Rincon exp. data) """
-    
-elif benchmark == 'Ca':
-    
-    fibre = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
-    yielding = 'n'
-    sag = 'n'
-    
-    os.chdir(input_folder + '\\' + benchmark)
-    
-    Ca_slow_23 = "Ca_slow_23_100Hz.csv" # load digitized slow fibre data
-    Ca_slow_23 = pd.read_csv(Ca_slow_23, delimiter = ' ')
-    Ca_slow_23 = Ca_slow_23.to_numpy()  
-    
-    Ca_fast_35 = "Ca_fast_35_125Hz.csv" # load digitized fast fibre data
-    Ca_fast_35 = pd.read_csv(Ca_fast_35, delimiter = ' ')
-    Ca_fast_35 = Ca_fast_35.to_numpy()
-
-    t_end = 1.4
-    time_dt = np.arange(0, t_end, dt)
-    
-    if fibre == 'slow':
-        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1, 0, 30, 1, 0] # at optimal sarcomere length (assumption)
-        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array
-        T = 1/102 # frequency = 100 Hz (corrected)
-        Distimes = np.arange(0, 0.04, T)
-        muscle = 'SOL' # slow fibre muscle
-    elif fibre == 'fast':
-        MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1.6, 0, 30, 1.6, 0] # at longer sarcomere length (see article)
-        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array
-        T = 1/125 # frequency = 125 Hz
-        Distimes = np.arange(0, 0.08, T)
-        muscle = 'CF' # fast fibre muscle
-    
-    
-os.chdir(cwd)
+# --- Subject list ---
+test_list = ['S01_TD', 'S02_TD', 'S03_TD', 'S04_TD', 'S06_TD',
+             'S07_TD', 'S09_TD', 'S10_TD', 'S12_TD', 'S13_TD', 'S14_TD']
+muscles = ['TA', 'GM']
+intensities = ['10', '30', '50', '70']
 
 #%%
-" Create dictionary as model's input "
-    
-parameters = {
-    'muscle': muscle, 
-    'time': time_dt, 
-    'pool': pool,
-    'dt': dt,
-    'MVC': MVC,
-    'spread': spread,
-    'MN_pool': MN_pool,
-    'yielding': yielding,
-    'sag': sag,
-    'Nr': Nr,
-    'l_T_slack': l_T_slack, # scaled with respect to Rajagopal model
-    'l_M_opt': l_M_opt, # scaled with respect to Rajagopal model
-    'alpha_0': alpha_0,
-    'l_MT': l_MT,
-    'species': species,
-    'vmax': 10.5428 *l_M_opt,
-    # 'c_1': 0,  # for Ca ODE optimization
-    # 'c_3': 0
-}
+" PARAMETERS SETTING FROM INPUT TEST CASE "
 
-states = {
-    'MUAP_0': 0,
-    'Ca_0': 0,
-    'CaTn_0': 0,
-    'act_0': 1e-9,
-    'l_M_0': l_M_0,
-    'y_0': 1,
-    's_0': 1
-}
+test_cases= np.array([['S01_TD', 'TA', 1, 0.317, 23.83, 11.47, 2048, 0.08, 0.085, 57.65],
+                      ['S01_TD', 'GM', 1, 0.381, 19.83, 22.08, 2048, 0.08, 0.085, 70.12], 
+                      ['S02_TD', 'TA', 1, 0.295, 17.21, 10.63, 2048, 0.085, 0.092, 43.86],
+                      ['S02_TD', 'GM', 1, 0.336, 24.06, 21.83, 2048, 0.085, 0.092, 61.26], 
+                      ['S03_TD', 'TA', 1, 0.363, 25.62, 14.12, 2048, 0.1, 0.11, 92.58],
+                      ['S03_TD', 'GM', 1, 0.426, 22.12, 22.19, 2048, 0.1, 0.11, 134.64], 
+                      ['S04_TD', 'TA', 1, 0.302, 12.90, 10.09, 2048, 0.08, 0.085, 52.56],
+                      ['S04_TD', 'GM', 1, 0.357, 23.01, 27.49, 2048, 0.08, 0.085, 91.17], 
+                      ['S06_TD', 'TA', 1, 0.238, 12.59, 10.88, 2048, 0.07, 0.075, 39.91],
+                      ['S06_TD', 'GM', 1, 0.302, 17.53, 25.22, 2048, 0.07, 0.075, 67.00], 
+                      ['S07_TD', 'TA', 1, 0.359, 15.93, 10.67, 2048, 0.09, 0.09, 80.00],
+                      ['S07_TD', 'GM', 1, 0.418, 11.54, 22.49, 2048, 0.09, 0.09, 134.02], 
+                      ['S09_TD', 'TA', 1, 0.323, 11.13, 12.38, 2048, 0.075, 0.08, 57.52],
+                      ['S09_TD', 'GM', 1, 0.377, 12.83, 23.05, 2048, 0.075, 0.08, 150.63], 
+                      ['S10_TD', 'TA', 1, 0.373, 18.85, 9.91, 2048, 0.08, 0.09, 85.24],
+                      ['S10_TD', 'GM', 1, 0.438, 7.15, 24.11, 2048, 0.08, 0.09, 206.07], 
+                      ['S12_TD', 'TA', 1, 0.347, 14.96, 13.70, 2048, 0.085, 0.09, 74.03],
+                      ['S12_TD', 'GM', 1, 0.395, 20.69, 22.15, 2048, 0.085, 0.09, 151.56], 
+                      ['S13_TD', 'TA', 1, 0.375, 23.91, 13.91, 2048, 0.1, 0.1, 119.12],
+                      ['S13_TD', 'GM', 1, 0.423, 30.70, 23.37, 2048, 0.1, 0.1, 217.53], 
+                      ['S14_TD', 'TA', 1, 0.375, 39.67, 9.13, 2048, 0.09, 0.095, 111.52],
+                      ['S14_TD', 'GM', 1, 0.450, 12.10, 28.62, 2048, 0.09, 0.095, 194.06], 
+                      ], dtype=object)  # lengths in m, freq in Hz, angles in degrees, PCSA in cm2
 
-#%%
-###############################################################################
-""" PARAMETERS OPTIMIZATION (Nelder-Mead-lstsq)"""
-###############################################################################
+for test in test_list:
+    for muscle in muscles:
+        for intensity in intensities:
+            try:
+                [name, muscle, l_M_0, l_MT_0, MVC_rec, alpha_0, fs, a, h, vol] = test_cases[np.where(
+                    (test_cases[:, 0] == test) & (test_cases[:, 1] == muscle))[0][0]]
+            except IndexError:
+                continue  # Skip if test-case not found
 
-""" 1) MAXIMAL benchmark [MVC, Vmax] estimation """
+            task = 'dorsi' if muscle == 'TA' else 'plantar'
+            mat_file = f'{name}_{intensity}MVC_{task}_4model.mat'
+            data_folder = f'C:/Users/{user}/Dropbox/UNSW - Andrea - Luca [PhD]/Data/HDsEMG_study/TD_group/{name}/data_4model/'
+            res_folder = data_folder.replace('data_4model', 'res_4model_recruit')
+            os.makedirs(res_folder, exist_ok=True)
 
-# def obj(x, parameters, states, Distimes, exp_force): 
-    
-#     parameters['MVC'] =  x[0]
-#     parameters['vmax'] = x[1]
-    
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _ = model.run_MT_simulation() # Run the simulation
-    
-#     residuals = force_sim - exp_force  # assuming both are in same units
-#     return np.sum(residuals**2)  
+            try:
+                os.chdir(data_folder)
+                data = sio.loadmat(mat_file)
+                d = {key: data[key] for key in data.keys()}
+                Distimes = d['Distimeclean'][0, 0]
+                path = d['path']
+                target = d['target']
+                ngrid = d['ngrid'][0][0]
 
-# x0 = [1.2, 10]
-# bnds = [(1, 1.5), (8, 12)]
+                Distimes2 = d['Distimeclean'][0, 1] if ngrid == 2 else None
+                if (Distimes.size == 0 or Distimes is None) and (Distimes2 is None or Distimes2.size == 0):
+                    print(f"Skipping {test}-{muscle}-{intensity}: No MU data.")
+                    continue
+                elif Distimes2 is not None:
+                    if Distimes.size == 0:
+                        Distimes = Distimes2
+                    elif Distimes2.size != 0:
+                        Distimes = np.concatenate((Distimes, Distimes2), axis=1)
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
-#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+                sorted_indices = np.argsort([Distimes[0, i][0, 0] for i in range(Distimes.shape[1])])
+                Distimes = Distimes[:, sorted_indices]
 
+                T = 1/fs
+                time_real = np.arange(0, path.shape[1]*T, T)
+                dt = 0.0001
+                time_dt = np.arange(0, path.shape[1]*dt, dt)
+                MVC_rec = MVC_rec * 9.81
+                Nr = Distimes.shape[1]
+                x = 0.15
 
-"""  2) SUB-MAXIMAL benchmark [MVC, Ca_max] estimation """
+                if muscle == 'TA':
+                    l_MT_Raj, l_T_slack_Raj, l_M_opt_Raj, r, M0_Raj, Mtot = 0.32642, 0.241, 0.068, 0.034, 41.03, 68.26
+                elif muscle == 'GM':
+                    l_MT_Raj, l_T_slack_Raj, l_M_opt_Raj, r, M0_Raj, Mtot = 0.43418, 0.399, 0.051, 0.04, 52.6, 228
 
-# def obj(x, parameters, states, Distimes, exp_force): 
-    
-#     parameters['MVC'] =  x[0]
-#     parameters['Ca_max'] = x[1]
-    
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, Ca, a, l_M, _ = model.run_MT_simulation() # Run the simulation
-    
-#     residuals = force_sim - exp_force  # assuming both are in same units
-#     return np.sum(residuals**2)  
+                F0_Raj = M0_Raj / r
+                scale = l_MT_0 / l_MT_Raj
+                l_T_slack = l_T_slack_Raj * scale
+                l_M_opt = l_M_opt_Raj * scale
 
-# x0 = [26, 2.3e5]
-# bnds = [(25, 29), (1e5, 5e5)]
+                T_ankle = MVC_rec * ((np.sqrt((x-np.sqrt(h**2-a**2))**2 + a**2)) / np.cos(30*np.pi / 180)) # from dynamomter force to total ankle moment [Nm]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
-#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+                MVC = ((vol*np.cos(alpha_0*np.pi / 180))/(l_M_opt*(10**2))) * 60 # muscle MVC from vol (PCSA) and scaled opt fibre length, 60 = specific tetanic tension [N/cm2]
+                r_muscle = r * scale # scale the moment arm
+                M_ratio = M0_Raj / Mtot  # es. 52.6 / 228 ≈ 0.23
+                T_muscle = T_ankle * M_ratio  # torque specifico del GM
 
+                parameters = {
+                    'muscle': muscle,
+                    'time': time_dt,
+                    'pool': pool,
+                    'dt': dt,
+                    'MVC': MVC,
+                    'spread': spread,
+                    'MN_pool': MN_pool,
+                    'yielding': yielding,
+                    'path': path,
+                    'sag': sag,
+                    'Nr': Nr,
+                    'l_T_slack': l_T_slack*(10**3),
+                    'l_M_opt': l_M_opt*(10**3),
+                    'alpha_0': alpha_0*np.pi / 180,
+                    'l_MT_0': l_MT_0*(10**3),
+                    'species': species,
+                    'vmax': 10.5428 * l_M_opt*(10**3),
+                }
 
-""" 3) Ca transient ODE [c1, c2, c3] parameters estimation """
+                states = {
+                    'MUAP_0': 0,
+                    'Ca_0': 0,
+                    'CaTn_0': 0,
+                    'act_0': 1e-9,
+                    'l_M_0': l_M_0,
+                    'y_0': 1,
+                    's_0': 1
+                }
 
-# def obj(x, parameters, states, Distimes, exp_data): 
-    
-#     parameters['c_1'] = x[0]
-#     parameters['c_3'] = x[1]
-    
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     _, _, Ca, _, _ = model.run_M_simulation() # Run the simulation
+                model = MN_driven_model(parameters, states, Distimes)
+                force_sim, *_ = model.run_MT_simulation()
+                exp_force = (T_muscle / r_muscle)*path[0,:]
 
-#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
+                # Save with intensity prefix
+                prefix = f'{intensity}MVC_{task}_'
+                np.save(os.path.join(res_folder, prefix + 'force_sim.npy'), force_sim)
+                np.save(os.path.join(res_folder, prefix + 'exp_force.npy'), exp_force)
+                np.save(os.path.join(res_folder, prefix + 'target.npy'), target)
+                np.save(os.path.join(res_folder, prefix + 'Distimes.npy'), Distimes)
+                np.save(os.path.join(res_folder, prefix + 'MVC.npy'), MVC)
+                np.save(os.path.join(res_folder, prefix + 'Nr.npy'), Nr)
 
-#     residuals = Ca[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
-#     return np.sum(residuals**2)  
+                print(f"Saved results for {test}-{muscle}-{intensity}")
 
-# if fibre == 'slow':
-#     exp_data = Ca_slow_23
-#     x0 = [8*10.**3, 0.6]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-# elif fibre == 'fast':
-#     exp_data = Ca_fast_35
-#     x0 = [2.8*10.**3, 0.7]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
-#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
-
-""" 4) CaTn bounding ODE parameters estimation """
-
-# def obj(x, parameters, states, Distimes, exp_data): 
-    
-#     parameters['c_1'] = x[0]
-#     parameters['c_3'] = x[1]
-    
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     _, _, Ca, _, _, _ = model.run_M_simulation() # Run the simulation
-
-#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
-
-#     residuals = CaTn[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
-#     return np.sum(residuals**2)  
-
-# if fibre == 'slow':
-#     exp_data = CaTn_slow
-#     x0 = [8*10.**3, 0.6]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-# elif fibre == 'fast':
-#     exp_data = CaTn_fast
-#     x0 = [2.8*10.**3, 0.7]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
-#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
-
-#%% 
-###############################################################################
-""" Running simulations and plot solutions """
-###############################################################################
-
-model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-
-
-if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len' or benchmark == 'fast':
-    
-    force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation() # Run the simulation
-
-    # Plot the force profiles
-    plt.rcParams['figure.dpi'] = 400
-    if 'benchmark2' in globals() and benchmark2 == 'muscle':
-        plt.plot(time_dt, force_sim/MVC, 'r', label='Simulated Force')
-    else:
-        plt.plot(time_dt, force_sim, 'r', label='Simulated Force')
-    plt.plot(time_dt, exp_force, 'k', label='Exp. Force')
-    #plt.plot(time_dt, a[0,:])
-    #plt.ylabel('Active state', weight='bold', fontsize=12)
-    plt.ylabel('Force [N]', weight='bold', fontsize=12)
-    plt.xlabel('Time [s]', weight='bold', fontsize=12)
-    plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
-    plt.legend(loc='lower right')
-    plt.grid()
-    
-
-elif benchmark == 'Ca':
-    
-    _, _, Ca, _, _ = model.run_M_simulation()
-    
-    plt.rcParams['figure.dpi'] = 400
-    plt.figure(figsize=(10, 3))
-
-    # Plot excitation/activation quantities
-    if fibre == 'slow':
-        plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (23°C)')
-        plt.plot((Ca_slow_23[:,0] - Ca_slow_23[0,0])*10**-3, Ca_slow_23[:,1], 'k--', label = 'Rincon et al. 2021 (23°C)')
-        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
-        plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Free [$Ca^{2+}$] for slow mouse fibres', weight='bold', fontsize=15)
-        plt.legend(loc='lower right', fontsize=15)
-        plt.xlim((0, 0.12))
-        #plt.ylim((-0.8, 20.8))
-        plt.grid()
-    elif fibre == 'fast':
-        plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (35°C)')
-        plt.plot((Ca_fast_35[:,0] - Ca_fast_35[0,0])*10**-3, Ca_fast_35[:,1], 'k--', label = 'Hollingworth 1996 (35°C)')
-        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
-        plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Free [$Ca^{2+}$] for fast mouse fibres', weight='bold', fontsize=15)
-        plt.legend(loc='upper right', fontsize=15)
-        plt.xlim((0, 0.12))
-        plt.ylim((-0.8, 20.8))
-        plt.grid()   
-
-
-
-#%%
-# # Error metrics (%mAE, %MAE)
-# mean_abs_error = np.mean((np.abs(force_sim - exp_force)/MVC)*100)
-# max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
-
-#%%
-# Save the figure if needed
-
-os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\isometric')
-
-if save == 'y':
-    print("Saving results...")
-    np.save('a_30', a, allow_pickle=True)
-
+            except Exception as e:
+                print(f"Error in {test}-{muscle}-{intensity}: {e}")
+            finally:
+                os.chdir(cwd)
