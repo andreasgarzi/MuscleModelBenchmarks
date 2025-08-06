@@ -15,6 +15,7 @@ import scipy as sp
 import numpy as np
 import tkinter as tk
 import pandas as pd
+from pathlib import Path
 from scipy.optimize import minimize
 from scipy.integrate import solve_ivp
 from tkinter import simpledialog
@@ -155,7 +156,6 @@ class MN_driven_model():
         self.sag = np.empty((self.Nr, len(self.time)))
 
 
-#%%
     " MU type (so far for TA and GM) "    
     
     def MU_type_id_func(self, i):
@@ -400,27 +400,6 @@ class MN_driven_model():
         DDCaDDt = self.MU_free_Ca_ODE_func(t-CA_delay, l_M, MU_type, beta, Ca, dCadt)  
         
         return dCadt, DDCaDDt
-    
-    
-    # " CaTn bounding (exp. validated) "
-    
-    # def Ca_Tn(self, t, y, MU_type):     
-
-    #     Ca, CaTn = y[2], y[4]
-        
-    #     if Ca < 0:
-    #         Ca = 0 
-        
-    #     if MU_type == 'slow':
-    #         k1, k2, T0 = 2e13, 12, 8.7e-5
-            
-    #     elif MU_type == 'fast':
-    #         k1, k2, T0 = 5e12, 16, 2.4e-4
-        
-    #     dCaTndt = k1*(T0-CaTn)*Ca**2 - k2*CaTn
-
-    #     return dCaTndt
-
 
     " Active state "
     
@@ -703,7 +682,7 @@ class MN_driven_model():
 
 
 
-#%%
+
 ###############################################################################
 """ MODIFY parameters according to the benchmark """
 ###############################################################################
@@ -717,11 +696,18 @@ species = 'animal' # human/animal
 
 dt = 1e-4 # time step (x-data)
 
-input_folder = 'C:\\Users\\' + user + '\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\benchmark_input'
+input_folder = (
+    Path.home()
+    / 'Dropbox'
+    / 'UNSW_Andrea_Luca_PhD'
+    / 'Code'
+    / 'Python_Scripts'
+    / 'BB_tests'
+    / 'benchmark_input'
+)
 
 save = 'n' # save results 'y' or 'n'
 
-#%%
 
 root = tk.Tk() # Initialise input window
 root.withdraw()  # Hide the root window
@@ -734,7 +720,7 @@ if benchmark == 'max':
     
     scale = simpledialog.askstring("Input", "Amplitude displacement scale (e.g., 0.05, 0.1, 0.25, 0.5, 1, 2):")
     
-    os.chdir(input_folder + '\\' + benchmark)
+    os.chdir(input_folder / benchmark)
     t_end = 2
     muscle = 'SOL' # dorsi/plantar
     time_dt = np.arange(0, t_end, dt) # time for BB
@@ -760,13 +746,13 @@ elif benchmark == 'sub':
     yielding = 'y' # yielding included
     sag = 'y'
     
-    os.chdir(input_folder + '\\' + benchmark) # load displacement, MVC and update MT lengths
+    os.chdir(input_folder / benchmark) # load displacement, MVC and update MT lengths
     MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.8, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
     l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
     
     t_end = 2
     time_dt = np.arange(0, t_end, dt) # time for BB
-    os.chdir(input_folder + '\\' + benchmark + '\\' + stim + '_freq') 
+    os.chdir(input_folder / benchmark / (stim + '_freq'))
     Distimes = np.load(fs + '_' + stim + '_times.npy') # exp. discharge times
     
     if trial == 'iso':
@@ -794,7 +780,7 @@ elif benchmark == 'len':
     yielding = 'y'
     sag = 'n'
     
-    os.chdir(input_folder + '\\' + benchmark)
+    os.chdir(input_folder / benchmark)
     MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [27.1, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
     t_end = 1.4
     muscle = 'SOL' # dorsi/plantar
@@ -832,7 +818,7 @@ elif benchmark == 'fast':
     
         if trial == 'iso_f':
             
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'iso')
+            os.chdir(input_folder / benchmark / benchmark2 / 'iso')
             fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (15, 30, 40, 50, 120):")
             exp_force = np.load(trial + '_' + fs + '_interp.npy')
         
@@ -858,7 +844,7 @@ elif benchmark == 'fast':
         
         elif trial == 'iso_l':
             
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'iso')
+            os.chdir(input_folder / benchmark / benchmark2 / 'iso')
             l_M = simpledialog.askstring("Input", "Muscle length (0.8, 0.9, 1.0, 1.1, 1.2):")
             exp_force = np.load(trial + '_' + l_M + '_interp.npy')
             
@@ -873,7 +859,7 @@ elif benchmark == 'fast':
             
         elif trial == 'dyn':
             
-            os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2 + '\\' + 'dyn')
+            os.chdir(input_folder / benchmark / benchmark2 / 'dyn')
             d = simpledialog.askstring("Input", "Displacement amplitude ('short' or 'length'):")
             
             t_end = 0.16
@@ -892,7 +878,7 @@ elif benchmark == 'fast':
     
     elif benchmark2 == 'MU':
         
-        os.chdir(input_folder + '\\' + benchmark + '\\' + benchmark2)
+        os.chdir(input_folder / benchmark / benchmark2)
         trial = 'iso'
         yielding = 'n'
         sag = 'y'
@@ -918,7 +904,7 @@ elif benchmark == 'Ca':
     yielding = 'n'
     sag = 'n'
     
-    os.chdir(input_folder + '\\' + benchmark)
+    os.chdir(input_folder / benchmark)
     
     Ca_slow_23 = "Ca_slow_23_100Hz.csv" # load digitized slow fibre data
     Ca_slow_23 = pd.read_csv(Ca_slow_23, delimiter = ' ')
@@ -947,7 +933,7 @@ elif benchmark == 'Ca':
     
 os.chdir(cwd)
 
-#%%
+
 " Create dictionary as model's input "
     
 parameters = {
@@ -981,7 +967,7 @@ states = {
     's_0': 1
 }
 
-#%%
+
 ###############################################################################
 """ PARAMETERS OPTIMIZATION (Nelder-Mead-lstsq)"""
 ###############################################################################
@@ -1080,7 +1066,7 @@ states = {
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
 #                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
 
-#%% 
+
 ###############################################################################
 """ Running simulations and plot solutions """
 ###############################################################################
@@ -1093,7 +1079,8 @@ if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len' or benchmark =
     force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation() # Run the simulation
 
     # Plot the force profiles
-    plt.rcParams['figure.dpi'] = 400
+    plt.rcParams['figure.dpi'] = 100
+    plt.figure(figsize=(8, 4))
     if 'benchmark2' in globals() and benchmark2 == 'muscle':
         plt.plot(time_dt, force_sim/MVC, 'r', label='Simulated Force')
     else:
@@ -1106,48 +1093,61 @@ if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len' or benchmark =
     plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
     plt.legend(loc='lower right')
     plt.grid()
+    plt.show()
     
 
 elif benchmark == 'Ca':
     
     _, _, Ca, _, _ = model.run_M_simulation()
     
-    plt.rcParams['figure.dpi'] = 400
+    plt.rcParams['figure.dpi'] = 100
     plt.figure(figsize=(10, 3))
 
     # Plot excitation/activation quantities
     if fibre == 'slow':
         plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (23°C)')
         plt.plot((Ca_slow_23[:,0] - Ca_slow_23[0,0])*10**-3, Ca_slow_23[:,1], 'k--', label = 'Rincon et al. 2021 (23°C)')
-        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.ylabel(r'Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
         plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Free [$Ca^{2+}$] for slow mouse fibres', weight='bold', fontsize=15)
+        plt.title(r'Free [$Ca^{2+}$] for slow mouse fibres', weight='bold', fontsize=15)
         plt.legend(loc='lower right', fontsize=15)
         plt.xlim((0, 0.12))
         #plt.ylim((-0.8, 20.8))
         plt.grid()
+        plt.show()
     elif fibre == 'fast':
         plt.plot(time_dt, Ca[0,:]*10**6, 'g', label='Simulated (35°C)')
         plt.plot((Ca_fast_35[:,0] - Ca_fast_35[0,0])*10**-3, Ca_fast_35[:,1], 'k--', label = 'Hollingworth 1996 (35°C)')
-        plt.ylabel('Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
+        plt.ylabel(r'Free [$Ca^{2+}$] [$\mu$M]', weight='bold', fontsize=12) 
         plt.xlabel('Time [s]', weight='bold', fontsize=12)
-        plt.title('Free [$Ca^{2+}$] for fast mouse fibres', weight='bold', fontsize=15)
+        plt.title(r'Free [$Ca^{2+}$] for fast mouse fibres', weight='bold', fontsize=15)
         plt.legend(loc='upper right', fontsize=15)
         plt.xlim((0, 0.12))
         plt.ylim((-0.8, 20.8))
-        plt.grid()   
+        plt.grid()
+        plt.show()   
 
 
 
-#%%
+
 # # Error metrics (%mAE, %MAE)
 # mean_abs_error = np.mean((np.abs(force_sim - exp_force)/MVC)*100)
 # max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
 
-#%%
+
 # Save the figure if needed
 
-os.chdir('C:\\Users\\Andrea\\Dropbox\\UNSW - Andrea - Luca [PhD]\\Code\\Python_Scripts\\BB_tests\\submaximalActivation\\isometric')
+output_folder = (
+    Path.home()
+    / 'Dropbox'
+    / 'UNSW_Andrea_Luca_PhD'
+    / 'Code'
+    / 'Python_Scripts'
+    / 'BB_tests'
+    / 'submaximalActivation'
+    / 'isometric'
+)
+os.chdir(output_folder)
 
 if save == 'y':
     print("Saving results...")

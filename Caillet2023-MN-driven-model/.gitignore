@@ -12,6 +12,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Virtual env
+
 # C extensions
 *.so
 *.npy
@@ -129,6 +131,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+myenv/
 .env
 .venv
 env/
