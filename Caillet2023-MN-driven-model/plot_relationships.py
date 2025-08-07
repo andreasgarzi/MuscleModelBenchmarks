@@ -8,7 +8,7 @@ ___________________________________
 
 Plot all the element relationships of the MN-driven model
 """
-
+#%%
 import os
 from pathlib import Path
 import numpy as np
@@ -16,7 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 
-# Class for muscle-tendon relationships
+#%% Class for muscle-tendon relationships
 class Relationships:
     def __init__(self, MU_type='slow'):
         self.fmax = 1.4
@@ -173,10 +173,10 @@ ax.legend(fontsize=10, loc='lower right')
 plt.tight_layout()
 plt.show()
 
-
-
+#%%
 """ Extract experimental digitized data from Blinks, Konishi """
 
+from scipy.optimize import curve_fit
 cwd = Path.cwd()
 data_path = Path.home() / 'Dropbox' / 'UNSW_Andrea_Luca_PhD' / 'Data' / 'Digitized_Blinks_Konishi'
 
@@ -186,25 +186,34 @@ os.chdir(data_path)
 konishi = pd.read_csv("Konishi_l_Capeak.csv", delimiter=' ').to_numpy()
 konishi2 = pd.read_csv("Konishi_l_Catimetopeak.csv", delimiter=' ').to_numpy()
 blinks = pd.read_csv("Blinks_l_Capeak.csv", delimiter=' ').to_numpy()
-blinks = np.delete(blinks, 4, axis=0)
 blinks[:, 1] /= 100  # Scale
+
+blinks[:,0] /= 2.1  # Normalise frog sarcomere length
+konishi[:,0] /= 2.1
+konishi2[:,0] /= 2.1
+blinks[:, 1] = np.minimum(blinks[:, 1], 1) # correct values greater than 1 from digitalization
+konishi[:, 1] = np.minimum(konishi[:, 1], 1)
 
 os.chdir(cwd)
 
 # Concatenate and sort data 
-l_Ca = np.concatenate((blinks[:4], konishi), axis=0)
-l_Ca = l_Ca[np.argsort(l_Ca[:, 0])]
-l_Ca[:, 0] /= 2.1  # Normalise sarcomere length
+l_Ca = np.concatenate((blinks, konishi), axis=0)
+l_Ca = blinks
+l_Ca = l_Ca[np.argsort(l_Ca[:, 0])] # length sorted
 
-# Fit Ca_peak data 
-p = np.polyfit(l_Ca[:, 0], l_Ca[:, 1], deg=4)
-fit = np.poly1d(p)
-l_sm = np.linspace(0.5, 3, 500)
-Ca_sm = fit(l_sm)
+# Define Gaussian-like bell curve (with max = 1 for max. force potential)
+def fixed_gaussian(x, sigma):
+    return np.exp(-((x - 1)**2) / (2 * sigma**2))
+
+# Fit bell curve
+popt, _ = curve_fit(fixed_gaussian, l_Ca[:, 0], l_Ca[:, 1],
+                    p0=[0.2])
+
+l_sm = np.linspace(0.8, 2.3, 500)
+Ca_sm = fixed_gaussian(l_sm, *popt)
 
 # Fit time-to-peak Ca2+ data 
-l_Cattp = konishi2[np.argsort(konishi2[:, 0])]
-l_Cattp[:, 0] /= 2.1
+l_Cattp = konishi2[np.argsort(konishi2[:, 0])] # length sorted
 
 p2 = np.polyfit(l_Cattp[:, 0], l_Cattp[:, 1], deg=2)
 fit2 = np.poly1d(p2)
@@ -213,10 +222,10 @@ Ca_smttp = fit2(l_smttp)
 
 # Plot Ca_peak 
 fig2 = plt.subplot(2, 1, 1)
-plt.plot(l_Ca[:5, 0], l_Ca[:5, 1], 'rx', label='Blinks 1978')
-plt.plot(l_Ca[5:, 0], l_Ca[5:, 1], 'gx', label='Konishi 1991')
+plt.plot(blinks[:, 0], blinks[:, 1], 'rx', label='Blinks 1978')
+plt.plot(konishi[:, 0], konishi[:, 1], 'gx', label='Konishi 1991')
 plt.plot(l_sm, Ca_sm, 'k', label='Fit')
-plt.xlabel('Normalised sarcomere length', weight='bold')
+plt.ylim([0,1.2])
 plt.ylabel('Norm. p Δ[$Ca^{2+}$]', weight='bold')
 plt.legend(loc='upper right')
 plt.grid()
@@ -230,3 +239,4 @@ plt.ylabel('Norm. ttp Δ[$Ca^{2+}$]', weight='bold')
 plt.legend(loc='upper right')
 plt.grid()
 plt.show()
+#%%

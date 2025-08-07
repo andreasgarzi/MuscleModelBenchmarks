@@ -367,12 +367,12 @@ class MN_driven_model():
         #c_1, c_2, c_3 = self.c_1, 4.3*10.**5, self.c_3
         #c_1, c_2, c_3 = self.c_1, 1.8*10.**5, self.c_3
            
-        p4 = [-0.4688, 3.7127, -11.0323, 14.063, -5.4709]
-        amp = (l**4)*p4[0] + (l**3)*p4[1] + (l**2)*p4[2] + l*p4[3] + p4[4]
+        amp = np.exp(-((l - 1)**2) / (2 * 0.6364**2)) # Fitted Gaussian curve (Blinks 1978, Konishi 1991)
+        # p4 = [-0.4688, 3.7127, -11.0323, 14.063, -5.4709]
+        # amp = (l**4)*p4[0] + (l**3)*p4[1] + (l**2)*p4[2] + l*p4[3] + p4[4]
         
-        if l < 1:
-            amp = 0.1*l + 0.2
-        #amp = 1
+        # if l < 1:
+            # amp = 0.1*l + 0.2
         
         p2 = [0.3783, -0.8320, 1.1885]
         width = (l**2)*p2[0] + l*p2[1] + p2[2]
@@ -712,7 +712,7 @@ save = 'n' # save results 'y' or 'n'
 root = tk.Tk() # Initialise input window
 root.withdraw()  # Hide the root window
 
-benchmark = simpledialog.askstring("Input", "Select benchmark ('max', 'sub', 'len', 'fast', 'Ca', 'CaTn'):") # max or sub
+benchmark = simpledialog.askstring("Input", "Select benchmark ('max', 'sub', 'len', 'fast', 'Ca'):") # max or sub
 
 """ MAXIMAL benchmark (Sandercock 1997) """
 
@@ -777,11 +777,11 @@ elif benchmark == 'len':
     
     l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
     fs = simpledialog.askstring("Input", '"Stimulation frequency (Hz):", or "twitch"')
-    yielding = 'y'
+    yielding = 'n'
     sag = 'n'
     
     os.chdir(input_folder / benchmark)
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [27.1, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
+    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.8, 65, 30, 1, 7.5*np.pi/180] # MVC and M/T lengths
     t_end = 1.4
     muscle = 'SOL' # dorsi/plantar
     time_dt = np.arange(0, t_end, dt) # time for BB
@@ -970,6 +970,7 @@ states = {
 
 ###############################################################################
 """ PARAMETERS OPTIMIZATION (Nelder-Mead-lstsq)"""
+# Decomment setion and comment "Running simulations and plotting solutions" block
 ###############################################################################
 
 """ 1) MAXIMAL benchmark [MVC, Vmax] estimation """
@@ -980,9 +981,9 @@ states = {
 #     parameters['vmax'] = x[1]
     
 #     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _ = model.run_MT_simulation() # Run the simulation
+#     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
     
-#     residuals = force_sim - exp_force  # assuming both are in same units
+#     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
 # x0 = [1.2, 10]
@@ -1000,9 +1001,9 @@ states = {
 #     parameters['Ca_max'] = x[1]
     
 #     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, Ca, a, l_M, _ = model.run_MT_simulation() # Run the simulation
+#     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
     
-#     residuals = force_sim - exp_force  # assuming both are in same units
+#     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
 # x0 = [26, 2.3e5]
@@ -1010,7 +1011,6 @@ states = {
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
-
 
 """ 3) Ca transient ODE [c1, c2, c3] parameters estimation """
 
@@ -1024,7 +1024,7 @@ states = {
 
 #     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
 
-#     residuals = Ca[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
+#     residuals = Ca[0,idx]*10**6 - exp_data[:,1]  
 #     return np.sum(residuals**2)  
 
 # if fibre == 'slow':
@@ -1033,33 +1033,6 @@ states = {
 #     bnds = [(1e2, 1e5), (0.1, 2)]
 # elif fibre == 'fast':
 #     exp_data = Ca_fast_35
-#     x0 = [2.8*10.**3, 0.7]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
-#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
-
-""" 4) CaTn bounding ODE parameters estimation """
-
-# def obj(x, parameters, states, Distimes, exp_data): 
-    
-#     parameters['c_1'] = x[0]
-#     parameters['c_3'] = x[1]
-    
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
-#     _, _, Ca, _, _, _ = model.run_M_simulation() # Run the simulation
-
-#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
-
-#     residuals = CaTn[0,idx]*10**6 - exp_data[:,1]  # assuming both are in same units
-#     return np.sum(residuals**2)  
-
-# if fibre == 'slow':
-#     exp_data = CaTn_slow
-#     x0 = [8*10.**3, 0.6]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
-# elif fibre == 'fast':
-#     exp_data = CaTn_fast
 #     x0 = [2.8*10.**3, 0.7]
 #     bnds = [(1e2, 1e5), (0.1, 2)]
 
@@ -1086,8 +1059,6 @@ if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len' or benchmark =
     else:
         plt.plot(time_dt, force_sim, 'r', label='Simulated Force')
     plt.plot(time_dt, exp_force, 'k', label='Exp. Force')
-    #plt.plot(time_dt, a[0,:])
-    #plt.ylabel('Active state', weight='bold', fontsize=12)
     plt.ylabel('Force [N]', weight='bold', fontsize=12)
     plt.xlabel('Time [s]', weight='bold', fontsize=12)
     plt.title('Reconstructed ' + muscle + ' force for ' + str(Nr) + ' MUs', weight='bold')
@@ -1135,7 +1106,7 @@ elif benchmark == 'Ca':
 # max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
 
 
-# Save the figure if needed
+# Save results
 
 output_folder = (
     Path.home()
