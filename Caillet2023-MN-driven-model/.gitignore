@@ -5,6 +5,9 @@
 ~*.f
 *.pyc
 /Python_code/*.sublime-workspace
+*.npy
+*.dat
+*.csv
 
 # PYTHON GITIGNORE FROM GITHUB
 # Byte-compiled / optimized / DLL files
