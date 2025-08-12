@@ -5,6 +5,9 @@
 ~*.f
 *.pyc
 /Python_code/*.sublime-workspace
+*.npy
+*.dat
+*.csv
 
 # PYTHON GITIGNORE FROM GITHUB
 # Byte-compiled / optimized / DLL files
@@ -12,11 +15,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual env
-
 # C extensions
 *.so
-*.npy
+
 # Distribution / packaging
 .Python
 build/
@@ -131,7 +132,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-myenv/
 .env
 .venv
 env/
