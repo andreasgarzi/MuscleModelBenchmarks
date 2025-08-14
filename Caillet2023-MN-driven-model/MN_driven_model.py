@@ -776,7 +776,7 @@ elif benchmark == 'sub':
 elif benchmark == 'len':
     
     l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
-    fs = simpledialog.askstring("Input", '"Stimulation frequency (Hz):", or "twitch"')
+    fs = simpledialog.askstring("Input", '"Stimulation frequency (Hz):"')
     yielding = 'n'
     sag = 'n'
     
@@ -798,7 +798,7 @@ elif benchmark == 'len':
     l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
 
     exp_force = np.load(l + '_' + fs + '_interp.npy')
-    if fs == 'twitch':
+    if fs == '1':
         Distimes = np.round(np.array(np.load(l + '_' + fs + '_times.npy')), 3)
     else:
         Distimes = np.load(l + '_' + fs + '_times.npy') # exp. discharge times
@@ -1124,3 +1124,4 @@ if save == 'y':
     print("Saving results...")
     np.save('a_30', a, allow_pickle=True)
 
+ 
