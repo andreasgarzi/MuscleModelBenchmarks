@@ -1,4 +1,14 @@
+"""
+Author: Andrea Sgarzi
+a.sgarzi@ad.unsw.edu.au
+University of New South Wales, GSBE
 
+Created on Tue Aug 19 17:54:16 2025
+___________________________________
+
+Animal benchmarks for testing MN-driven model based on Caillet et al. 2023 for simulating isometric and dynamic muscle contractions.
+
+"""
 
 import os
 import scipy as sp
@@ -11,6 +21,7 @@ from tkinter import simpledialog
 import matplotlib.pyplot as plt
 cwd = os.getcwd()
 
+import MN_driven_model
 
 MN_pool = 1  # n. of theoretical MUs in the real pool 
 Nr = 1 # n. of (exp.) MUs to represent in the pool
