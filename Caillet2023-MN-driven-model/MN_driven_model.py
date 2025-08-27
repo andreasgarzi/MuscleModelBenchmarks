@@ -6,19 +6,19 @@ University of New South Wales, GSBE
 Created on Tue Jan 28 15:33:16 2025
 ___________________________________
 
-MN-driven model based on Caillet et al. 2023 for simulating isometric and dynamic muscle contractions.
+MN-driven model based on Caillet et al. 2023 for simulating isometric and dynamic muscle contractions
+given the experimental MN (or MU) discharge times as inputs. The muscle is modelled as an ensamble of N
+in-parallel 3-elements Hill-type models, each one representing an identified active MU. The single normalized
+MU forces are scaled based on an experimentally-derived force distribution from the human TA and summed up
+to simulate the whole muscle force.
 
+The model is benchmarked against animal experimental data from slow (SOL) and fast (EDL) muscles.
+It can also be used with experimental data from human MN spike trains.
 """
 
 import os
-import scipy as sp
 import numpy as np
-import tkinter as tk
-import pandas as pd
-from pathlib import Path
-from scipy.optimize import minimize
 from scipy.integrate import solve_ivp
-from tkinter import simpledialog
 cwd = os.getcwd()
 
 class MN_driven_model():
@@ -45,7 +45,7 @@ class MN_driven_model():
             
         self.dt = self.P['dt']
         
-        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL' and self.P['muscle'] != 'CF':
+        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL' and self.P['muscle'] != 'EDL':
             raise ValueError("Expected either 'TA', 'GM', 'CF', 'SOL' for muscle parameter")
         else:
             self.muscle = self.P['muscle']
@@ -86,11 +86,11 @@ class MN_driven_model():
         
         # self.Ca_max = self.P['Ca_max']  # only for optimization procedures...
         # self.c_1 = self.P['c_1'] 
-        # self.c_2 = self.P['c_2'] 
         # self.c_3 = self.P['c_3'] 
         # self.vmax = self.P['vmax']
-        # self.vmax = self.P['vmax']
-     
+        # self.k1 = self.P['k1']
+        # self.k2 = self.P['k2']
+
         # Check and assign states 
     
         if states is None:
@@ -102,7 +102,6 @@ class MN_driven_model():
         
         self.MUAP_0 = self.S['MUAP_0']
         self.Ca_0 = self.S['Ca_0']
-        self.CaTn_0 = self.S['CaTn_0']
         self.act_0 = self.S['act_0']
         self.l_M_0 = self.S['l_M_0']
         self.y_0 = self.S['y_0']
@@ -150,7 +149,7 @@ class MN_driven_model():
     
         if self.muscle == 'SOL':
             MU_type = 'slow' # Soleus
-        elif self.muscle == 'CF':
+        elif self.muscle == 'GM' or self.muscle == 'EDL':
             MU_type = 'fast' # Caudofemoralis
 
         # elif self.muscle == 'TA' and self.species == 'human':
@@ -164,70 +163,112 @@ class MN_driven_model():
     
     " Distribution of force with MU recruitment (TA) "
     
-    def Fth_distrib_func(self, MN):  #Obtained from processed literature data, typical muscle-specific distributions of MU force recruitment thresholds (%MVC)
-        if self.muscle == 'TA':
-            return 0.5052*(58.1*MN/self.MN_pool+120**((MN/self.MN_pool)**1.83)) 
-        elif self.muscle == 'GM':
-            return 0.6562*(46.7*MN/self.MN_pool+90**((MN/self.MN_pool)**1.79))
+    def fth_percent(self, mn_idx):
 
-    def F0MU_norm_distrib_func(self, MN): 
-        return 7.86*10**-4*(3.0*MN/self.MN_pool+8.20**((MN/self.MN_pool)**5.29))    
-        
-    def Ftw_norm_distrib_func(self, MN): 
-        return 6.07*(4.52*MN/self.MN_pool+11.96**((MN/self.MN_pool)**4.66))  
-    
-    def F0MU_distrib_func(self):
-        
-        MU_list_identified = np.arange(1, self.Nr+1, 1) #list of identified MUs = 1:1:Nr
-        MU_pool_list = np.arange(1, self.MN_pool+1, 1) #list of all TA MUs = 1:1:N(400)
-        
-        cumulative_all_MUs = sum(self.F0MU_norm_distrib_func(MU_pool_list)) # Let's compute the sum of the normalized F0MU(i)
-        
-        scale_factor = self.MVC/cumulative_all_MUs # Obtaining, using the subject-specific F0M, the N-% relationship
+        x = mn_idx / self.MN_pool  # normalized MN index in the pool
+        return 0.5052 * (58.1 * x + 120 ** (x ** 1.83))  # Recruitment threshold (in %MVC) for MU index in the pool
 
-        F0MU_distribution_complete_MU_pool = self.F0MU_norm_distrib_func(MU_pool_list) * scale_factor # and scaling the normalized distribution of F0MU 
-    
+    def f0mu_rel(self, mn_idx):
+        
+        x = mn_idx / self.MN_pool
+        return 7.86e-4 * (3.0 * x + 8.20 ** (x ** 5.29)) # Relative distribution (unitless) of each MU F0
+
+    def map_identified_positions(self, last_rec):
+        """
+        Map the Nr identified MUs in the pool [1..last_rec].
+        - 'evenly': equispaced positions
+        - 'identified': use self.F_thr (%MVC) if available, otherwise fallback to 'evenly'
+        Return ordered integers of shape (Nr,)
+        """
+        Nr = self.Nr
+        if self.spread == 'evenly': 
+            pos = np.rint(np.linspace(1, last_rec, Nr)).astype(int) # Distribute Nr points rounded to the closest integer between 1 and last_rec
+            return pos
+
+        pool_idx = np.arange(1, self.MN_pool + 1) # if spread == 'identified' ( with Fth %MVC)
+        fth_pool = self.fth_percent(pool_idx) # recruitment threshold (%MVC) for each MU
+        pos = np.zeros(Nr, dtype=int)
+        for i in range(Nr):
+            pos[i] = int(np.argmin(np.abs(fth_pool - self.F_thr[i])) + 1) # pool index with threshold %MVC closest to the exp. Fth 
+        
+        pos.sort() # ascending order to have continuous bins
+
+        pos = np.unique(pos) # remove duplicates mantaining Nr
+        if pos.size < Nr:
+            extra = np.setdiff1d(
+                np.rint(np.linspace(1, last_rec, Nr)).astype(int), pos # add uniformely distributed indeces if pos.size < Nr
+            )
+            need = Nr - pos.size
+            pos = np.sort(np.concatenate([pos, extra[:need]]))
+        else:
+            pos = pos[:Nr]
+        return pos
+
+    def compute_bins(self, positions, last_rec):
+        """
+        Boundaries based on integer indeces.
+        Returns (left_edges, right_edges) of shape (Nr,) inclusive.
+        """
+        pos = positions.astype(float)
+        
+        mids = np.rint((pos[:-1] + pos[1:]) / 2.0).astype(int) # mid-point between adjacent MUs
+       
+        left_edges = np.empty_like(positions) # left/right boundaries (inclusive)
+        right_edges = np.empty_like(positions)
+        left_edges[0] = 1 # the first cluster starts from 1
+        right_edges[-1] = last_rec # last cluster ends to last_rec
+        if positions.size > 1:
+            left_edges[1:] = mids # each i>0 cluster starts from the previous cluster' mid point
+            right_edges[:-1] = mids - 1 # each cluster i<Nr-1 ends to (mid point)-1 of the next one
+        else:
+            right_edges[0] = last_rec # special case of single MU covering the whole [1..last rec]
+       
+        bad = right_edges < left_edges # verify left <= right
+        right_edges[bad] = left_edges[bad]
+        return left_edges, right_edges
+
+    def f0mu_weights(self):
+        """
+        F0MU weights for each of the Nr MUs identified
+        - Scale the distribution relative to the subject MVC
+        - If pool == 'y':each MU is a recruitable cluster (< 100%MVC).
+        - If pool == 'n': each Mu inherits only the corresponding mapped index 
+        Return an array shaped (Nr, 1).
+        """
+        pool_idx = np.arange(1, self.MN_pool + 1)
+
+        fth_pool = self.fth_percent(pool_idx)  # get MU % threshold within 100 %MVC    
+
+        valid = np.where(fth_pool <= 100.0)[0] # last recruitable MU
+        last_rec = (valid[-1] + 1) if valid.size else 1
+
+        
+        rel = self.f0mu_rel(pool_idx) # Relative distribution and scaling to MVC                 
+        rel_sum = rel.sum()
+        if rel_sum <= 0:
+            raise ValueError("F0MU relative distribution sums to zero.")
+        scale = self.MVC / rel_sum
+        f0mu_pool_N = rel * scale  # N for each MU in the pool
+
+        pos = self.map_identified_positions(last_rec) # Mapping of the Nr intentified MUs: (Nr,), 1..last_rec
+
         if self.pool == 'y':
-            F0MU_distribution = np.empty(self.Nr)
-            last_recruited_MU = np.argwhere(self.Fth_distrib_func(MU_pool_list) < self.MVC)[-1][0]+1 #finding it with MVC value only. 'Blind' approach
-        
-            if self.spread == 'evenly': #easy approach: assuming the Nr identified MUs are evenly spread across the MU pool
-                MU_list_identified = MU_list_identified * last_recruited_MU//self.Nr #Evenly spreading the Nr MUs across the MU pool
-            elif self.spread == 'identified': #the identified MUs are here located into the MU pool according to their experimental Fth
-                Real_MN_pop = np.zeros(self.Nr)
             
-                for i in range (self.Nr):
-                    Real_MN_pop[i] = (np.abs(self.Fth_distrib_func(MU_pool_list) - self.F_thr[i])).argmin() #looking for the closest match between typical and experimental %MVC recruitment threshold
-             
-                Real_MN_pop = Real_MN_pop.astype(int)
-                MU_list_identified = Real_MN_pop # is the list of indices of location of each MU within the pool (from the Fth distribution with the MN_distribution_MOD.py function)       
+            L, R = self.compute_bins(pos, last_rec) # Bins left & right extremes: each MU is a cluster of MUs
+            w = np.zeros(self.Nr)
+            for i in range(self.Nr):
+                w[i] = f0mu_pool_N[L[i]-1:R[i]].sum()  # sum F0 contributions (N) of the MUs of the pool in the i-th bin 
 
-            # Here, each of the Nr identified MUs is consisdered to be representative of a fraction of the MUs of the MU pool, and of their summed F0Mu
-            # Basically, you are summing all F0MU in a average symmetric contour around the ith MU within the F0MU distribution (compensating for two-times-counted MUs, due to not always ascending indices of MUs within the whole pool)
-            for i in range(0, len(MU_list_identified)):
-                if i == 0 : 
-                    index_min = 0
-                else: 
-                    index_min = int(MU_list_identified[i-1] + abs(MU_list_identified[i]-MU_list_identified[i-1])/2) +1
-                if i == len(MU_list_identified)-1 : 
-                    index_max = last_recruited_MU +1
-                else: 
-                    index_max = int(MU_list_identified[i] + abs(MU_list_identified[i+1]-MU_list_identified[i])/2)
-           
-                if index_max<index_min:   #because of this, some MUs may be counted two times. In such case, the sum of F0Ms must be scaled back to true value (see below)
-                    index_max = index_min 
-            
-                F0MU_distribution[i] = sum(F0MU_distribution_complete_MU_pool[index_min : index_max+1])
-        
-            F0MU_distribution = F0MU_distribution / sum(F0MU_distribution) * sum(F0MU_distribution_complete_MU_pool[0:last_recruited_MU]) #in case some MUs have been counted twice, you normalize for the "affected cumulative value" and un-normalize back with respect to the "correct" cumulative value
-        
-            F0MU_distribution = np.reshape(F0MU_distribution, (self.Nr,1))
-            
-        elif self.pool == 'n':
-            F0MU_distribution = np.reshape(F0MU_distribution_complete_MU_pool, (self.Nr,1))
-              
-        return F0MU_distribution
+            target = f0mu_pool_N[:last_rec].sum() # numerical alignment
+            s = w.sum()
+            if s > 0:
+                w *= (target / s)
+            return w.reshape(self.Nr, 1)
 
+        else:  # No clustering: single MU value in the pool
+            
+            w = f0mu_pool_N[pos - 1]
+            return w.reshape(self.Nr, 1)
     
     " SE (Thelen 2003, John 2013) "
 
@@ -282,8 +323,8 @@ class MN_driven_model():
         
         return alpha
     
-    """ ODEs """
-    " Motor unit action potential "
+    " ODEs "
+    " Convert discharge times to binary "
     
     def is_t_a_firing_time_func(self, t_round, Matrix_AP, chosen_precision): 
 
@@ -296,6 +337,8 @@ class MN_driven_model():
             
         return binary
     
+    """ MNAP """
+
     def MN_AP_func(self, t, Matrix_AP, V_N = 90):
         
         chosen_precision = 10**-3 # has to be higher than the duration of the AP (7*10**-4)
@@ -315,6 +358,8 @@ class MN_driven_model():
                 
         return V_N * alpha
     
+    """ MUAP """
+
     def MU_AP_ODE_func(self, t, Matrix_AP, beta, dbetadt):
         
         c_4, c_5, c_6 = 2*10**4, 5*10**7, 9*10**7
@@ -338,17 +383,25 @@ class MN_driven_model():
 
     def MU_free_Ca_ODE_func(self, t, l, MU_type, beta, Ca, dCadt):
         
-        if MU_type == 'fast':
-            c_1, c_2, c_3 = 2.4*10.**3, 4.3*10.**5, 0.54  
-
-        elif MU_type == 'slow': 
-            c_1, c_2, c_3 = 6.037*10.**3, 1.8*10.**5, 0.54 
-            
-        #c_1, c_2, c_3 = self.c_1, 4.3*10.**5, self.c_3
-        #c_1, c_2, c_3 = self.c_1, 1.8*10.**5, self.c_3
-           
-        amp = np.exp(-((l - 1)**2) / (2 * 0.6364**2)) # Fitted Gaussian curve (Blinks 1978, Konishi 1991)
+        if MU_type == 'slow': 
+            c_1, c_2, c_3 = 6.029*10.**3, 1.8*10.**5, 0.54
+            # c_1, c_2, c_3 = self.c_1, 1.8*10.**5, self.c_3
         
+        elif MU_type == 'fast':
+            c_1, c_2, c_3 = 2.4*10.**3, 4.3*10.**5, 0.6
+            #c_1, c_2, c_3 = self.c_1, 4.3*10.**5, self.c_3
+           
+        # amp = np.exp(-((l - 1)**2) / (2 * 1.29774503**2)) # Fitted Gaussian curve (Konishi 1991)
+        
+        if l < 0.9892:
+            amp = 0.7926 # horizontal line for missing data
+        elif l >= 0.9892 and l <= 1.1379:
+            amp = 1.3947 * l + -0.5871 # left line
+        elif l > 1.1379 and l < 1.239:
+            amp = 1 # plateau
+        else:
+            amp = 1 + -0.4623 * (l - 1.239) # right line
+
         p2 = [0.3783, -0.8320, 1.1885] # Fitted quadratic (Konishi 1991)
         width = (l**2)*p2[0] + l*p2[1] + p2[2]
         
@@ -378,16 +431,26 @@ class MN_driven_model():
     def act(self, y, MU_type, s):
         
         if MU_type == 'slow':
-            k1, k2 = 11.5, 15.2
-            Ca, a = y[2]*8e5, y[4] 
+            k1, k2 = 11.8, 14.7
+            #k1, k2 = self.k1, self.k2
+            Ca, a = y[2]*2.91772e5, y[4] 
+            #Ca, a = y[2]*self.Ca_max, y[4] 
             
-        elif MU_type == 'fast' and self.muscle == 'CF' and self.species == 'animal':  # MU 
-            k1, k2 = 32.5, 72.2
-            Ca, a = y[2]*1e6*s, y[4] 
+        elif MU_type == 'fast' and self.muscle == 'EDL' and self.species == 'animal':  # MU 
+            k1, k2 = 11.8, 14.7
+            if self.s == 'y':
+               Ca, a = y[2]*2.91772e5*s, y[4] 
+            else:
+               Ca, a = y[2]*2.91772e5*s, y[4] 
             
         elif MU_type == 'fast' and self.muscle == 'GM' and self.species == 'animal':
             k1, k2 = 32.5, 72.2
-            Ca, a = y[2]*8e5*s, y[4] 
+            if self.s == 'y':
+                Ca, a = y[2]*(1.99249e5)*s, y[4] 
+                # Ca, a = y[2]*self.Ca_max*s, y[4] 
+            else:
+                Ca, a = y[2]*(1.99249e5), y[4] 
+                # Ca, a = y[2]*self.Ca_max*s, y[4] 
                 
         if Ca > a:
             dadt = -(k2*a - k1*Ca)*(1 - a)
@@ -550,7 +613,7 @@ class MN_driven_model():
     def run_MT_simulation(self):
         
         print('There are ', self.Nr, ' discharging MUs in this simulation')
-        self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
+        self.F0MU_distribution = self.f0mu_weights() # isom. force distribution (muscle specific)
         
         "Run the muscle model simulation."
         for i in range(self.Nr):
@@ -587,8 +650,6 @@ class MN_driven_model():
         
         if self.y == 'y' and MU_type == 'slow':   # yielding only for slow MUs
             MU_Force_list = self.yielding * self.active_state * self.f_M * self.f_FL + self.f_PE
-        elif self.s == 'y' and MU_type == 'fast': # sag only for fast MUs
-            MU_Force_list = self.active_state * self.f_M * self.f_FL + self.f_PE
         else:
             MU_Force_list = self.active_state * self.f_M * self.f_FL + self.f_PE
             
@@ -603,7 +664,7 @@ class MN_driven_model():
     def run_M_simulation(self):
         
         print('There are ', self.Nr, ' discharging MUs in this simulation')
-        self.F0MU_distribution = self.F0MU_distrib_func() # isom. force distribution (muscle specific)
+        self.F0MU_distribution = self.f0mu_weights() # isom. force distribution (muscle specific)
         
         "Run the muscle model simulation."
         for i in range(self.Nr):
@@ -625,10 +686,7 @@ class MN_driven_model():
                 self.f_PE[i,l] = self.PE_force(self.l_MT[l]) # passive el. force 
                 self.f_CE[i,l] = self.Force_Length_func(self.active_state[i,l], self.l_MT[l])
     
-        if self.s == 'y' and MU_type == 'fast': 
-            MU_Force_list = self.sag * self.active_state * self.f_CE + self.f_PE
-        else:
-            MU_Force_list = self.active_state * self.f_CE + self.f_PE
+        MU_Force_list = self.active_state * self.f_CE + self.f_PE
             
         F_MU_list = self.F0MU_distribution[0:self.Nr, :] * MU_Force_list  # from normalised MU forces (to F0 of each one) to N
         Tot_Muscle_force = F_MU_list.sum(axis=0)  # Total muscle force (in N)

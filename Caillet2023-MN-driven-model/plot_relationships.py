@@ -13,8 +13,8 @@ import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import figure
 
 #%% Class for muscle-tendon relationships
 class Relationships:
@@ -176,7 +176,6 @@ plt.show()
 #%%
 """ Extract experimental digitized data from Blinks, Konishi """
 
-from scipy.optimize import curve_fit
 cwd = Path.cwd()
 data_path = Path.home() / 'Dropbox' / 'UNSW_Andrea_Luca_PhD' / 'Data' / 'Digitized_Blinks_Konishi'
 
@@ -191,26 +190,64 @@ blinks[:, 1] /= 100  # Scale
 blinks[:,0] /= 2.1  # Normalise frog sarcomere length
 konishi[:,0] /= 2.1
 konishi2[:,0] /= 2.1
-blinks[:, 1] = np.minimum(blinks[:, 1], 1) # correct values greater than 1 from digitalization
-konishi[:, 1] = np.minimum(konishi[:, 1], 1)
+blinks[:,1] = np.minimum(blinks[:, 1], 1) # correct values greater than 1 from digitalization
+konishi[:,1] = np.minimum(konishi[:, 1], 1)
 
 os.chdir(cwd)
 
 # Concatenate and sort data 
 l_Ca = np.concatenate((blinks, konishi), axis=0)
-l_Ca = blinks
 l_Ca = l_Ca[np.argsort(l_Ca[:, 0])] # length sorted
 
-# Define Gaussian-like bell curve (with max = 1 for max. force potential)
-def fixed_gaussian(x, sigma):
-    return np.exp(-((x - 1)**2) / (2 * sigma**2))
+# Plateau definition
+plateau_start = 1.1379
+plateau_end = 1.239
+plateau_value = 1
 
-# Fit bell curve
-popt, _ = curve_fit(fixed_gaussian, l_Ca[:, 0], l_Ca[:, 1],
-                    p0=[0.2])
+# Left & right from plateau
+left_mask = l_Ca[:, 0] < plateau_start
+right_mask = l_Ca[:, 0] > plateau_end
 
-l_sm = np.linspace(0.8, 2.3, 500)
-Ca_sm = fixed_gaussian(l_sm, *popt)
+x_left = l_Ca[left_mask, 0]
+y_left = l_Ca[left_mask, 1]
+x_right = l_Ca[right_mask, 0]
+y_right = l_Ca[right_mask, 1]
+
+# Left extreme
+x_first_left = x_left[0]
+y_first_left = y_left[0]
+
+slope_left = (plateau_value - y_first_left) / (plateau_start - x_first_left)
+intercept_left = y_first_left - slope_left * x_first_left
+
+def linear_model_right(x, a):
+    return plateau_value + a * (x - plateau_end)
+
+popt_right, _ = curve_fit(linear_model_right, x_right, y_right)
+slope_right = popt_right[0]
+
+l_sm = np.linspace(0.4, 2.3, 500)
+Ca_sm = np.zeros_like(l_sm)
+
+for i, x in enumerate(l_sm):
+    if x < x_first_left:
+        Ca_sm[i] = y_first_left
+    elif x < plateau_start:
+        Ca_sm[i] = slope_left * x + intercept_left
+    elif x <= plateau_end:
+        Ca_sm[i] = plateau_value
+    else:
+        Ca_sm[i] = plateau_value + slope_right * (x - plateau_end)
+
+print("1) y_left = ", y_first_left)
+print("1) x_left = ", x_first_left)
+print("2) Left intercept = ", intercept_left)
+print("2) Left slope = ", slope_left)
+print("3) Slope right = ", slope_right)
+
+# Fit time-to-peak Ca2+ data 
+l_Cattp = konishi2[np.argsort(konishi2[:, 0])]
+l_Cattp[:, 0] /= 2.1
 
 # Fit time-to-peak Ca2+ data 
 l_Cattp = konishi2[np.argsort(konishi2[:, 0])] # length sorted
@@ -226,6 +263,7 @@ plt.plot(blinks[:, 0], blinks[:, 1], 'rx', label='Blinks 1978')
 plt.plot(konishi[:, 0], konishi[:, 1], 'gx', label='Konishi 1991')
 plt.plot(l_sm, Ca_sm, 'k', label='Fit')
 plt.ylim([0,1.2])
+plt.xlim([0.8,2])
 plt.ylabel('Norm. p Δ[$Ca^{2+}$]', weight='bold')
 plt.legend(loc='upper right')
 plt.grid()
@@ -239,4 +277,4 @@ plt.ylabel('Norm. ttp Δ[$Ca^{2+}$]', weight='bold')
 plt.legend(loc='upper right')
 plt.grid()
 plt.show()
-#%%
+
