@@ -21,7 +21,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 cwd = os.getcwd()
 
-class MN_driven_model():
+class MU_model():
 
     def __init__(self, parameters, states, distimes):
 

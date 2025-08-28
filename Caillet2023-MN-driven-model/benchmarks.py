@@ -9,6 +9,8 @@ ___________________________________
 Animal benchmarks for testing MN-driven model based on Caillet et al. 2023 for simulating isometric and dynamic muscle contractions.
 
 """
+#%%
+
 import os
 import scipy as sp
 import numpy as np
@@ -20,8 +22,9 @@ from tkinter import simpledialog
 import matplotlib.pyplot as plt
 cwd = os.getcwd()
 
+# os.chdir(r"C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\pyHatze\Caillet2023-MN-driven-model")
 
-from MN_driven_model import MN_driven_model
+from MU_model import MU_model
 
 def read_data(file, data_type):
 
@@ -35,43 +38,44 @@ def read_data(file, data_type):
       skip = 18
     elif data_type == 'force_force_SM': # submaximal benchmark (isometric trials)
       skip = 19
-    elif data_type == 'Millard_EDL':
+    elif data_type == 'Millard_EDL_iso':
       skip = 30
+    elif data_type == 'Millard_EDL_dyn':
+      skip = 24
 
     data = np.loadtxt(file, delimiter='\t', skiprows=skip)
 
     return data
 
-# os.chdir(r"C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\pyHatze\Caillet2023-MN-driven-model")
 
 # exp_path = '..\\biologicalBenchmark\\'
 # exp_path = exp_path + 'fastMuscle_Millard\\'
-# data = read_data(exp_path + 'FFR.ddf', 'Millard_EDL')
+# data = read_data(exp_path + 'injury_09_activeLengthening_09Lo_20250710.ddf', 'Millard_EDL_iso')
+# plt.plot(data[11000:12000,1])
 
-def prepare_segment(data, fs=1000, target_freq=30, dt=1e-4):
+def prepare_segment_iso(data, fs=1000, target_freq=30, dt=1e-4):
 
-    freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # Mappa frequenza → indice segmento (0..7)
+    freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
     seg_idx = freq_map[target_freq]
 
-    seg_len = 20000 # Ogni segmento è lungo 20000 campioni, a partire da 0
+    seg_len = 20000 # Each segment is 20000 samples long
     start = seg_idx * seg_len
 
-    N = 1000 # Considera la parte come se iniziasse da 0: prendi i primi 1000 campioni di quel segmento
+    N = 1000 # Each part starts from 0 with 1000 samples
     seg_slice = slice(start, start + N)
 
     length = np.asarray(data[seg_slice, 1], dtype=float) # Colonne (0-based): lunghezza=1, forza=2, spikes=11
     force  = np.asarray(data[seg_slice, 2], dtype=float)
     spikes = np.asarray(data[seg_slice, 11], dtype=float)
 
-    t = np.arange(N, dtype=float) / fs # Tempo originale (0..(N-1))/fs
-
-    prev = spikes[:-1] # Trova transizioni 0 -> 1 negli spike (dentro ai 1000 campioni) # Ignora il primissimo campione (non ha precedente)
+    t = np.arange(N, dtype=float) / fs # otriginal time
+    prev = spikes[:-1] # 0-1 transitions
     curr = spikes[1:]
-    rising_edges = np.where((prev == 0) & (curr == 1))[0] + 1  # +1: indice del campione "1"
+    rising_edges = np.where((prev == 0) & (curr == 1))[0] + 1  # discharges when 1 is preceeded by 0
     spike_times_sec = t[rising_edges]
 
     t_end = t[-1]
-    t_hi = np.arange(0.0, t_end + 1e-12, dt) # Interpolazione cubica su griglia a dt=1e-4
+    t_hi = np.arange(0.0, t_end + 1e-12, dt) # interpolated time
 
     kind = 'cubic'
     length_hi = sp.interpolate.interp1d(t, length, kind=kind)(t_hi)
@@ -88,7 +92,7 @@ def prepare_segment(data, fs=1000, target_freq=30, dt=1e-4):
         'length_hi': length_hi,
     }
 
-# part = prepare_segment(data, fs=1000, target_freq=70, dt=1e-4)
+# part = prepare_segment(data, fs=1000, target_freq=80, dt=1e-4)
 # plt.plot(part['t_hi'], part['length_hi'])
 
 
@@ -215,11 +219,11 @@ elif benchmark == 'fast':  # Test fast muscle (Brown 1999 - Cat CF)
 
             exp_path = exp_path + 'fastMuscle_Millard\\'
 
-            data = read_data(exp_path + 'FFR.ddf', 'Millard_EDL')
+            data = read_data(exp_path + 'FFR.ddf', 'Millard_EDL_iso')
 
             f = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
 
-            part = prepare_segment(data, fs=1000, target_freq = float(f), dt=1e-4)
+            part = prepare_segment_iso(data, fs=1000, target_freq = float(f), dt=1e-4)
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
@@ -364,7 +368,7 @@ states = {
 #     parameters['MVC'] =  x[0]
 #     parameters['vmax'] = x[1]
     
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
@@ -389,7 +393,7 @@ states = {
 #     parameters['MVC'] =  x[0]
 #     parameters['Ca_max'] = x[1]
     
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
@@ -412,7 +416,7 @@ states = {
 #     parameters['k1'] =  x[0]
 #     parameters['k2'] = x[1]
     
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
@@ -435,7 +439,7 @@ states = {
 #     parameters['c_1'] = x[0]
 #     parameters['c_3'] = x[1]
     
-#     model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     _, _, Ca, _, _ = model.run_M_simulation() # Run the simulation
 
 #     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
@@ -462,7 +466,7 @@ states = {
 
 """ Running simulations and plot solutions """
 
-model = MN_driven_model(parameters, states, Distimes) # Create an model class instance
+model = MU_model(parameters, states, Distimes) # Create an model class instance
 
 
 if benchmark == 'max' or benchmark == 'sub' or benchmark == 'len' or benchmark == 'fast':
