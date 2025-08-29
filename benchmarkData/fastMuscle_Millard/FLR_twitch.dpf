@@ -1,0 +1,83 @@
+DMCv5.3 Protocol File
+Input Sampling Frequency: 1000Hz
+Output Sampling Frequency: 1000Hz
+Protocol Type: Unitized
+Wait(s)	Then(action)	On(port)	Units	Parameters
+1.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	0.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	0.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	0.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	1,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	1.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	1.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	1.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	2,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	2.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	2.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	2.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	3,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	3.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	3.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	3.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	4,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	4.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	4.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	4.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	5.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	5.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	5.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	6,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	6.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	6.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	6.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	7,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	7.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	7.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	7.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	8,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	8.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	8.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	8.75,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	9,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	9.25,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+1.000000	Ramp	Length Out	9.5,5		
+10.000000	Stimulus-Tetanus	Stimulator	0,80,5,.4		
+2.000000	Stop				

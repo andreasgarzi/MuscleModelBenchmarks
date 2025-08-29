@@ -1,0 +1,14 @@
+DMCv5.3 Protocol File
+Input Sampling Frequency: 1000Hz
+Output Sampling Frequency: 1000Hz
+Protocol Type: Unitized
+Wait(s)	Then(action)	On(port)	Units	Parameters
+0.000000	Stimulus-Tetanus	Stimulator	0,30,5,.5		 	
+20.000000	Stimulus-Tetanus	Stimulator	0,50,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,60,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,70,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,80,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,90,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,100,5,.5			
+20.000000	Stimulus-Tetanus	Stimulator	0,120,4,5			
+1.000000	Stop					
