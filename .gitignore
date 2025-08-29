@@ -4,7 +4,6 @@
 ~*.f
 *.pyc
 *.cpp
-*.csv
 *.npy
 *.dat
 *.ddf
@@ -16,6 +15,8 @@ git-filter-repo
 __pycache__/
 *.py[cod]
 *$py.class
+
+.vscode/
 
 # C extensions
 *.so

@@ -104,7 +104,7 @@ species = 'animal' # human/animal
 
 dt = 1e-4 # time step (x-data)
 
-exp_path = '..\\biologicalBenchmark\\'
+exp_path = '..\\benchmarkData\\'
 
 save = 'n' # save results 'y' or 'n'
 
