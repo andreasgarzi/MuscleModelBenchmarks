@@ -6,6 +6,7 @@
 *.cpp
 *.npy
 *.dat
+*.ddf
 
 
 git-filter-repo

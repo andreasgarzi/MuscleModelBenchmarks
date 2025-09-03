@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import simpledialog
 
-from MU_model2 import MU_model  
+from MU_model import MU_model  
 
 
 # =====================================================================
@@ -47,7 +47,7 @@ def read_data(file, data_type):
     return data
 
 
-def prepare_segment_iso(data, fs=1000, target_freq=30, dt=1e-4):
+def prepare_segment_iso(data, f=1000, target_freq=30, dt=1e-4):
 
     freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
     seg_idx = freq_map[target_freq]
@@ -60,9 +60,10 @@ def prepare_segment_iso(data, fs=1000, target_freq=30, dt=1e-4):
 
     length = np.asarray(data[seg_slice, 1], dtype=float) # Colonne (0-based): lunghezza=1, forza=2, spikes=11
     force  = np.asarray(data[seg_slice, 2], dtype=float)
+    force = force - force[0] # offset
     spikes = np.asarray(data[seg_slice, 11], dtype=float)
 
-    t = np.arange(N, dtype=float) / fs # otriginal time
+    t = np.arange(N, dtype=float) / f # otriginal time
     prev = spikes[:-1] # 0-1 transitions
     curr = spikes[1:]
     rising_edges = np.where((prev == 0) & (curr == 1))[0] + 1  # discharges when 1 is preceeded by 0
@@ -124,10 +125,9 @@ if benchmark == 'max': # MAXIMAL benchmark - SLOW MUSCLE (Sandercock 1997) """
     path = base_path / 'slowMuscle_maximalActivation'
 
     t_end = 2
-    fs = '70'
     muscle = 'rat_SOL' # dorsi/plantar
     time_dt = np.arange(0, t_end, dt) # time for BB
-    Distimes = np.arange(0, t_end, 1/float(fs)) # create array of dischare times at 70 Hz
+    Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
     disp = read_data(path / 'displacement.dat', 'displacement_M')
     disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
     MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
@@ -269,9 +269,8 @@ elif benchmark == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
         Ca_slow_23 = pd.read_csv(path / "Ca_slow_23_100Hz.csv", delimiter=' ').to_numpy()
 
         MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1, 0, 30, 30, 0] # at optimal sarcomere length (assumption)
-        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array
-        fs = '102' # adjusted from paper
-        T = 1/float(fs) 
+        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array 
+        T = 1/102 # adjusted from paper
         Distimes = np.arange(0, 0.04, T)
         muscle = 'rat_SOL' # slow fibre muscle
 
@@ -281,8 +280,7 @@ elif benchmark == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
 
         MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1.6, 0, 30, 1.6*30, 0] # at longer sarcomere length (see article)
         l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array
-        fs = '125'
-        T = 1/float(fs) 
+        T = 1/125 # from paper
         Distimes = np.arange(0, 0.08, T)
         muscle = 'rat_EDL' # fast fibre muscle
     
@@ -303,7 +301,6 @@ parameters = {
     'alpha_0': alpha_0,
     'l_MT': l_MT,
     'vmax': 10.5428 * l_M_opt,
-    'stim_freq': float(fs)
     # optional: 'stim_freq', 'Ca_max_slow', 'Ca_max_fast', 'k1','k2','c1_*','c3_*'
 }
 
@@ -443,18 +440,18 @@ if benchmark in {'max', 'sub', 'len', 'fast'}:
     plt.tight_layout()
     plt.show()
 
-elif benchmark == 'ca':
+elif benchmark == 'Ca':
     _, _, Ca, _, _ = model.run_M_simulation()
 
     plt.rcParams['figure.dpi'] = 110
     plt.figure(figsize=(10, 3))
     if fibre == 'slow':
-        plt.plot(time_dt, Ca[0, :] * 1e6, 'g', label='Sim (23°C)')
+        plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
                  label='Rincon 2021 (23°C)')
         plt.title(r'Free [$Ca^{2+}$] slow fibres', weight='bold', fontsize=14)
     else:
-        plt.plot(time_dt, Ca[0, :] * 1e6, 'g', label='Sim (35°C)')
+        plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (35°C)')
         plt.plot((Ca_fast_35[:, 0] - Ca_fast_35[0, 0]) * 1e-3, Ca_fast_35[:, 1], 'k--',
                  label='Hollingworth 1996 (35°C)')
         plt.title(r'Free [$Ca^{2+}$] fast fibres', weight='bold', fontsize=14)
