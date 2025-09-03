@@ -37,39 +37,13 @@ class MU_model():
         # Assign attributes from input dictionary
 
         self.time = self.P['time']
-        
-        if self.P['pool'] != 'y' and self.P['pool'] != 'n':
-            raise ValueError("Expected either 'y' or 'n' for pool parameter")
-        else:
-            self.pool = self.P['pool']
-            
+        self.pool = self.P['pool'] 
         self.dt = self.P['dt']
-        
-        if self.P['muscle'] != 'TA' and self.P['muscle'] != 'GM' and self.P['muscle'] != 'SOL' and self.P['muscle'] != 'EDL':
-            raise ValueError("Expected either 'TA', 'GM', 'CF', 'SOL' for muscle parameter")
-        else:
-            self.muscle = self.P['muscle']
-        
-        if self.P['species'] != 'animal' and self.P['species'] != 'human':
-            raise ValueError("Expected either 'human', or 'animal' for species parameter")
-        else:
-            self.species = self.P['species']
-            
-        if self.P['spread'] != 'evenly' and self.P['spread'] != 'identified':
-            raise ValueError("Expected either 'evenly', or 'identified' for spread parameter")
-        else:
-            self.spread = self.P['spread']
-        
-        if self.P['yielding'] != 'y' and self.P['yielding'] != 'n':
-            raise ValueError("Expected either 'y', or 'n' for yielding parameter")
-        else:
-            self.y = self.P['yielding']
-           
-        if self.P['sag'] != 'y' and self.P['sag'] != 'n':
-            raise ValueError("Expected either 'y', or 'n' for yielding parameter")
-        else:
-            self.s = self.P['sag']
-        
+        self.muscle = self.P['muscle']
+        self.species = self.P['species']
+        self.spread = self.P['spread']
+        self.y = self.P['yielding']
+        self.s = self.P['sag']    
         
         self.MVC = self.P['MVC'] # max tetanic force
         self.Nr = self.P['Nr']  # n. of identified motor units
@@ -79,14 +53,10 @@ class MU_model():
         self.l_MT = self.P['l_MT'] # muscle-tendon length
         self.l_M_opt = self.P['l_M_opt'] # optimal length (at which tetanic force is produced)
         self.l_T_slack = self.P['l_T_slack'] # tendon slack length
-        self.distimes = distimes
-
-        # self.path = self.P['path']    # only for HDsEMG inputs...
-        # self.l_MT = np.ones(len(self.time) + 1)*self.P['l_MT_0']  # only for HDsEMG inputs...
         
         # self.Ca_max = self.P['Ca_max']  # only for optimization procedures...
         # self.c_1 = self.P['c_1'] 
-        # self.c_3 = self.P['c_3'] 
+        # self.c_3 = self.P['c_3']
         # self.vmax = self.P['vmax']
         # self.k1 = self.P['k1']
         # self.k2 = self.P['k2']
@@ -106,12 +76,13 @@ class MU_model():
         self.l_M_0 = self.S['l_M_0']
         self.y_0 = self.S['y_0']
         self.s_0 = self.S['s_0']
-
-       
+        
+        
         # self.F_thr = np.empty((self.Nr)) # only for HDsEMG input...
         # for f in range(np.size(self.distimes, axis=1)):
         #     self.F_thr[f] = self.path[0, self.distimes[0, f][0, 0]]*100 # Extract Fth recruitment in % of MVC (first discharge indeces)
         
+
         " Check and assign discharge times input "
         
         if distimes is None:
@@ -119,7 +90,11 @@ class MU_model():
         else:
             self.distimes = distimes  
         
-        self.fs = np.mean(1/np.diff(self.distimes)) # calculate instantaneous freq. from discharge times
+        self.distimes = np.atleast_1d(np.asarray(distimes, dtype=float)).ravel()
+        if self.distimes.size >= 2: # if more than 1 discharge
+            self.fs = float(np.mean(1.0 / np.diff(self.distimes))) # calculate instantaneouos freq. for sag calculation
+        else:
+            self.fs = float(self.P['stim_freq'])  # otherwise take input from user
         
         self.initialize_arrays() # Preallocate output arrays 
         
@@ -147,16 +122,20 @@ class MU_model():
     
     def MU_type_id_func(self, i):
     
-        if self.muscle == 'SOL':
-            MU_type = 'slow' # Soleus
-        elif self.muscle == 'GM' or self.muscle == 'EDL':
-            MU_type = 'fast' # Caudofemoralis
-
-        # elif self.muscle == 'TA' and self.species == 'human':
-        #     if i/self.Nr < 0.9:
-        #         MU_type='slow' # GM
-        #     else: 
-        #         MU_type='fast'
+        if self.muscle == 'SOL': # Soleus
+            MU_type = 'slow' 
+        elif self.muscle == 'GM' or self.muscle == 'EDL': # GasMed or Ext. Digitorum longus
+            MU_type = 'fast' 
+        elif self.Nr > 1 and self.species == 'human' and self.spread == 'evenly': # example of human Tibialis anterior (still to be fully implemented...)
+            if i/self.Nr < 0.9: 
+                MU_type='slow' 
+            else: 
+                MU_type='fast'
+        elif self.Nr > 1 and self.species == 'human' and self.spread == 'identified':
+            if i/self.Nr < 0.9: 
+                MU_type='slow' 
+            else: 
+                MU_type='fast'
     
         return MU_type
     
@@ -170,7 +149,7 @@ class MU_model():
 
     def f0mu_rel(self, mn_idx):
         
-        x = mn_idx / self.MN_pool
+        x = mn_idx / self.MN_pool  # normalized MN index in the pool
         return 7.86e-4 * (3.0 * x + 8.20 ** (x ** 5.29)) # Relative distribution (unitless) of each MU F0
 
     def map_identified_positions(self, last_rec):
@@ -311,7 +290,7 @@ class MU_model():
     
     " Calculate pennation angle "
 
-    def penn_ang(self, l_MT, l_M, l_T, l_M_0, alpha0):
+    def penn_ang(self, l_MT, l_T, l_M_0, alpha0):
 
         alpha = alpha0
         w = l_M_0*np.sin(alpha0)
@@ -390,17 +369,15 @@ class MU_model():
         elif MU_type == 'fast':
             c_1, c_2, c_3 = 2.4*10.**3, 4.3*10.**5, 0.6
             #c_1, c_2, c_3 = self.c_1, 4.3*10.**5, self.c_3
-           
-        # amp = np.exp(-((l - 1)**2) / (2 * 1.29774503**2)) # Fitted Gaussian curve (Konishi 1991)
         
         if l < 0.9892:
             amp = 0.7926 # horizontal line for missing data
         elif l >= 0.9892 and l <= 1.1379:
-            amp = 1.3947 * l + -0.5871 # left line
+            amp = 1.3947 * l - 0.5871 # left line
         elif l > 1.1379 and l < 1.239:
             amp = 1 # plateau
         else:
-            amp = 1 + -0.4623 * (l - 1.239) # right line
+            amp = 1 - 0.4623 * (l - 1.239) # right line
 
         p2 = [0.3783, -0.8320, 1.1885] # Fitted quadratic (Konishi 1991)
         width = (l**2)*p2[0] + l*p2[1] + p2[2]
@@ -431,9 +408,10 @@ class MU_model():
     def act(self, y, MU_type, s):
         
         if MU_type == 'slow':
-            k1, k2 = 11.8, 14.7
+            k1, k2 = 10.8, 14.7
             #k1, k2 = self.k1, self.k2
-            Ca, a = y[2]*2.91772e5, y[4] 
+            #Ca, a = y[2]*2.51772e5, y[4]
+            Ca, a = y[2]*285916, y[4] 
             #Ca, a = y[2]*self.Ca_max, y[4] 
             
         elif MU_type == 'fast' and self.muscle == 'EDL' and self.species == 'animal':  # MU 
@@ -574,7 +552,7 @@ class MU_model():
         f_SE = self.T_force(eps_T) # tendon force
         f_PE = self.PE_force(y[5]/self.l_M_opt) # passive el. force    
         f_CE = f_SE/np.cos(alpha[int(t/self.dt)]) - f_PE  # contractile el. force
-        alpha[int((t + self.dt)/self.dt)] = self.penn_ang(self.l_MT[int((t + self.dt)/self.dt)], y[6], l_T, self.l_M_0*self.l_M_opt, self.alpha_0) # update pennation angle
+        alpha[int((t + self.dt)/self.dt)] = self.penn_ang(self.l_MT[int((t + self.dt)/self.dt)], l_T, self.l_M_0*self.l_M_opt, self.alpha_0) # update pennation angle
 
         dbetadt, DDbetaDDt = self.MU_AP_func(t, y, Matrix_AP) # MU action potential
 
@@ -646,7 +624,7 @@ class MU_model():
                 self.vel[i,l] = self.velo_fFV(self.active_state[i,l], self.l_M[i,l]/self.l_M_opt, self.f_CE[i,l]/self.f_FL[i,l], self.f_FL[i,l], MU_type, self.vmax)
                 self.f_M[i,l] = self.f_fFV(self.vel[i,l]/self.vmax, self.f_FL[i,l], self.active_state[i,l], self.l_M[i,l]/self.l_M_opt, MU_type)
                 
-                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_M[i,l], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
+                self.alpha[i,l+1] = self.penn_ang(self.l_MT[l+1], self.l_T[i,l], self.l_M_opt, self.alpha_0) # update pennation angle
         
         if self.y == 'y' and MU_type == 'slow':   # yielding only for slow MUs
             MU_Force_list = self.yielding * self.active_state * self.f_M * self.f_FL + self.f_PE

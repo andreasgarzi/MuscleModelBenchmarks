@@ -6,8 +6,7 @@
 *.cpp
 *.npy
 *.dat
-*.ddf
-*.dpf
+
 
 git-filter-repo
 # PYTHON GITIGNORE FROM GITHUB
