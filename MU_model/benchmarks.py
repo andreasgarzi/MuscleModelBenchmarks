@@ -49,14 +49,14 @@ def read_data(file, data_type):
     return data
 
 
-def prepare_segment_iso(data_path, data_type, f=1000, dt=1e-4, fs=None):
+def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
 
     data = read_data(data_path, data_type)
 
     if data_type == 'Millard_EDL_FFR':
        
        freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
-       seg_idx = freq_map[fs]
+       seg_idx = freq_map[trial]
 
        seg_len = 20000 # Each segment is 20000 samples long
        start = seg_idx * seg_len
@@ -64,20 +64,30 @@ def prepare_segment_iso(data_path, data_type, f=1000, dt=1e-4, fs=None):
        N = 1000 # Each part starts from 0 with 1000 samples
        seg_slice = slice(start, start + N)
 
-       length = np.asarray(data[seg_slice, 1], dtype=float) 
-       force  = np.asarray(data[seg_slice, 4], dtype=float)
-       spikes = np.asarray(data[seg_slice, 11], dtype=float)
-       t = np.arange(N, dtype=float) / f # original time
     
-
-    elif data_type in {'Millard_EDL_FLR', 'Millard_EDL_dyn'}:
+    elif data_type  == 'Millard_EDL_FLR':
        
-       length = np.asarray(data[:, 1], dtype=float) # extract all timeline
-       force  = np.asarray(data[:, 4], dtype=float)
-       spikes = np.asarray(data[:, 11], dtype=float)
-       t = np.arange(len(length), dtype=float) / f # original time
+       l_map = {
+          0.25:0, 0.5:1, 0.75:2, 1:3, 1.25:4, 1.5:5, 1.75:6, 2:7,
+          2.25:8, 2.5:9, 2.75:10, 3:11, 3.25:12, 3.5:13, 3.75:14, 4:15,
+          4.25:16, 4.5:17, 4.75:18, 5:19, 5.25:20, 5.5:21, 5.75:22, 6:23,
+          6.25:24, 6.5:25, 6.75:26, 7:27, 7.25:28, 7.5:29, 7.75:30, 8:31,
+          8.25:32, 8.5:33, 8.75:34, 9:35, 9.25:36,
+       } # length map
+       
+       seg_idx = l_map[trial]
 
+       seg_len = 16000 # Each segment is 16000 samples long
+       start = seg_idx * seg_len + 1000 # starting from 1000 samples
 
+       N = 1000 # Each part starts from 0 with 1000 samples
+       seg_slice = slice(start, start + N)
+
+    t = np.arange(N, dtype=float) / f # original time
+
+    length = np.asarray(data[seg_slice, 1], dtype=float) 
+    force  = np.asarray(data[seg_slice, 4], dtype=float)
+    spikes = np.asarray(data[seg_slice, 11], dtype=float)
     prev = spikes[:-1] # 0-1 transitions
     curr = spikes[1:]
     rising_edges = np.where((prev == 0) & (curr == 1))[0] + 1  # discharges when 1 is preceeded by 0
@@ -235,7 +245,7 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
     
     if type == 'muscle':
         
-        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l', 'dyn_short', 'dyn_length'):")
+        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l'):")
         path = base_path / 'fastMuscle_Millard'
         yielding = 0
         sag = 0
@@ -245,7 +255,7 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
             data_path = path / 'FFR.ddf'
             fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
 
-            part = prepare_segment_iso(data_path, 'Millard_EDL_FFR', f=1000, dt=1e-4, freq_target = float(fs)) 
+            part = prepare_segment_iso(data_path, 'Millard_EDL_FFR', trial=float(fs), f=1000, dt=1e-4) 
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
@@ -255,16 +265,12 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
-        elif trial in {'iso_l', 'dyn_short', 'dyn_length'}: # isometric length variation
+        elif trial == 'iso_l': # isometric length variation
         
-            if trial == 'iso_l':
-               data_path = path / 'FLR.ddf'
-            elif trial == 'dyn_short':
-               data_path = path / 'ActiveShortening_1.ddf'
-            else:
-               data_path = path / 'ActiveLengthening_1.ddf'
+            data_path = path / 'FLR.ddf'
+            l = simpledialog.askstring("Input", "Muscle length [mm] (0.25:0.25:9.25):")
 
-            part = prepare_segment_iso(data_path, 'Millard_EDL_FLR', f=1000, dt=1e-4) 
+            part = prepare_segment_iso(data_path, 'Millard_EDL_FLR', trial = float(l), f=1000, dt=1e-4) 
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
