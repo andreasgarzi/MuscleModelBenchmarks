@@ -14,12 +14,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import scipy as sp
+from scipy import signal
 import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import simpledialog
 
 from MU_model import MU_model  
-
 
 # =====================================================================
 # Utils
@@ -27,43 +27,57 @@ from MU_model import MU_model
 
 def read_data(file, data_type):
 
-    if data_type == 'displacement_M':  # maximal benchmark
+    if data_type == 'disp_M':  # maximal benchmark
       skip = 16
-    elif data_type == 'displacement_SM': # submaximal benchmark
+    elif data_type == 'disp_SM': # submaximal benchmark
       skip = 18
-    elif data_type == 'force_M': # maximal benchmark
+    elif data_type == 'f_M': # maximal benchmark
       skip = 15
-    elif data_type == 'force_SM': # submaximal benchmark (dynamic trials)
+    elif data_type == 'f_SM': # submaximal benchmark (dynamic trials)
       skip = 18
-    elif data_type == 'force_force_SM': # submaximal benchmark (isometric trials)
+    elif data_type == 'f_iso_SM': # submaximal benchmark (isometric trials)
       skip = 19
-    elif data_type == 'Millard_EDL_iso':
+    elif data_type == 'Millard_EDL_FFR':
       skip = 30
+    elif data_type == 'Millard_EDL_FLR':
+      skip = 99
     elif data_type == 'Millard_EDL_dyn':
-      skip = 24
+      skip = 190
 
     data = np.loadtxt(file, delimiter='\t', skiprows=skip)
 
     return data
 
 
-def prepare_segment_iso(data, f=1000, target_freq=30, dt=1e-4):
+def prepare_segment_iso(data_path, data_type, f=1000, dt=1e-4, fs=None):
 
-    freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
-    seg_idx = freq_map[target_freq]
+    data = read_data(data_path, data_type)
 
-    seg_len = 20000 # Each segment is 20000 samples long
-    start = seg_idx * seg_len
+    if data_type == 'Millard_EDL_FFR':
+       
+       freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
+       seg_idx = freq_map[fs]
 
-    N = 1000 # Each part starts from 0 with 1000 samples
-    seg_slice = slice(start, start + N)
+       seg_len = 20000 # Each segment is 20000 samples long
+       start = seg_idx * seg_len
 
-    length = np.asarray(data[seg_slice, 1], dtype=float) # Colonne (0-based): lunghezza=1, forza=2, spikes=11
-    force  = np.asarray(data[seg_slice, 2], dtype=float)
-    force = force - force[0] # offset
-    spikes = np.asarray(data[seg_slice, 11], dtype=float)
+       N = 1000 # Each part starts from 0 with 1000 samples
+       seg_slice = slice(start, start + N)
 
-    t = np.arange(N, dtype=float) / f # otriginal time
+       length = np.asarray(data[seg_slice, 1], dtype=float) 
+       force  = np.asarray(data[seg_slice, 4], dtype=float)
+       spikes = np.asarray(data[seg_slice, 11], dtype=float)
+       t = np.arange(N, dtype=float) / f # original time
+    
+
+    elif data_type in {'Millard_EDL_FLR', 'Millard_EDL_dyn'}:
+       
+       length = np.asarray(data[:, 1], dtype=float) # extract all timeline
+       force  = np.asarray(data[:, 4], dtype=float)
+       spikes = np.asarray(data[:, 11], dtype=float)
+       t = np.arange(len(length), dtype=float) / f # original time
+
+
     prev = spikes[:-1] # 0-1 transitions
     curr = spikes[1:]
     rising_edges = np.where((prev == 0) & (curr == 1))[0] + 1  # discharges when 1 is preceeded by 0
@@ -72,15 +86,21 @@ def prepare_segment_iso(data, f=1000, target_freq=30, dt=1e-4):
     t_end = t[-1]
     t_hi = np.arange(0.0, t_end + 1e-12, dt) # interpolated time
 
-    kind = 'cubic'
-    length_hi = sp.interpolate.interp1d(t, length, kind=kind)(t_hi)
-    force_hi = sp.interpolate.interp1d(t, force,  kind=kind)(t_hi)
+    kind = 'cubic' # interp
+    fs, cutoff, order = 1000, 10, 4  # LPF setup
+    b, a = signal.butter(order, cutoff, btype='lowpass', fs=fs) # LPF
+
+    length = length - length[0] # offset length
+
+    length_filt = signal.filtfilt(b, a, length) # filt length
+    length_hi = sp.interpolate.interp1d(t, length_filt, kind=kind)(np.arange(0,t_end+dt,dt)) # interp length with one more point
+
+    force = force - force[0] # offset force
+
+    force_filt = signal.filtfilt(b, a, force) # filt force
+    force_hi = sp.interpolate.interp1d(t, force_filt,  kind=kind)(t_hi) # interp force
 
     return {
-        'freq': target_freq,
-        't': t,
-        'force': force,
-        'length': length,
         'spike_times_sec': spike_times_sec,
         't_hi': t_hi,
         'force_hi': force_hi,
@@ -128,14 +148,14 @@ if benchmark == 'max': # MAXIMAL benchmark - SLOW MUSCLE (Sandercock 1997) """
     muscle = 'rat_SOL' # dorsi/plantar
     time_dt = np.arange(0, t_end, dt) # time for BB
     Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
-    disp = read_data(path / 'displacement.dat', 'displacement_M')
+    disp = read_data(path / 'displacement.dat', 'disp_M')
     disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
     MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
     l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 2 # Musculo-tendon length (mm)
     l_MT = l_MT_0 + disp*float(scale) # scaled MT length  
 
     exp_force_path = os.path.join(path, f"force_trial{idx+1}.dat")
-    exp_force = read_data(exp_force_path, 'force_M')
+    exp_force = read_data(exp_force_path, 'f_M')
     exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='quadratic')(np.arange(0,2,dt)) # interpolate to have equal n of points
 
     yielding = 0 # yielding not included
@@ -165,17 +185,17 @@ elif benchmark == 'sub': #SUB-MAXIMAL benchmark - SLOW MUSCLE (Perreault 2003)
     
     if trial == 'iso':
         l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
-        exp_force = read_data(path / f"force_isometric_{stim}{fs}.dat", 'force_force_SM')
+        exp_force = read_data(path / f"force_isometric_{stim}{fs}.dat", 'f_iso_SM')
         exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
     
     elif trial == 'dyn':
         
         d = simpledialog.askstring("Input", "Displacement amplitude (1 or 8mm):")
         
-        disp = read_data(path_disp / f"displacement_{d}.dat", 'displacement_SM') # read displacement
+        disp = read_data(path_disp / f"displacement_{d}.dat", 'disp_SM') # read displacement
         disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate displacement
         l_MT = l_MT_0 + (disp + 8) # scaled MT length
-        exp_force = read_data(path / f"force_{stim}{fs}_{d}.dat", 'force_SM')
+        exp_force = read_data(path / f"force_{stim}{fs}_{d}.dat", 'f_SM')
         exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
 
 
@@ -215,18 +235,17 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
     
     if type == 'muscle':
         
-        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l', 'dyn'):")
+        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l', 'dyn_short', 'dyn_length'):")
+        path = base_path / 'fastMuscle_Millard'
         yielding = 0
         sag = 0
 
         if trial == 'iso_f': # isometric frequency variation
 
-            path = base_path / 'fastMuscle_Millard'
-            data = read_data(path / 'FFR.ddf', 'Millard_EDL_iso')
-
+            data_path = path / 'FFR.ddf'
             fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
 
-            part = prepare_segment_iso(data, f=1000, target_freq = float(fs), dt=1e-4)
+            part = prepare_segment_iso(data_path, 'Millard_EDL_FFR', f=1000, dt=1e-4, freq_target = float(fs)) 
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
@@ -235,6 +254,27 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 9, 13.7, 13.7, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+        
+        elif trial in {'iso_l', 'dyn_short', 'dyn_length'}: # isometric length variation
+        
+            if trial == 'iso_l':
+               data_path = path / 'FLR.ddf'
+            elif trial == 'dyn_short':
+               data_path = path / 'ActiveShortening_1.ddf'
+            else:
+               data_path = path / 'ActiveLengthening_1.ddf'
+
+            part = prepare_segment_iso(data_path, 'Millard_EDL_FLR', f=1000, dt=1e-4) 
+            Distimes = part['spike_times_sec']
+            time_dt = part['t_hi']
+            exp_force = part['force_hi']
+            length = part['length_hi'] # has one more point
+            muscle = 'rat_EDL'
+            
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 9, 13.7, 13.7, 10*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
+            l_MT = l_MT_0 + length # full MT length array (n+1 points)
+
     
     elif type == 'MU': # fast MU benchmark Chelichowski 1999
         
