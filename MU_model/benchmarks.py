@@ -18,6 +18,7 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import simpledialog
+from scipy.optimize import minimize
 
 from MU_model import MU_model  
 
@@ -347,7 +348,6 @@ parameters = {
     'alpha_0': alpha_0,
     'l_MT': l_MT,
     'vmax': 10.5428 * l_M_opt,
-    # optional: 'stim_freq', 'Ca_max_slow', 'Ca_max_fast', 'k1','k2','c1_*','c3_*'
 }
 
 states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0, 's_0': 1.0,}
@@ -436,36 +436,41 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 # def obj(x, parameters, states, Distimes, exp_data): 
     
-#     parameters['c_1'] = x[0]
-#     parameters['c_3'] = x[1]
+#     parameters['c1_fast'] = x[0]
+#     parameters['c2_fast'] = x[1]
+#     parameters['c3_fast'] = x[2]
     
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     _, _, Ca, _, _ = model.run_M_simulation() # Run the simulation
 
 #     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
 
-#     residuals = Ca[0,idx]*10**6 - exp_data[:,1]  
+#     residuals = Ca[idx]*10**6 - exp_data[:,1]  
 #     return np.sum(residuals**2)  
 
 # if fibre == 'slow':
 #     exp_data = Ca_slow_23
-#     x0 = [8*10.**3, 0.6]
-#     bnds = [(1e2, 1e5), (0.1, 2)]
+#     x0 = [6.029e3, 1.8e5, 0.54]
+#     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
 # elif fibre == 'fast':
 #     exp_data = Ca_fast_35
-#     x0 = [2.8*10.**3, 0.7]
-#     bnds = [(1e2, 1e4), (0.1, 2)]
+#     x0 = [2.4e3, 4.3e5, 0.6]
+#     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
 #                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
 
 # print("Optimized parameters:")
-# print("c_1 =", res.x[0])
-# print("c_3 =", res.x[1])
+# print("c1 =", res.x[0])
+# parameters['c1_fast'] = res.x[0]
+# print("c2 =", res.x[1])
+# parameters['c2_fast'] = res.x[1]
+# print("c3 =", res.x[2])
+# parameters['c3_fast'] = res.x[2]
 
 
 # =====================================================================
-# Simulation exec & plots
+# Simulation & plots
 # =====================================================================
 
 model = MU_model(parameters, states, Distimes)
@@ -473,40 +478,41 @@ model = MU_model(parameters, states, Distimes)
 if benchmark in {'max', 'sub', 'len', 'fast'}:
     force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation()
 
-    plt.rcParams['figure.dpi'] = 110
-    plt.figure(figsize=(8, 4))
+
+    plt.figure(figsize=(8, 4), dpi=300)
     plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
     if exp_force is not None:
         plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
-    plt.ylabel('Force [N]', weight='bold', fontsize=12)
-    plt.xlabel('Time [s]', weight='bold', fontsize=12)
+    plt.ylabel('Force [N]', fontsize=12)
+    plt.xlabel('Time [s]', fontsize=12)
     plt.title(f'Reconstructed {muscle} force', weight='bold')
     plt.legend(loc='lower right')
-    plt.grid(True, alpha=0.3)
+    plt.grid()
     plt.tight_layout()
     plt.show()
 
 elif benchmark == 'Ca':
     _, _, Ca, _, _ = model.run_M_simulation()
 
-    plt.rcParams['figure.dpi'] = 110
-    plt.figure(figsize=(10, 3))
+    plt.figure(figsize=(5, 3), dpi=300)
     if fibre == 'slow':
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
                  label='Rincon 2021 (23°C)')
-        plt.title(r'Free [$Ca^{2+}$] slow fibres', weight='bold', fontsize=14)
+        #plt.title(r'Free [$Ca^{2+}$] slow fibres', weight='bold', fontsize=14)
+        plt.ylim([0,20])
     else:
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (35°C)')
         plt.plot((Ca_fast_35[:, 0] - Ca_fast_35[0, 0]) * 1e-3, Ca_fast_35[:, 1], 'k--',
                  label='Hollingworth 1996 (35°C)')
-        plt.title(r'Free [$Ca^{2+}$] fast fibres', weight='bold', fontsize=14)
+        #plt.title(r'Free [$Ca^{2+}$] fast fibres', weight='bold', fontsize=14)
+        plt.ylim([0,20])
 
-    plt.ylabel(r'[$\mu$M]', weight='bold', fontsize=12)
-    plt.xlabel('Time [s]', weight='bold', fontsize=12)
+    #plt.ylabel(r'[$Ca^{2+}$] [$\mu$M]', fontsize=12)
+    plt.xlabel('Time [s]', fontsize=12)
     plt.xlim((0, 0.12))
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    plt.grid()
+    #plt.legend()
     plt.tight_layout()
     plt.show() 
 

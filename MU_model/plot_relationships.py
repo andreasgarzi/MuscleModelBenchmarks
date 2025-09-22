@@ -6,7 +6,7 @@ University of New South Wales, GSBE
 Created on Sat Jun  1 14:57:36 2024
 ___________________________________
 
-Plot all the element relationships of the MN-driven model
+Plot all the element relationships of the MU-model model
 """
 #%%
 import os
@@ -136,7 +136,7 @@ for i in range(n_a):
     ax.plot(eps_T*100, f_T[:, i], color=cg_T[i], label=f'$\epsilon^T_0$ = {f_T_eps_0[i]*100:.1f}%')
 ax.annotate(r'$\epsilon^Ttoe$ = 0.609($\epsilon^T_0$)', xy=(0.1,1))
 ax.set(xlabel=r'$\epsilon^T$ [%]', ylabel=r'$\overline {F^T}$')
-ax.set_title('SE (Tendon)', weight='bold')
+ax.set_title('SE (Tendon)')
 ax.grid(True)
 ax.legend(fontsize=10)
 
@@ -147,7 +147,7 @@ for i in range(n_a):
     color = cg_PE1[1] if i < 3 else cg_PE2[0]
     ax.plot(l_M_PE, f_PE[:, i], color=color, linestyle=style, label=f'k1={f_PE_k1[i]}, k2={f_PE_k2[i]}')
 ax.set(xlabel=r'$\overline {L^M}$', ylabel=r'$\overline {F^M}$', xlim=(0.8, 2.2), ylim=(-0.4, 0.9))
-ax.set_title('PE', weight='bold')
+ax.set_title('PE')
 ax.grid(True)
 ax.legend()
 
@@ -156,7 +156,7 @@ ax = axs[1, 0]
 for i in range(n_a):
     ax.plot(l_M, fl[i, :, 0], color=cg_s[i], label=f'a = {a_vals[i]:.1f}')
 ax.set(xlabel=r'$\overline {L^M}$', ylabel=r'$\overline {F^M_l}$')
-ax.set_title('F-L relationship', weight='bold')
+ax.set_title('F-L relationship')
 ax.grid(True)
 ax.legend(fontsize=10)
 
@@ -166,7 +166,7 @@ for i in [0, 2, 4]:
     ax.plot(v_M, fv[i, :, 0], color=cg_s[i], label=f'a = {a_vals[i]:.1f}, slow')
     ax.plot(v_M, fv[i, :, 1], color=cg_f[i//2], label=f'a = {a_vals[i]:.1f}, fast')
 ax.set(xlabel=r'$\overline {V^M}$', ylabel=r'$\overline {F^M_v}$', xlim=(-1.2, 1.2))
-ax.set_title('F-V relationship ($\overline {L^M}$ = 1)', weight='bold')
+ax.set_title('F-V relationship ($\overline {L^M}$ = 1)')
 ax.grid(True)
 ax.legend(fontsize=10, loc='lower right')
 
@@ -256,25 +256,32 @@ p2 = np.polyfit(l_Cattp[:, 0], l_Cattp[:, 1], deg=2)
 fit2 = np.poly1d(p2)
 l_smttp = np.linspace(l_Cattp[:, 0].min(), l_Cattp[:, 0].max(), 500)
 Ca_smttp = fit2(l_smttp)
+l_left = np.linspace(0.6, l_Cattp[:, 0].min(), 100) # before min. sarc. length
+left_smttp = np.ones(len(l_left)) * 0.73823954
+l_right = np.linspace(l_Cattp[:, 0].max(), 2.4, 100) # after max. sarc. length
+right_smttp = np.ones(len(l_right)) * 1.072
 
 # Plot Ca_peak 
-fig2 = plt.subplot(2, 1, 1)
-plt.plot(blinks[:, 0], blinks[:, 1], 'rx', label='Blinks 1978')
-plt.plot(konishi[:, 0], konishi[:, 1], 'gx', label='Konishi 1991')
-plt.plot(l_sm, Ca_sm, 'k', label='Fit')
-plt.ylim([0,1.2])
-plt.xlim([0.8,2])
-plt.ylabel('Norm. p Δ[$Ca^{2+}$]', weight='bold')
-plt.legend(loc='upper right')
-plt.grid()
+fig, axes = plt.subplots(2, 1, figsize=(6, 6), dpi=200)
 
-# Plot Ca time-to-peak
-fig2 = plt.subplot(2, 1, 2)
-plt.plot(l_Cattp[:, 0], l_Cattp[:, 1], 'gx', label='Konishi 1991')
-plt.plot(l_smttp, Ca_smttp, 'k', label='Fit')
-plt.xlabel('Normalised sarcomere length', weight='bold')
-plt.ylabel('Norm. ttp Δ[$Ca^{2+}$]', weight='bold')
-plt.legend(loc='upper right')
-plt.grid()
+axes[0].plot(blinks[:, 0], blinks[:, 1], 'rx', label='Blinks 1978')
+axes[0].plot(konishi[:, 0], konishi[:, 1], 'gx', label='Konishi 1991')
+axes[0].plot(l_sm, Ca_sm, 'k', label='Fit')
+axes[0].set_ylim([0,1.2])
+axes[0].set_xlim([0.8,2.1])
+axes[0].set_ylabel('Normalized f1')
+axes[0].grid()
+axes[0].set_xticklabels([])
+
+axes[1].plot(l_Cattp[:, 0], l_Cattp[:, 1], 'gx', label='Konishi 1991')
+axes[1].plot(l_smttp, Ca_smttp, 'k', label='Fit')
+axes[1].plot(l_left, left_smttp, 'k')
+axes[1].plot(l_right, right_smttp, 'k')
+axes[1].set_xlabel('Normalized sarcomere length')
+axes[1].set_ylabel('Normalized f2')
+axes[1].set_xlim([0.8,2.1])
+axes[1].grid()
+
+plt.tight_layout()
 plt.show()
 

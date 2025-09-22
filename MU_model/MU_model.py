@@ -45,8 +45,10 @@ class Params:
     k1_MU: Optional[float] = None
     k2_MU: Optional[float] = None
     c1_slow: Optional[float] = None
+    c2_slow: Optional[float] = None
     c3_slow: Optional[float] = None
     c1_fast: Optional[float] = None
+    c2_fast: Optional[float] = None
     c3_fast: Optional[float] = None
     af: Optional[float] = None
 
@@ -76,13 +78,17 @@ class Params:
 
         # Calcium transient default pars (allows optimization)
         if self.c1_slow is None:
-            self.c1_slow = 6.029e3
+            self.c1_slow = 30605
+        if self.c2_slow is None:
+            self.c2_slow = 896181
         if self.c3_slow is None:
-            self.c3_slow = 0.54
+            self.c3_slow = 2
         if self.c1_fast is None:
-            self.c1_fast = 2.4e3
+            self.c1_fast = 2056
+        if self.c2_fast == None:
+            self.c2_fast = 467405
         if self.c3_fast is None:
-            self.c3_fast = 0.6
+            self.c3_fast = 0.435
 
         # FV default pars (allows optimization)
         if self.af is None:
@@ -156,10 +162,9 @@ class Mechanics:
         fmax = 1.4
         af = self.P.af
         kMU = 0.5 if MU_type == "slow" else 1.0
-        fv = 0.9 + 0.1 * act
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (1 + 2 / af)
-        K = kMU * fv * g
+        K = kMU * g
         if f_CE_over_FL >= 1:
             vel = b * ((f_CE_over_FL - 1) / (fmax - f_CE_over_FL))
             vel *= K
@@ -171,10 +176,9 @@ class Mechanics:
         fmax = 1.4
         af = self.P.af
         kMU = 0.5 if MU_type == "slow" else 1.0
-        fv = 0.9 + 0.1 * act
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (2 + 2 / af)
-        K = kMU * fv * g
+        K = kMU * g
         if v_norm < 0:
             return float(1 / (1 - (v_norm / (af * K))))
         else:
@@ -213,13 +217,13 @@ class Ephys:
 
         # Use overridable parameters from Params
         if MU_type == "slow":
-            c1, c2, c3 = self.P.c1_slow, 1.8e5, self.P.c3_slow
+            c1, c2, c3 = self.P.c1_slow, self.P.c2_slow, self.P.c3_slow
         else:
-            c1, c2, c3 = self.P.c1_fast, 4.3e5, self.P.c3_fast
+            c1, c2, c3 = self.P.c1_fast, self.P.c2_fast, self.P.c3_fast
 
         # Linear fitting of Konishi, Blinks data
-        if l_norm < 0.9892: 
-            amp = 0.7926
+        if l_norm < 1: 
+            amp = 0.8
         elif l_norm <= 1.1379:
             amp = 1.3947 * l_norm - 0.5871
         elif l_norm < 1.239:
@@ -231,11 +235,11 @@ class Ephys:
         width = (l_norm ** 2) * p2[0] + l_norm * p2[1] + p2[2]
 
         if l_norm < 1.23:
-            width = 0.73
+            width = 0.738
         elif l_norm > 2.04:
             width = 1.072
 
-        return c3 * beta - 1 / amp * (c1 * dCa + width * c2 * Ca)
+        return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca 
 
     def activation_dot(self, y, MU_type: str, s: float, muscle: str) -> float:
 
@@ -254,9 +258,9 @@ class Ephys:
             Ca_eff = Ca * (s if self.P.sag != 0 else 1.0)
 
         if Ca_eff > a: # Adapted from Hussein 2022
-            return -(k2_eff * a - k1_eff * Ca_eff) * (1 - a) # ascending phase normlized
+            return (k1_eff * Ca_eff - k2_eff * a) * (1 - a) # ascending phase normlized
         else:
-            return -(k2_eff * a - k1_eff * Ca_eff) # descending phase not normalized
+            return (k1_eff * Ca_eff - k2_eff * a) # descending phase not normalized
 
     @staticmethod
     def yield_dot(y_val: float, V_norm: float) -> float: # yielding from Brown 1999
