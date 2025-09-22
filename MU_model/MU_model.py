@@ -92,7 +92,7 @@ class Params:
 
         # FV default pars (allows optimization)
         if self.af is None:
-            self.af = 0.17
+            self.af = 0.45
 
 
 @dataclass
@@ -158,12 +158,12 @@ class Mechanics:
         b = (0.15 * (1 - act)) + 1
         return float(np.exp(-((l_M_norm - b) / a) ** 2))
 
-    def fv_velocity(self, act: float, l_M_norm: float, f_CE_over_FL: float, FL: float, MU_type: str, vmax: float) -> float:
+    def fv_velocity(self, l_M_norm: float, f_CE_over_FL: float, FL: float, MU_type: str, vmax: float) -> float:
         fmax = 1.4
         af = self.P.af
-        kMU = 0.5 if MU_type == "slow" else 1.0
+        kMU = 0.2 if MU_type == "slow" else 1.0
         g = FL if l_M_norm < 1 else 1.0
-        b = (fmax - 1) / (1 + 2 / af)
+        b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g
         if f_CE_over_FL >= 1:
             vel = b * ((f_CE_over_FL - 1) / (fmax - f_CE_over_FL))
@@ -172,10 +172,10 @@ class Mechanics:
             vel = (f_CE_over_FL - 1) / (f_CE_over_FL / (af * K))
         return float(vel * vmax)
 
-    def fv_force(self, v_norm: float, FL: float, act: float, l_M_norm: float, MU_type: str) -> float:
+    def fv_force(self, v_norm: float, FL: float, l_M_norm: float, MU_type: str) -> float:
         fmax = 1.4
         af = self.P.af
-        kMU = 0.5 if MU_type == "slow" else 1.0
+        kMU = 0.2 if MU_type == "slow" else 1.0
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g
@@ -311,7 +311,7 @@ class Systems:
         DDCa = self.eph.Ca_2nd(y[5] / self.P.l_M_opt, MU_type, y[0], y[2], dCa)
         dact = self.eph.activation_dot(y, MU_type, y[7], self.P.muscle)
         FL = self.mech.force_length(y[4], y[5] / self.P.l_M_opt)
-        dldot = self.mech.fv_velocity(y[4], y[5] / self.P.l_M_opt, f_CE / max(1e-12, FL), FL, MU_type, self.P.vmax)
+        dldot = self.mech.fv_velocity(y[5] / self.P.l_M_opt, f_CE / max(1e-12, FL), FL, MU_type, self.P.vmax)
         dyield = self.eph.yield_dot(y[6], dldot / self.P.vmax)
         dsag = self.eph.sag_dot(y[7], t, fs=compute_fs(distimes))
 
@@ -406,8 +406,8 @@ class MuscleModel:
             self.f_PE[l] = self.mech.passive_pe(self.l_M[l] / self.P.l_M_opt)
             self.f_CE[l] = self.f_SE[l] / np.cos(self.alpha[l]) - self.f_PE[l]
             self.f_FL[l] = self.mech.force_length(self.active_state[l], self.l_M[l] / self.P.l_M_opt)
-            self.vel[l] = self.mech.fv_velocity(self.active_state[l], self.l_M[l] / self.P.l_M_opt, self.f_CE[l] / max(1e-12, self.f_FL[l]), self.f_FL[l], MU_type, self.P.vmax)
-            self.f_M[l] = self.mech.fv_force(self.vel[l] / self.P.vmax, self.f_FL[l], self.active_state[l], self.l_M[l] / self.P.l_M_opt, MU_type)
+            self.vel[l] = self.mech.fv_velocity(self.l_M[l] / self.P.l_M_opt, self.f_CE[l] / max(1e-12, self.f_FL[l]), self.f_FL[l], MU_type, self.P.vmax)
+            self.f_M[l] = self.mech.fv_force(self.vel[l] / self.P.vmax, self.f_FL[l], self.l_M[l] / self.P.l_M_opt, MU_type)
             
             if l + 1 < len(self.P.time):
                 self.alpha[l + 1] = self.mech.pennation(self.P.l_MT[l + 1], self.l_T[l], self.S.l_M_0, self.P.alpha_0)
