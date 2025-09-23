@@ -479,7 +479,7 @@ if benchmark in {'max', 'sub', 'len', 'fast'}:
     force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation()
 
 
-    plt.figure(figsize=(8, 4), dpi=300)
+    plt.figure(figsize=(8, 4))
     plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
     if exp_force is not None:
         plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
