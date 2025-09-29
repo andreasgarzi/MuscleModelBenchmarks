@@ -166,7 +166,11 @@ class Mechanics:
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g * fv
-        if f_CE_over_FL >= 1:
+
+        eps = 1e-6 # to avoid singularity when f_CE_over_FL = fmax
+        f = float(np.clip(f_CE_over_FL, eps, fmax-eps))
+
+        if f >= 1:
             vel = b * ((f_CE_over_FL - 1) / (fmax - f_CE_over_FL))
             vel *= K
         else:
@@ -212,8 +216,8 @@ class Ephys:
         return 0.0
 
     def MU_AP_2nd(self, t: float, AP_times: np.ndarray, beta: float, dbeta: float) -> float: # Caillet 2023
-        c4, c5, c6 = 2e4, 5e7, 9e7
-        return c6 * self.MN_AP(t, AP_times) - c5 * beta - c4 * dbeta + 1e-50
+        b1, b2, b3 = 2e4, 5e7, 9e7
+        return b3 * self.MN_AP(t, AP_times) - b2 * beta - b1 * dbeta + 1e-50
 
     def Ca_2nd(self, l_norm: float, MU_type: str, beta: float, Ca: float, dCa: float) -> float:
 
@@ -415,7 +419,7 @@ class MuscleModel:
                 self.alpha[l + 1] = self.mech.pennation(self.P.l_MT[l + 1], self.l_T[l], self.S.l_M_0, self.P.alpha_0)
 
         # Aggregate forces (apply yield only to slow MUs if enabled)
-        if self.P.yielding == 1:
+        if self.P.yielding == 1 and self.MU_type == "slow":
             yield_factor = self.yielding 
         else:
             yield_factor = 1.0
