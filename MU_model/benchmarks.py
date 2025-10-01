@@ -6,7 +6,6 @@ University of New South Wales, GSBE
 Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
 
 """
-#%%
 
 from __future__ import annotations
 import os
