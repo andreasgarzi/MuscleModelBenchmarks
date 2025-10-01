@@ -42,8 +42,6 @@ class Params:
     k2_s: Optional[float] = None
     k1_f: Optional[float] = None
     k2_f: Optional[float] = None
-    k1_MU: Optional[float] = None
-    k2_MU: Optional[float] = None
     c1_slow: Optional[float] = None
     c2_slow: Optional[float] = None
     c3_slow: Optional[float] = None
@@ -66,15 +64,11 @@ class Params:
         if self.k2_s is None:
             self.k2_s = 14.7
         if self.Ca_max_fast is None: # fast muscle
-            self.Ca_max_fast = 285916 
+            self.Ca_max_fast = 585916 
         if self.k1_f is None:
             self.k1_f = 10.8 
         if self.k2_f is None:
             self.k2_f = 14.7
-        if self.k1_MU is None: # fast MU
-            self.k1_MU = 32.5 
-        if self.k2_MU is None:
-            self.k2_MU = 72.2 
 
         # Calcium transient default pars (allows optimization)
         if self.c1_slow is None:
@@ -247,26 +241,20 @@ class Ephys:
 
         return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca 
 
-    def activation_dot(self, y, MU_type: str, s: float, muscle: str) -> float:
+    def activation_dot(self, y, MU_type: str, s: float) -> float:
 
-        # Defaults; can specialize on muscle if desired
-        if MU_type == "slow":
+        if MU_type == "slow": # slow
             Ca, a = y[2] * self.P.Ca_max_slow, y[4]
-            k1_eff, k2_eff = self.P.k1_s, self.P.k2_s
-            Ca_eff = Ca
-        else:  # fast
-            if muscle == "rat_EDL":
-                Ca, a = y[2] * self.P.Ca_max_fast, y[4]
-                k1_eff, k2_eff = self.P.k1_f, self.P.k2_f
-            elif muscle == "rat_GM":
-                Ca, a = y[2] * self.P.Ca_max_fast, y[4]
-                k1_eff, k2_eff = self.P.k1_MU, self.P.k2_MU
-            Ca_eff = Ca * (s if self.P.sag != 0 else 1.0)
+            k1, k2 = self.P.k1_s, self.P.k2_s
+        elif MU_type == "fast":
+            Ca, a = y[2] * self.P.Ca_max_fast, y[4]
+            k1, k2 = self.P.k1_f, self.P.k2_f
+            #Ca = Ca * (s if self.P.sag != 0 else 1.0)
 
-        if Ca_eff > a: # Adapted from Hussein 2022
-            return (k1_eff * Ca_eff - k2_eff * a) * (1 - a) # ascending phase normlized
+        if Ca > a: # Adapted from Hussein 2022
+            return (k1 * Ca - k2 * a) * (1 - a) # ascending phase normlized
         else:
-            return (k1_eff * Ca_eff - k2_eff * a) # descending phase not normalized
+            return (k1 * Ca - k2 * a) # descending phase not normalized
 
     @staticmethod
     def yield_dot(y_val: float, V_norm: float) -> float: # yielding from Brown 1999
@@ -274,11 +262,11 @@ class Ephys:
         return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty
 
     def sag_dot(self, s: float, t: float, fs: float) -> float: # Sag from Brown 1999
-        Ts = 0.043
-        if 0 < t < (fs - 23.227) / 82.426 and fs < 100:
-            As = (fs - 1.024) / 22.891
+        Ts = 0.1
+        if 0 < t < 0.2 and 5 < fs < 30:
+            As = 1.2
         else:
-            As = 0.8
+            As = 1
         return (As - s) / Ts
 
 
@@ -293,7 +281,7 @@ class Systems:
         self.mech = mech
         self.eph = eph
 
-    def MT(self, t: float, y: np.ndarray, alpha_track: np.ndarray, distimes: np.ndarray, MU_type: str):
+    def muscle_tendon_dyn(self, t: float, y: np.ndarray, alpha_track: np.ndarray, distimes: np.ndarray, MU_type: str):
 
         idx = int(t / self.P.dt)
         if idx == 0:
@@ -315,7 +303,7 @@ class Systems:
         DDbeta = self.eph.MU_AP_2nd(t, distimes, y[0], dbeta)
         dCa = y[3]
         DDCa = self.eph.Ca_2nd(y[5] / self.P.l_M_opt, MU_type, y[0], y[2], dCa)
-        dact = self.eph.activation_dot(y, MU_type, y[7], self.P.muscle)
+        dact = self.eph.activation_dot(y, MU_type, y[7])
         FL = self.mech.force_length(y[4], y[5] / self.P.l_M_opt)
         dldot = self.mech.fv_velocity(y[4], y[5] / self.P.l_M_opt, f_CE / max(1e-12, FL), FL, MU_type, self.P.vmax)
         dyield = self.eph.yield_dot(y[6], dldot / self.P.vmax)
@@ -323,13 +311,13 @@ class Systems:
 
         return [dbeta, DDbeta, dCa, DDCa, dact, dldot, dyield, dsag]
 
-    def M_only(self, t: float, y: np.ndarray, distimes: np.ndarray, MU_type: str):
+    def muscle_dyn(self, t: float, y: np.ndarray, distimes: np.ndarray, MU_type: str):
 
         dbeta = y[1]
         DDbeta = self.eph.MU_AP_2nd(t, distimes, y[0], dbeta)
         dCa = y[3]
         DDCa = self.eph.Ca_2nd(self.P.l_MT[int(t / self.P.dt)], MU_type, y[0], y[2], dCa)
-        dact = self.eph.activation_dot(y, MU_type, y[5], self.P.muscle)
+        dact = self.eph.activation_dot(y, MU_type, y[5])
         dsag = self.eph.sag_dot(y[5], t, fs=compute_fs(distimes))
 
         return [dbeta, DDbeta, dCa, DDCa, dact, dsag]
@@ -365,10 +353,10 @@ class MuscleModel:
         m = self.P.muscle
         if m in {"rat_SOL", "cat_SOL"}:
             return "slow"
-        if m in {"rat_EDL", "rat_GM"}:
+        if m in {"cat_EDL", "cat_GM"}:
             return "fast"
 
-    def run_MT_simulation(self):
+    def run_FLV_simulation(self):
 
         distimes = self.distimes.astype(float)
 
@@ -386,7 +374,7 @@ class MuscleModel:
         ]
         args = (self.alpha, distimes, MU_type)
         sol = solve_ivp(
-            self.sys.MT,
+            self.sys.muscle_tendon_dyn,
             [self.P.time[0], self.P.time[-1]],
             y0,
             args=args,
@@ -420,16 +408,18 @@ class MuscleModel:
 
         # Aggregate forces (apply yield only to slow MUs if enabled)
         if self.P.yielding == 1 and self.MU_type == "slow":
-            yield_factor = self.yielding 
+            time_factor = self.yielding 
+        elif self.P.sag == 1 and self.MU_type == "fast":
+            time_factor = self.sag
         else:
-            yield_factor = 1.0
+            time_factor = 1.0
 
-        MU_force_norm = yield_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
+        MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
         F_MU = self.P.MVC * MU_force_norm
 
         return F_MU, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding, self.sag
 
-    def run_M_simulation(self):
+    def run_FL_simulation(self):
 
         distimes = self.distimes.astype(float)
 
@@ -445,7 +435,7 @@ class MuscleModel:
         ]
         args = (distimes, MU_type)
         sol = solve_ivp(
-            self.sys.M_only,
+            self.sys.muscle_dyn,
             [self.P.time[0], self.P.time[-1]],
             y0,
             args=args,

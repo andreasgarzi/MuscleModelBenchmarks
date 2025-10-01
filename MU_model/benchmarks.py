@@ -129,7 +129,7 @@ save = False
 
 root = tk.Tk() # Initialise input window
 root.withdraw()  # Hide the root window
-benchmark = simpledialog.askstring("Input", "Select benchmark ('max', 'sub', 'len', 'fast', 'Ca'):") 
+scale = simpledialog.askstring("Input", "Select muscle scale ('M'- muscle, 'MU' - motor unit, 'Ca' - calcium transients):") # muscle scale selection
 
 # Variables to be populated
 muscle = None
@@ -146,112 +146,116 @@ exp_force = None
 Distimes = None
 
 
-if benchmark == 'max': # MAXIMAL benchmark - SLOW MUSCLE (Sandercock 1997) """
-    
-    scale = simpledialog.askstring("Input", "Amplitude displacement scale (e.g., 0.05, 0.1, 0.25, 0.5, 1, 2):")
-    scales = np.array([0.05, 0.1, 0.25, 0.5, 1.0, 2.0], dtype=float)
-    idx_arr = np.where(np.isclose(scales, float(scale), rtol=0, atol=1e-9))[0]
-    idx = int(idx_arr[0]) 
+if scale == 'M': # muscle benchmarks
 
-    path = base_path / 'slowMuscle_maximalActivation'
+    scale_path = base_path / 'Muscle'
+    type = simpledialog.askstring("Input", "Select fibre type ('S'- slow, 'F' - fast):") # fibre type selection
 
-    t_end = 2
-    muscle = 'rat_SOL' # dorsi/plantar
-    time_dt = np.arange(0, t_end, dt) # time for BB
-    Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
-    disp = read_data(path / 'displacement.dat', 'disp_M')
-    disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
-    l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 2 # Musculo-tendon length (mm)
-    l_MT = l_MT_0 + disp*float(scale) # scaled MT length  
+    if type == 'S':
+       
+        benchmark = simpledialog.askstring("Input", "Select benchmark ('max'- max. activation, 'sub'- submax. activation, 'len'- length dependency):") # benchmark selection
 
-    exp_force_path = os.path.join(path, f"force_trial{idx+1}.dat")
-    exp_force = read_data(exp_force_path, 'f_M')
-    exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='quadratic')(np.arange(0,2,dt)) # interpolate to have equal n of points
+        if benchmark == 'max':  # MAXIMAL benchmark - SLOW MUSCLE (Sandercock 1997)
+           
+            path = scale_path / 'slowMuscle_maximalActivation'
+            trial = simpledialog.askstring("Input", "Amplitude displacement [mm] (e.g., 0.05, 0.1, 0.25, 0.5, 1, 2):")
+            amp = np.array([0.05, 0.1, 0.25, 0.5, 1.0, 2.0], dtype=float)
+            idx_arr = np.where(np.isclose(amp, float(trial), rtol=0, atol=1e-9))[0]
+            idx = int(idx_arr[0]) 
 
-    yielding = 0 # yielding not included
-    sag = 0
-    
-    
-elif benchmark == 'sub': #SUB-MAXIMAL benchmark - SLOW MUSCLE (Perreault 2003) 
-    
-    trial = simpledialog.askstring("Input", "Trial type? ('iso' or 'dyn'):")
-    stim = simpledialog.askstring("Input", "Stimulation type? ('c' or 'v'):")
-    fs = simpledialog.askstring("Input", "Stimulation frequency (Hz):")
+            t_end = 2
+            muscle = 'rat_SOL' # rat soleus
+            time_dt = np.arange(0, t_end, dt) # time for BB
+            Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
+            disp = read_data(path / 'displacement.dat', 'disp_M')
+            disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 2 # Musculo-tendon length (mm)
+            l_MT = l_MT_0 + disp*float(trial) # scaled MT length  
 
-    muscle = 'rat_SOL' # dorsi/plantar
-    yielding = 1 # yielding included
-    sag = 0
-    
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.9, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
-    l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
-    
-    t_end = 2
-    time_dt = np.arange(0, t_end, dt) # time for BB
+            exp_force_path = os.path.join(path, f"force_trial{idx+1}.dat")
+            exp_force = read_data(exp_force_path, 'f_M')
+            exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='quadratic')(np.arange(0,2,dt)) # interpolate to have equal n of points
 
-    path_disp = base_path / 'slowMuscle_submaximalActivation'
-    path = path_disp / f"{stim}_freq"
+            yielding = 0 # yielding not included
+            sag = 0
+    
+    
+        elif benchmark == 'sub': # SUB-MAXIMAL benchmark - SLOW MUSCLE (Perreault 2003) 
+    
+            path_disp = scale_path / 'slowMuscle_submaximalActivation'
+            trial = simpledialog.askstring("Input", "Trial type? ('iso' or 'dyn'):")
+            stim = simpledialog.askstring("Input", "Stimulation type? ('c'- constant or 'v'- variable):")
+            fs = simpledialog.askstring("Input", "Stimulation frequency (10, 20, 30 Hz):")
 
-    Distimes = np.load(path / f"{fs}_{stim}_times.npy")  # sec
+            muscle = 'cat_SOL' # 
+            yielding = 1 # yielding included
+            sag = 0
     
-    if trial == 'iso':
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
-        exp_force = read_data(path / f"force_isometric_{stim}{fs}.dat", 'f_iso_SM')
-        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.9, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
     
-    elif trial == 'dyn':
+            t_end = 2
+            time_dt = np.arange(0, t_end, dt) # time for BB
+
+            path = path_disp / f"{stim}_freq"
+
+            Distimes = np.load(path / f"{fs}_{stim}_times.npy")  # sec
+    
+            if trial == 'iso':
+              
+                l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
+                exp_force = read_data(path / f"force_isometric_{stim}{fs}.dat", 'f_iso_SM')
+                exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
+    
+            elif trial == 'dyn':
         
-        d = simpledialog.askstring("Input", "Displacement amplitude (1 or 8mm):")
+                d = simpledialog.askstring("Input", "Displacement amplitude ('1' or '8' mm):")
         
-        disp = read_data(path_disp / f"displacement_{d}.dat", 'disp_SM') # read displacement
-        disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate displacement
-        l_MT = l_MT_0 + (disp + 8) # scaled MT length
-        exp_force = read_data(path / f"force_{stim}{fs}_{d}.dat", 'f_SM')
-        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
+                disp = read_data(path_disp / f"displacement_{d}.dat", 'disp_SM') # read displacement
+                disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # interpolate displacement
+                l_MT = l_MT_0 + (disp + 8) # scaled MT length
+                exp_force = read_data(path / f"force_{stim}{fs}_{d}.dat", 'f_SM') # read exp force
+                exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt)) # interpolate exp force
 
 
-elif benchmark == 'len': # TWITCH, SUB-TETANIC, TETANIC at different lengths (Kim 2015)
+        elif benchmark == 'len': # TWITCH, SUB-TETANIC, TETANIC - SLOW MUSCLE at different lengths (Kim 2015)
     
-    l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
-    fs = simpledialog.askstring("Input", '"Stimulation frequency (1, 10, 20, 40 Hz):"')
-    yielding = 0
-    sag = 0
+            path = base_path / 'slowMuscle_length'
+            l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
+            fs = simpledialog.askstring("Input", '"Stimulation frequency (1, 10, 20, 40 Hz):"')
+            yielding = 0
+            sag = 0
     
-    path = base_path / 'slowMuscle_length'
-    MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [30, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
-    t_end = 1.4
-    muscle = 'rat_SOL' # dorsi/plantar
-    time_dt = np.arange(0, t_end, dt) # time for BB
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [30, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
+            t_end = 1.4
+            muscle = 'cat_SOL' # dorsi/plantar
+            time_dt = np.arange(0, t_end, dt) # time for BB
     
-    if l == '0':
-        d = 8
-    elif l == '8':
-        d = 0 
-    elif l == '16':
-        d = -8
+            if l == '0': # displacement cases (centered at -8 mm from physiological length, see paper)
+                d = 8
+            elif l == '8':
+                d = 0 
+            elif l == '16':
+                d = -8
         
-    l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4    # Musculo-tendon length (mm)
-    l_MT_0 = l_MT_0 + d  # apply displacement
-    l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4 # Musculo-tendon length (mm)
+            l_MT_0 = l_MT_0 + d  # apply displacement
+            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
 
-    exp_force = np.load(path / f"{l}_{fs}_interp.npy")
-    Distimes = np.load(path / f"{l}_{fs}_times.npy") # exp. discharge times
-    if fs == '1': # twitch
-        Distimes = np.round(Distimes, 3)
+            exp_force = np.load(path / f"{l}_{fs}_interp.npy") # exp. force
+            Distimes = np.load(path / f"{l}_{fs}_times.npy") # exp. discharge times
+
+            if fs == '1': # twitch
+                Distimes = np.round(Distimes, 3)
          
 
-elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Chelikowski 1999 rat GM)
+    elif type == 'F': # Test fast muscle (Millard exp data)
 
-    type = simpledialog.askstring("Input", "muscle or MU: ")
-    
-    if type == 'muscle':
-        
-        trial = simpledialog.askstring("Input", "Trial type? ('iso_f', 'iso_l'):")
         path = base_path / 'fastMuscle_Millard'
-        yielding = 0
-        sag = 0
+        benchmark = simpledialog.askstring("Input", "Select benchmark ('FFR'- force-freq. isometric, 'FLR'- force-fre. isometric at different lengths, 'short'- dynamic shortening, 'len'- dynamic lengthening):") # benchmark selection
 
-        if trial == 'iso_f': # isometric frequency variation
+        if benchmark == 'FFR': # isometric frequency variation
 
             data_path = path / 'FFR.ddf'
             fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
@@ -266,7 +270,7 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
-        elif trial == 'iso_l': # isometric length variation
+        elif benchmark == 'FLR': # isometric length variation
         
             data_path = path / 'FLR.ddf'
             l = simpledialog.askstring("Input", "Muscle length [mm] (0.25:0.25:9.25):")
@@ -282,28 +286,95 @@ elif benchmark == 'fast':  # Test fast muscle (Millard exp data, rat EDL & Cheli
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = l_MT_0 + length # full MT length array (n+1 points)
 
-    
-    elif type == 'MU': # fast MU benchmark Chelichowski 1999
+        # elif benchmark == 'short': # dynamic shortening
+           
+
+
+        # elif benchmark == 'len': # dynamic lengthening
+           
+  
+
+if scale == 'MU': # motor-unit benchmarks
+
+    scale_path = base_path / 'Motorunit'
+    type = simpledialog.askstring("Input", "Select fibre type ('S'- slow, 'FF'- fast fatiguable, 'FR'- fast fatigue resistent):") # fibre type selection
+
+    if type == 'S': # slow MU
+
+        path = scale_path / 'MU_S'
+        yielding = 0
+        sag = 0
         
-        path = base_path / 'fastMU'
+        fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
+        exp_force = np.load(path / f"MU_S_{fs}.npy")
+        
+        if fs == 'twitch':
+            Distimes = np.round([0], 3)
+        elif fs == 'unfused':
+            Distimes = np.arange(0, 19*0.08, 0.08) # 12 Hz ish
+        elif fs == 'tetanus':
+            Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz
+        
+        t_end = 2
+        muscle = 'cat_SOL' # dorsi/plantar
+        time_dt = np.arange(0, t_end, dt)
+    
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.048, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
+        l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
+        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+
+    elif type == 'FF': # fast fatiguable MU
+
+        path = scale_path / 'MU_FF'
         yielding = 0
         sag = 1
         
-        fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (25, 30, 35, 40, 150):")
-        exp_force = np.load(path / f"iso_{fs}_interp.npy")
-        Distimes = np.load(path / f"iso_{fs}_times.npy")
-        t_end = 0.7
-        muscle = 'rat_GM' # dorsi/plantar
+        fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
+        exp_force = np.load(path / f"MU_FF_{fs}.npy")
+        
+        if fs == 'twitch':
+            Distimes = np.round([0],3)
+        elif fs == 'unfused':
+            Distimes = np.arange(0, 21*0.04, 0.04) # 25 Hz
+        elif fs == 'tetanus':
+            Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz
+
+        t_end = 1
+        muscle = 'cat_GM' # dorsi/plantar
         time_dt = np.arange(0, t_end, dt)
     
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.078, 24.8, 13.5, 13.5, 0] # MVC and M/T lengths
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.756, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
         l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+ 
+    elif type == 'FR': # fast fatigue resistent MU
+
+        path = scale_path / 'MU_FR'
+        yielding = 0
+        sag = 1
         
+        fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
+        exp_force = np.load(path / f"MU_FR_{fs}.npy")
+        
+        if fs == 'twitch':
+            Distimes = np.round([0],3)
+        elif fs == 'unfused':
+            Distimes = np.arange(0, 17*0.05, 0.05) # 25 Hz
+        elif fs == 'tetanus':
+            Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz 
+
+        t_end = 1
+        muscle = 'cat_GM' # dorsi/plantar
+        time_dt = np.arange(0, t_end, dt)
     
-elif benchmark == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.214, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
+        l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
+        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+
+
+elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     
-    fibre = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
+    type = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
     yielding = 0
     sag = 0
     
@@ -311,7 +382,7 @@ elif benchmark == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     t_end = 1.4
     time_dt = np.arange(0, t_end, dt)
     
-    if fibre == 'slow':
+    if type == 'slow':
 
         Ca_slow_23 = pd.read_csv(path / "Ca_slow_23_100Hz.csv", delimiter=' ').to_numpy()
 
@@ -321,7 +392,7 @@ elif benchmark == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
         Distimes = np.arange(0, 0.04, T)
         muscle = 'rat_SOL' # slow fibre muscle
 
-    elif fibre == 'fast':
+    elif type == 'fast':
 
         Ca_fast_35 = pd.read_csv(path / "Ca_fast_35_125Hz.csv", delimiter=' ').to_numpy()
 
@@ -475,14 +546,16 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 model = MU_model(parameters, states, Distimes)
 
-if benchmark in {'max', 'sub', 'len', 'fast'}:
-    force_sim, _, Ca, a, l_M, _, _ = model.run_MT_simulation()
+if scale in {'M', 'MU'}:
 
+    force_sim, _, Ca, a, l_M, _, _ = model.run_FLV_simulation()
 
     plt.figure(figsize=(8, 4))
     plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
-    if exp_force is not None:
+    if scale == 'M':
         plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
+    else:
+        plt.plot(exp_force[:,0], exp_force[:,1], 'k', label='Exp. Force', linewidth=1.5)
     plt.ylabel('Force [N]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
     plt.title(f'Reconstructed {muscle} force', weight='bold')
@@ -491,11 +564,12 @@ if benchmark in {'max', 'sub', 'len', 'fast'}:
     plt.tight_layout()
     plt.show()
 
-elif benchmark == 'Ca':
-    _, _, Ca, _, _ = model.run_M_simulation()
+elif scale == 'Ca':
 
-    plt.figure(figsize=(5, 3), dpi=300)
-    if fibre == 'slow':
+    _, _, Ca, _, _ = model.run_FL_simulation()
+
+    plt.figure(figsize=(5, 3))
+    if type == 'slow':
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
                  label='Rincon 2021 (23°C)')
