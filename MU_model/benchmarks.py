@@ -6,7 +6,7 @@ University of New South Wales, GSBE
 Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
 
 """
-
+#%%
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -37,11 +37,11 @@ def read_data(file, data_type):
       skip = 18
     elif data_type == 'f_iso_SM': # submaximal benchmark (isometric trials)
       skip = 19
-    elif data_type == 'Millard_EDL_FFR':
+    elif data_type == 'EDL_FFR':
       skip = 30
-    elif data_type == 'Millard_EDL_FLR':
+    elif data_type == 'EDL_FLR':
       skip = 99
-    elif data_type == 'Millard_EDL_dyn':
+    elif data_type == 'EDL_dyn':
       skip = 190
 
     data = np.loadtxt(file, delimiter='\t', skiprows=skip)
@@ -53,7 +53,7 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
 
     data = read_data(data_path, data_type)
 
-    if data_type == 'Millard_EDL_FFR':
+    if data_type == 'EDL_FFR':
        
        freq_map = {30:0, 50:1, 60:2, 70:3, 80:4, 90:5, 100:6, 120:7} # frequency map
        seg_idx = freq_map[trial]
@@ -65,14 +65,12 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
        seg_slice = slice(start, start + N)
 
     
-    elif data_type  == 'Millard_EDL_FLR':
+    elif data_type  == 'EDL_FLR':
        
        l_map = {
           0.25:0, 0.5:1, 0.75:2, 1:3, 1.25:4, 1.5:5, 1.75:6, 2:7,
           2.25:8, 2.5:9, 2.75:10, 3:11, 3.25:12, 3.5:13, 3.75:14, 4:15,
-          4.25:16, 4.5:17, 4.75:18, 5:19, 5.25:20, 5.5:21, 5.75:22, 6:23,
-          6.25:24, 6.5:25, 6.75:26, 7:27, 7.25:28, 7.5:29, 7.75:30, 8:31,
-          8.25:32, 8.5:33, 8.75:34, 9:35, 9.25:36,
+          4.25:16, 4.5:17, 4.75:18, 5:19,
        } # length map
        
        seg_idx = l_map[trial]
@@ -85,7 +83,6 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
 
     t = np.arange(N, dtype=float) / f # original time
 
-    length = np.asarray(data[seg_slice, 1], dtype=float) 
     force  = np.asarray(data[seg_slice, 4], dtype=float)
     spikes = np.asarray(data[seg_slice, 11], dtype=float)
     prev = spikes[:-1] # 0-1 transitions
@@ -100,21 +97,15 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
     fs, cutoff, order = 1000, 10, 4  # LPF setup
     b, a = signal.butter(order, cutoff, btype='lowpass', fs=fs) # LPF
 
-    length = length - length[0] # offset length
-
-    length_filt = signal.filtfilt(b, a, length) # filt length
-    length_hi = sp.interpolate.interp1d(t, length_filt, kind=kind)(np.arange(0,t_end+dt,dt)) # interp length with one more point
-
     force = force - force[0] # offset force
 
     force_filt = signal.filtfilt(b, a, force) # filt force
-    force_hi = sp.interpolate.interp1d(t, force_filt,  kind=kind)(t_hi) # interp force
+    force_hi = sp.interpolate.interp1d(t, force_filt, kind=kind)(t_hi) # interp force
 
     return {
         'spike_times_sec': spike_times_sec,
         't_hi': t_hi,
         'force_hi': force_hi,
-        'length_hi': length_hi,
     }
 
 
@@ -251,7 +242,7 @@ if scale == 'M': # muscle benchmarks
 
     elif type == 'F': # Test fast muscle (Millard exp data)
 
-        path = base_path / 'fastMuscle_Millard'
+        path = scale_path / 'fastMuscle'
         benchmark = simpledialog.askstring("Input", "Select benchmark ('FFR'- force-freq. isometric, 'FLR'- force-fre. isometric at different lengths, 'short'- dynamic shortening, 'len'- dynamic lengthening):") # benchmark selection
 
         if benchmark == 'FFR': # isometric frequency variation
@@ -259,29 +250,37 @@ if scale == 'M': # muscle benchmarks
             data_path = path / 'FFR.ddf'
             fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
 
-            part = prepare_segment_iso(data_path, 'Millard_EDL_FFR', trial=float(fs), f=1000, dt=1e-4) 
+            part = prepare_segment_iso(data_path, 'EDL_FFR', trial=float(fs), f=1000, dt=1e-4) 
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
+            
             muscle = 'rat_EDL'
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 9, 13.7, 13.7, 10*np.pi/180] # MVC and M/T lengths
+            yielding = 0
+            sag = 0
+            
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
         elif benchmark == 'FLR': # isometric length variation
         
             data_path = path / 'FLR.ddf'
-            l = simpledialog.askstring("Input", "Muscle length [mm] (0.25:0.25:9.25):")
+            l = simpledialog.askstring("Input", "Muscle length [mm] (0.25:0.25:4.25):")
 
-            part = prepare_segment_iso(data_path, 'Millard_EDL_FLR', trial = float(l), f=1000, dt=1e-4) 
+            part = prepare_segment_iso(data_path, 'EDL_FLR', trial = float(l), f=1000, dt=1e-4) 
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
-            length = part['length_hi'] # has one more point
+            length = np.ones((len(time_dt)+1), dtype=object)*float(l)
+
             muscle = 'rat_EDL'
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 9, 13.7, 13.7, 10*np.pi/180] # MVC and M/T lengths
+            yielding = 0
+            sag = 0
+
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = l_MT_0 + length # full MT length array (n+1 points)
 
@@ -368,7 +367,7 @@ if scale == 'MU': # motor-unit benchmarks
     
         MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.214, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+        l_MT = np.full(len(time_dt)+1, float(l_MT_0)) # full MT length array
 
 
 elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)

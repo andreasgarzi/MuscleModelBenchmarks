@@ -142,9 +142,11 @@ class Mechanics:
     @staticmethod
     def pennation(l_MT: float, l_T: float, l_M_0: float, alpha0: float) -> float:
         w = l_M_0 * np.sin(alpha0)
-        cosalpha = 1.0 / (np.sqrt(1.0 + (w / (l_MT - l_T)) ** 2))
-        alpha = np.arccos(cosalpha)
-        return float(min(alpha, 1.4706289))
+        den = max(1e-9, (l_MT - l_T))         # avoid 0 division
+        cosalpha = 1.0 / np.sqrt(1.0 + (w / den) ** 2)
+        cosalpha = float(np.clip(cosalpha, 1e-6, 1.0))
+        alpha = float(np.arccos(cosalpha))
+        return min(alpha, 1.4706289)
 
     @staticmethod
     def force_length(act: float, l_M_norm: float) -> float:
@@ -152,7 +154,7 @@ class Mechanics:
         b = (0.15 * (1 - act)) + 1
         return float(np.exp(-((l_M_norm - b) / a) ** 2))
 
-    def fv_velocity(self, act: float, l_M_norm: float, f_CE_over_FL: float, FL: float, MU_type: str, vmax: float) -> float:
+    def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, MU_type, vmax):
         fmax = 1.4
         af = self.P.af
         fv = 0.25 + 0.75*act
@@ -161,14 +163,13 @@ class Mechanics:
         b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g * fv
 
-        eps = 1e-6 # to avoid singularity when f_CE_over_FL = fmax
-        f = float(np.clip(f_CE_over_FL, eps, fmax-eps))
-
+        eps = 1e-6
+        f = float(np.clip(f_CE_over_FL, eps, fmax - eps))
         if f >= 1:
-            vel = b * ((f_CE_over_FL - 1) / (fmax - f_CE_over_FL))
+            vel = b * ((f - 1) / (fmax - f))  # usa f (clippato), non f_CE_over_FL
             vel *= K
         else:
-            vel = (f_CE_over_FL - 1) / (f_CE_over_FL / (af * K))
+            vel = (f - 1) / (f / (af * K))
         return float(vel * vmax)
 
     def fv_force(self, act: float, v_norm: float, FL: float, l_M_norm: float, MU_type: str) -> float:
@@ -241,7 +242,7 @@ class Ephys:
 
         return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca 
 
-    def activation_dot(self, y, MU_type: str, s: float) -> float:
+    def activation_dot(self, y, MU_type: str) -> float:
 
         if MU_type == "slow": # slow
             Ca, a = y[2] * self.P.Ca_max_slow, y[4]
@@ -249,7 +250,6 @@ class Ephys:
         elif MU_type == "fast":
             Ca, a = y[2] * self.P.Ca_max_fast, y[4]
             k1, k2 = self.P.k1_f, self.P.k2_f
-            #Ca = Ca * (s if self.P.sag != 0 else 1.0)
 
         if Ca > a: # Adapted from Hussein 2022
             return (k1 * Ca - k2 * a) * (1 - a) # ascending phase normlized
@@ -303,7 +303,7 @@ class Systems:
         DDbeta = self.eph.MU_AP_2nd(t, distimes, y[0], dbeta)
         dCa = y[3]
         DDCa = self.eph.Ca_2nd(y[5] / self.P.l_M_opt, MU_type, y[0], y[2], dCa)
-        dact = self.eph.activation_dot(y, MU_type, y[7])
+        dact = self.eph.activation_dot(y, MU_type)
         FL = self.mech.force_length(y[4], y[5] / self.P.l_M_opt)
         dldot = self.mech.fv_velocity(y[4], y[5] / self.P.l_M_opt, f_CE / max(1e-12, FL), FL, MU_type, self.P.vmax)
         dyield = self.eph.yield_dot(y[6], dldot / self.P.vmax)
@@ -316,8 +316,8 @@ class Systems:
         dbeta = y[1]
         DDbeta = self.eph.MU_AP_2nd(t, distimes, y[0], dbeta)
         dCa = y[3]
-        DDCa = self.eph.Ca_2nd(self.P.l_MT[int(t / self.P.dt)], MU_type, y[0], y[2], dCa)
-        dact = self.eph.activation_dot(y, MU_type, y[5])
+        DDCa = self.eph.Ca_2nd(self.P.l_MT[int(t / self.P.dt)] / self.P.l_M_opt, MU_type, y[0], y[2], dCa)
+        dact = self.eph.activation_dot(y, MU_type)
         dsag = self.eph.sag_dot(y[5], t, fs=compute_fs(distimes))
 
         return [dbeta, DDbeta, dCa, DDCa, dact, dsag]
@@ -341,90 +341,137 @@ class MuscleModel:
 
         # Preallocation
         T = len(P.time)
-        self.alpha = np.empty(T + 1)
-        for name in [
-            "l_T", "eps_T", "f_SE", "f_CE", "f_PE", "f_FL", "vel", "f_M",
-            "l_M", "MUAP", "active_state", "free_Ca", "yielding", "sag"
-        ]:
-            setattr(self, name, np.empty(T))
+        self.alpha = np.full(T + 1, self.P.alpha_0, dtype=float)
+        for name in ["l_T", "eps_T", "f_SE", "f_CE", "f_PE", "f_FL", "vel", "f_M",
+                     "l_M", "MUAP", "active_state", "free_Ca", "yielding", "sag"]:
+            setattr(self, name, np.zeros(T, dtype=float))
 
     @property
     def MU_type(self) -> str:
         m = self.P.muscle
         if m in {"rat_SOL", "cat_SOL"}:
             return "slow"
-        if m in {"cat_EDL", "cat_GM"}:
+        if m in {"rat_EDL", "cat_GM"}:
             return "fast"
 
     def run_FLV_simulation(self):
 
         distimes = self.distimes.astype(float)
-
-        print("Computing muscle force...")
         MU_type = self.MU_type
+        print("Computing muscle force...")
 
-        # Set initial states and args & solve ODE system
-        y0 = [
-            self.S.MUAP_0, self.S.MUAP_0,  # beta, dbeta
-            self.S.Ca_0, self.S.Ca_0,      # Ca, dCa
-            self.S.act_0,                  # activation
-            self.S.l_M_0,                  # l_M 
-            self.S.y_0,                    # yielding 
-            self.S.s_0,                    # sag 
-        ]
-        args = (self.alpha, distimes, MU_type)
-        sol = solve_ivp(
-            self.sys.muscle_tendon_dyn,
-            [self.P.time[0], self.P.time[-1]],
-            y0,
-            args=args,
-            method="LSODA",
-            t_eval=self.P.time,
-            max_step=self.P.dt / 4,
-        )
+        # 1) NO TENDON CASE
+        if self.P.l_T_slack == 0:
 
-        # Extract solutions
-        self.MUAP = sol.y[0]
-        self.free_Ca = sol.y[2]
-        self.active_state = sol.y[4]
-        self.l_M = sol.y[5]
-        self.yielding = sol.y[6]
-        self.sag = sol.y[7]
+            # Set initial states and args & solve ODE system
+            y0 = [
+                self.S.MUAP_0, self.S.MUAP_0,    # beta, dbeta
+                self.S.Ca_0,   self.S.Ca_0,      # Ca, dCa
+                self.S.act_0,                    # activation
+                self.S.s_0                       # sag
+            ]
+            args = (distimes, MU_type)
+            sol = solve_ivp(
+                self.sys.muscle_dyn,
+                [self.P.time[0], self.P.time[-1]],
+                y0,
+                args=args,
+                method="LSODA",
+                t_eval=self.P.time,
+                max_step=self.P.dt / 4,
+            )
 
-        # Recompute mechanics frame-by-frame
-        self.alpha.fill(self.P.alpha_0)
-        for l in range(len(self.P.time)):
-            self.l_T[l] = self.P.l_MT[l] - self.l_M[l] * np.cos(self.alpha[l])
-            self.eps_T[l] = (self.l_T[l] - self.P.l_T_slack) / self.P.l_T_slack
-            self.f_SE[l] = self.mech.tendon_force(self.eps_T[l])
-            self.f_PE[l] = self.mech.passive_pe(self.l_M[l] / self.P.l_M_opt)
-            self.f_CE[l] = self.f_SE[l] / np.cos(self.alpha[l]) - self.f_PE[l]
-            self.f_FL[l] = self.mech.force_length(self.active_state[l], self.l_M[l] / self.P.l_M_opt)
-            self.vel[l] = self.mech.fv_velocity(self.active_state[l], self.l_M[l] / self.P.l_M_opt, self.f_CE[l] / max(1e-12, self.f_FL[l]), self.f_FL[l], MU_type, self.P.vmax)
-            self.f_M[l] = self.mech.fv_force(self.active_state[l], self.vel[l] / self.P.vmax, self.f_FL[l], self.l_M[l] / self.P.l_M_opt, MU_type)
+            # Extract solutions
+            self.MUAP        = sol.y[0]
+            self.free_Ca     = sol.y[2]
+            self.active_state= sol.y[4]
+            self.sag         = sol.y[5]
+            self.yielding    = np.ones_like(self.P.time)      # for output compatibility
+            self.l_M         = self.P.l_MT[0:len(self.P.time)] # muscle length
+
+            # Recompute mechanics
+            v_norm = np.gradient(self.P.l_MT / self.P.l_M_opt, self.P.dt) # derivative of muscle length (known)
+
+            for l in range(len(self.P.time)):
+                self.f_FL[l] = self.mech.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
+                self.f_M[l] = self.mech.fv_force(self.active_state[l], v_norm[l], self.f_FL[l], self.P.l_MT[l] / self.P.l_M_opt, MU_type)
+                self.f_PE[l] = self.mech.passive_pe(self.P.l_MT[l] / self.P.l_M_opt )
+
+            if self.P.yielding == 1 and self.MU_type == "slow":
+                time_factor = self.yielding
+            elif self.P.sag == 1 and self.MU_type == "fast":
+                time_factor = self.sag
+            else:
+                time_factor = 1.0
+
+            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
+            F_MU = self.P.MVC * MU_force_norm 
             
-            if l + 1 < len(self.P.time):
-                self.alpha[l + 1] = self.mech.pennation(self.P.l_MT[l + 1], self.l_T[l], self.S.l_M_0, self.P.alpha_0)
-
-        # Aggregate forces (apply yield only to slow MUs if enabled)
-        if self.P.yielding == 1 and self.MU_type == "slow":
-            time_factor = self.yielding 
-        elif self.P.sag == 1 and self.MU_type == "fast":
-            time_factor = self.sag
+        # 2) TENDON CASE
         else:
-            time_factor = 1.0
+        
+            # Set initial states and args & solve ODE system
+            y0 = [
+                self.S.MUAP_0, self.S.MUAP_0,  # beta, dbeta
+                self.S.Ca_0, self.S.Ca_0,      # Ca, dCa
+                self.S.act_0,                  # activation
+                self.S.l_M_0,                  # l_M 
+                self.S.y_0,                    # yielding 
+                self.S.s_0,                    # sag 
+            ]
+            args = (self.alpha, distimes, MU_type)
+            sol = solve_ivp(
+                self.sys.muscle_tendon_dyn,
+                [self.P.time[0], self.P.time[-1]],
+                y0,
+                args=args,
+                method="LSODA",
+                t_eval=self.P.time,
+                max_step=self.P.dt / 4,
+            )
 
-        MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
-        F_MU = self.P.MVC * MU_force_norm
+            # Extract solutions
+            self.MUAP = sol.y[0]
+            self.free_Ca = sol.y[2]
+            self.active_state = sol.y[4]
+            self.l_M = sol.y[5]
+            self.yielding = sol.y[6]
+            self.sag = sol.y[7]
+
+            # Recompute mechanics frame-by-frame
+            self.alpha.fill(self.P.alpha_0)
+            for l in range(len(self.P.time)):
+                self.l_T[l] = self.P.l_MT[l] - self.l_M[l] * np.cos(self.alpha[l])
+                self.eps_T[l] = (self.l_T[l] - self.P.l_T_slack) / self.P.l_T_slack
+                self.f_SE[l] = self.mech.tendon_force(self.eps_T[l])
+                self.f_PE[l] = self.mech.passive_pe(self.l_M[l] / self.P.l_M_opt)
+                self.f_CE[l] = self.f_SE[l] / np.cos(self.alpha[l]) - self.f_PE[l]
+                self.f_FL[l] = self.mech.force_length(self.active_state[l], self.l_M[l] / self.P.l_M_opt)
+                self.vel[l] = self.mech.fv_velocity(self.active_state[l], self.l_M[l] / self.P.l_M_opt, self.f_CE[l] / max(1e-12, self.f_FL[l]), self.f_FL[l], MU_type, self.P.vmax)
+                self.f_M[l] = self.mech.fv_force(self.active_state[l], self.vel[l] / self.P.vmax, self.f_FL[l], self.l_M[l] / self.P.l_M_opt, MU_type)
+            
+                if l + 1 < len(self.P.time):
+                    self.alpha[l + 1] = self.mech.pennation(self.P.l_MT[l + 1], self.l_T[l], self.S.l_M_0, self.P.alpha_0)
+
+            # Aggregate forces (apply yield only to slow MUs if enabled)
+            if self.P.yielding == 1 and self.MU_type == "slow":
+                time_factor = self.yielding 
+            elif self.P.sag == 1 and self.MU_type == "fast":
+                time_factor = self.sag
+            else:
+                time_factor = 1.0
+
+            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
+            F_MU = self.P.MVC * MU_force_norm
 
         return F_MU, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding, self.sag
+
 
     def run_FL_simulation(self):
 
         distimes = self.distimes.astype(float)
-
-        print("Computing muscle force...")
         MU_type = self.MU_type
+        print("Computing muscle force...")
 
         # Set initial states and args & solve ODE system
         y0 = [
@@ -452,8 +499,8 @@ class MuscleModel:
 
         # Recompute mechanics frame-by-frame
         for l in range(len(self.P.time)):
-            self.f_PE[l] = Mechanics.passive_pe(self.P.l_MT[l])
-            self.f_CE[l] = Mechanics.force_length(self.active_state[l], self.P.l_MT[l])
+            self.f_PE[l] = Mechanics.passive_pe(self.P.l_MT[l] / self.P.l_M_opt)
+            self.f_CE[l] = Mechanics.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
 
         # Aggregate forces
         MU_force = self.active_state * self.f_CE + self.f_PE
