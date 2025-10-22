@@ -6,7 +6,7 @@ University of New South Wales, GSBE
 Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
 
 """
-#%%
+
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -21,6 +21,7 @@ from scipy.optimize import minimize
 
 from MU_model import MU_model  
 
+os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\MuscleModelBenchmarks\MU_model')
 # =====================================================================
 # Utils
 # =====================================================================
@@ -159,7 +160,7 @@ if scale == 'M': # muscle benchmarks
             Distimes = np.arange(0, t_end, 1/70) # create array of dischare times at 70 Hz
             disp = read_data(path / 'displacement.dat', 'disp_M')
             disp = sp.interpolate.interp1d(disp[:,0], disp[:,1], kind='cubic')(np.arange(0,2+dt,dt)) # load displacement
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.36, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.32, 17.1, 17.1, 17.1, 6*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 2 # Musculo-tendon length (mm)
             l_MT = l_MT_0 + disp*float(trial) # scaled MT length  
 
@@ -182,7 +183,7 @@ if scale == 'M': # muscle benchmarks
             yielding = 1 # yielding included
             sag = 0
     
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.9, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.13, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
     
             t_end = 2
@@ -211,13 +212,13 @@ if scale == 'M': # muscle benchmarks
 
         elif benchmark == 'len': # TWITCH, SUB-TETANIC, TETANIC - SLOW MUSCLE at different lengths (Kim 2015)
     
-            path = base_path / 'slowMuscle_length'
+            path = scale_path / 'slowMuscle_length'
             l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
             fs = simpledialog.askstring("Input", '"Stimulation frequency (1, 10, 20, 40 Hz):"')
             yielding = 0
             sag = 0
     
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [30, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [30.25, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
             t_end = 1.4
             muscle = 'cat_SOL' # dorsi/plantar
             time_dt = np.arange(0, t_end, dt) # time for BB
@@ -260,7 +261,7 @@ if scale == 'M': # muscle benchmarks
             yielding = 0
             sag = 0
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.59, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
@@ -280,12 +281,28 @@ if scale == 'M': # muscle benchmarks
             yielding = 0
             sag = 0
 
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.5, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [1.59, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = l_MT_0 + length # full MT length array (n+1 points)
 
-        # elif benchmark == 'short': # dynamic shortening
-           
+        elif benchmark == 'short': # dynamic shortening
+
+            exp_path = path + 'fastMuscle\\dyn\\'
+
+            d = simpledialog.askstring("Input", "Displacement amplitude ('short' or 'length'):")
+            
+            t_end = 0.16
+            Distimes = np.arange(0, t_end, 1/120) # exp. discharge times
+            muscle = 'CF' # dorsi/plantar
+            time_dt = np.arange(0, t_end, dt)
+    
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 17, 0.37*56, 0.95, 0] # MVC and M/T lengths
+            exp_force = np.load(exp_path + '120_0.95_' + d + '_interp.npy')
+            disp = np.load(exp_path + 'disp_' +  d + '_interp.npy') # load displacement
+            l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)
+            l_MT = np.empty((len(time_dt)+1), dtype=object) # full MT length array
+            l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp*l_M_opt)*np.cos(alpha_0)
+            l_MT[-1] = l_MT[-2]
 
 
         # elif benchmark == 'len': # dynamic lengthening
@@ -317,9 +334,9 @@ if scale == 'MU': # motor-unit benchmarks
         muscle = 'cat_SOL' # dorsi/plantar
         time_dt = np.arange(0, t_end, dt)
     
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.048, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.04, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+        l_MT = np.full(len(time_dt), float(l_MT_0)) # full MT length array
 
     elif type == 'FF': # fast fatiguable MU
 
@@ -341,9 +358,9 @@ if scale == 'MU': # motor-unit benchmarks
         muscle = 'cat_GM' # dorsi/plantar
         time_dt = np.arange(0, t_end, dt)
     
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.756, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.81, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
-        l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+        l_MT = np.full(len(time_dt), float(l_MT_0)) # full MT length array
  
     elif type == 'FR': # fast fatigue resistent MU
 
@@ -365,10 +382,12 @@ if scale == 'MU': # motor-unit benchmarks
         muscle = 'cat_GM' # dorsi/plantar
         time_dt = np.arange(0, t_end, dt)
     
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.214, 65, 20, 20, 20*np.pi/180] # MVC and M/T lengths
+        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.35, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
-        l_MT = np.full(len(time_dt)+1, float(l_MT_0)) # full MT length array
+        l_MT = np.full(len(time_dt), float(l_MT_0)) # full MT length array
 
+    time_exp = np.arange(0, exp_force[-1,0], dt)
+    exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='linear')(time_exp)
 
 elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     
@@ -407,6 +426,7 @@ elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
 
 parameters = {
     'muscle': muscle,
+    'scale': scale,
     'time': time_dt,
     'dt': dt,
     'MVC': MVC,
@@ -416,7 +436,7 @@ parameters = {
     'l_M_opt': l_M_opt,
     'alpha_0': alpha_0,
     'l_MT': l_MT,
-    'vmax': 10.5428 * l_M_opt,
+    'vmax': 10,
 }
 
 states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0, 's_0': 1.0,}
@@ -427,54 +447,57 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 # Decomment section and comment the "Running simulations and plotting solutions" block
 ###############################################################################
 
-""" 1) MAXIMAL benchmark [MVC, Vmax] estimation """
+"""  1) MSisof [MVC, Ca_max, k1, k2] on 30Hz isometric trial (Perreault 2003) """
 
 # def obj(x, parameters, states, Distimes, exp_force): 
     
 #     parameters['MVC'] =  x[0]
-#     parameters['vmax'] = x[1]
-    
+#     parameters['Ca_max_slow'] = x[1]
+#     parameters['k1_s'] =  x[2]
+#     parameters['k2_s'] = x[3]
+
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
+#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
-# x0 = [1.2, 10]
-# bnds = [(1, 1.5), (8, 12)]
+# x0 = [27, 5e5, 10, 14]
+# bnds = [(25, 30), (1e5, 1e6), (10, 20), (10, 20)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
 # print("MVC =", res.x[0])
-# print("vmax =", res.x[1])
+# print("Ca_max =", res.x[1])
+# print("k1_s =", res.x[2])
+# print("k2_s =", res.x[3])
 
-"""  2) SUB-MAXIMAL benchmark [MVC, Ca_max] on 30Hz force and 40Hz for the length trials """
-"""  3) Fast muscle benchmark [MVC] estimation on 150 Hz trial """
-"""  4) Fast muscle benchmark [Ca_max] estimation on 30 Hz trial"""
+""" 2a) MSdyn2 [MVC] on 0.05 mm dynamic trial (Krylow 1997)
+    2b) MSdyn2 [af] on 2.00 mm dynamic trial (Krylow 1997)
+    2c) MSisol [MVC] on 40 Hz isometric trial (Perreault 2003, digitized from Kim 2015)"""
 
 # def obj(x, parameters, states, Distimes, exp_force): 
     
-#     #parameters['MVC'] =  x[0]
-#     parameters['Ca_max'] = x[0]
-
+#     parameters['MVC'] = x[0]
+#     # parameters['af'] = x[0]
     
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
+#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
-# x0 = [5e5]
-# bnds = [(1e5, 5e6)]
+# x0 = [28] # 1.2 N, 0.4, 27 N
+# bnds = [(25, 31)] # (1.1, 1.5), (0.1, 1), (26, 30)
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
-# #print("MVC =", res.x[0])
-# print("Ca_max =", res.x[0])
+# print("MVC =", res.x[0])
+# #print("af =", res.x[0])
 
 """  5) SUB-MAXIMAL benchmark [k1, k2] on 40Hz length trial """
 
@@ -485,7 +508,7 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 #     parameters['Ca_max'] = x[2]
     
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_MT_simulation() # Run the simulation
+#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
@@ -501,16 +524,69 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 # print("k2 = ", res.x[1])
 # print("Ca_max = ", res.x[2])
 
-""" 6) Ca transient ODE [c1, c2, c3] parameters estimation """
+"""  6) MFisof [Ca_max, k1, k2] on 80-120Hz isometric trial (Millard new exp. data) """
+
+def obj(x, parameters, states, Distimes, exp_force): 
+    
+    parameters['Ca_max_f_M'] = x[0]
+    parameters['k1_f_M'] =  x[1]
+    parameters['k2_f_M'] = x[2]
+
+    model = MU_model(parameters, states, Distimes) # Create an model class instance
+    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+    
+    residuals = force_sim - exp_force  
+    return np.sum(residuals**2)  
+
+x0 = [5e5, 10, 14]
+bnds = [(1e5, 5e6), (10, 20), (10, 20)]
+
+res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+print("Optimized parameters:")
+print("Ca_max_f_M =", res.x[0])
+print("k1_f_M =", res.x[1])
+print("k2_f_M =", res.x[2])
+
+"""  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Millard new exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force): 
+    
+#     parameters['MVC'] =  x[0]
+#     parameters['Ca_max_f_MU'] = x[1]
+#     parameters['k1_f_MU'] =  x[2]
+#     parameters['k2_f_MU'] = x[3]
+
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, _, _, _ = model.run_FL_simulation() # Run the simulation
+    
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [0.81, 5e5, 10, 14]
+# bnds = [(0.7, 1.5), (1e5, 1e6), (10, 20), (10, 20)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("MVC =", res.x[0])
+# print("Ca_max_f_MU =", res.x[1])
+# print("k1_f_MU =", res.x[2])
+# print("k2_f_MU =", res.x[3])
+
+
+""" 9) Ca transient ODE [c1, c2, c3] parameters estimation """
 
 # def obj(x, parameters, states, Distimes, exp_data): 
     
-#     parameters['c1_fast'] = x[0]
-#     parameters['c2_fast'] = x[1]
-#     parameters['c3_fast'] = x[2]
+#     parameters['c1_f'] = x[0]
+#     parameters['c2_f'] = x[1]
+#     parameters['c3_f'] = x[2]
     
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     _, _, Ca, _, _ = model.run_M_simulation() # Run the simulation
+#     _, _, Ca, _, _ = model.run_FL_simulation() # Run the simulation
 
 #     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
 
@@ -531,11 +607,11 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 # print("Optimized parameters:")
 # print("c1 =", res.x[0])
-# parameters['c1_fast'] = res.x[0]
+# parameters['c1_f'] = res.x[0]
 # print("c2 =", res.x[1])
-# parameters['c2_fast'] = res.x[1]
+# parameters['c2_f'] = res.x[1]
 # print("c3 =", res.x[2])
-# parameters['c3_fast'] = res.x[2]
+# parameters['c3_f'] = res.x[2]
 
 
 # =====================================================================
@@ -544,16 +620,28 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 model = MU_model(parameters, states, Distimes)
 
-if scale in {'M', 'MU'}:
+if scale == 'M':
 
     force_sim, _, Ca, a, l_M, _, _ = model.run_FLV_simulation()
 
     plt.figure(figsize=(8, 4))
     plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
-    if scale == 'M':
-        plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
-    else:
-        plt.plot(exp_force[:,0], exp_force[:,1], 'k', label='Exp. Force', linewidth=1.5)
+    plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
+    plt.ylabel('Force [N]', fontsize=12)
+    plt.xlabel('Time [s]', fontsize=12)
+    plt.title(f'Reconstructed {muscle} force', weight='bold')
+    plt.legend(loc='lower right')
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+
+elif scale == 'MU': # MU
+
+    force_sim, _, _, _, _ = model.run_FL_simulation()
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
+    plt.plot(time_exp, exp_force, 'k', label='Exp. Force', linewidth=1.5)
     plt.ylabel('Force [N]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
     plt.title(f'Reconstructed {muscle} force', weight='bold')
@@ -566,12 +654,12 @@ elif scale == 'Ca':
 
     _, _, Ca, _, _ = model.run_FL_simulation()
 
-    plt.figure(figsize=(5, 3))
+    plt.figure(figsize=(5, 3), dpi=300)
     if type == 'slow':
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
                  label='Rincon 2021 (23°C)')
-        #plt.title(r'Free [$Ca^{2+}$] slow fibres', weight='bold', fontsize=14)
+        #plt.title(r'Free [$Ca^{2+}$] slow fibres', fontsize=14)
         plt.ylim([0,20])
     else:
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (35°C)')
@@ -580,7 +668,7 @@ elif scale == 'Ca':
         #plt.title(r'Free [$Ca^{2+}$] fast fibres', weight='bold', fontsize=14)
         plt.ylim([0,20])
 
-    #plt.ylabel(r'[$Ca^{2+}$] [$\mu$M]', fontsize=12)
+    # plt.ylabel(r'[$Ca^{2+}$] [$\mu$M]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
     plt.xlim((0, 0.12))
     plt.grid()
