@@ -35,83 +35,37 @@ class Params:
     l_MT: np.ndarray
     l_M_opt: float
     l_T_slack: float
-
-    # Active state & Ca pars (to run optimizations)
-    Ca_max_s_M: Optional[float] = None # active state - muscle
-    Ca_max_f_M: Optional[float] = None
-    k1_s_M: Optional[float] = None
-    k2_s_M: Optional[float] = None
-    k1_f_M: Optional[float] = None
-    k2_f_M: Optional[float] = None
-
-    Ca_max_s_MU: Optional[float] = None # active state - MU
-    Ca_max_f_MU: Optional[float] = None
-    k1_s_MU: Optional[float] = None
-    k2_s_MU: Optional[float] = None
-    k1_f_MU: Optional[float] = None
-    k2_f_MU: Optional[float] = None
-
-    c1_s: Optional[float] = None # calcium transients
-    c2_s: Optional[float] = None
-    c3_s: Optional[float] = None
-    c1_f: Optional[float] = None
-    c2_f: Optional[float] = None
-    c3_f: Optional[float] = None
-
-    af: Optional[float] = None # FV
+    
+    # Optional defaults
+    Ca_max_s_M: float = 324382
+    Ca_max_s_MU: float = 276339
+    k1_s_M: float = 10.6
+    k2_s_M: float = 15.6
+    k1_s_MU: float = 16.7
+    k2_s_MU: float = 18.3
+    Ca_max_f_M: float = 456971
+    Ca_max_f_MU: float = 700730
+    k1_f_M: float = 5.0
+    k2_f_M: float = 10.7
+    k1_f_MU: float = 16.5
+    k2_f_MU: float = 13.7
+    c1_s: float = 30605
+    c2_s: float = 896181
+    c3_s: float = 2.0
+    c1_f: float = 2056
+    c2_f: float = 467405
+    c3_f: float = 0.435
+    af_s: float = 0.419
+    af_f: float = 0.43
+    As_peak: float = 1.0
+    As_decay: float = 0.9
+    Ts: float = 0.9
 
     def __post_init__(self):
-
-        # Basic checks
+ 
         assert self.yielding in (0, 1)
         assert self.sag in (0, 1)
-        self.vmax = self.vmax*self.l_M_opt
-        
-        # Activation defaults pars (allows optimization)
-        if self.Ca_max_s_M is None: # slow muscle
-            self.Ca_max_s_M = 324382
-        if self.k1_s_M is None:
-            self.k1_s_M = 10.6
-        if self.k2_s_M is None:
-            self.k2_s_M = 15.6
-        if self.Ca_max_f_M is None: # fast muscle
-            self.Ca_max_f_M = 456971
-        if self.k1_f_M is None:
-            self.k1_f_M = 5
-        if self.k2_f_M is None:
-            self.k2_f_M = 10.7
-
-        if self.Ca_max_s_MU is None: # slow muscle
-            self.Ca_max_s_MU = 276339
-        if self.k1_s_MU is None:
-            self.k1_s_MU = 16.79
-        if self.k2_s_MU is None:
-            self.k2_s_MU = 18.39
-        if self.Ca_max_f_MU is None: # fast muscle
-            self.Ca_max_f_MU = 241996
-        if self.k1_f_MU is None:
-            self.k1_f_MU = 10.0
-        if self.k2_f_MU is None:
-            self.k2_f_MU = 10.0
-
-        # Calcium transient default pars (allows optimization)
-        if self.c1_s is None:
-            self.c1_s = 30605
-        if self.c2_s is None:
-            self.c2_s = 896181
-        if self.c3_s is None:
-            self.c3_s = 2
-        if self.c1_f is None:
-            self.c1_f = 2056
-        if self.c2_f == None:
-            self.c2_f = 467405
-        if self.c3_f is None:
-            self.c3_f = 0.435
-
-        # FV default pars (allows optimization)
-        if self.af is None:
-            self.af = 0.419
-
+        self.vmax = self.vmax * self.l_M_opt
 
 @dataclass
 class States:
@@ -180,9 +134,15 @@ class Mechanics:
 
     def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, type, vmax):
         fmax = 1.4
-        af = self.P.af
         fv = 0.25 + 0.75*act
-        kMU = 0.2 if type == "slow" else 1.0
+        
+        if type == "slow": # slow fibres curvature
+            kMU = 0.2 
+            af = self.P.af_s
+        else: # fast fibres curvature
+            kMU = 1
+            af = self.P.af_f
+
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g * fv
@@ -198,9 +158,15 @@ class Mechanics:
 
     def fv_force(self, act: float, v_norm: float, FL: float, l_M_norm: float, type: str) -> float:
         fmax = 1.4
-        af = self.P.af
         fv = 0.25 + 0.75*act
-        kMU = 0.2 if type == "slow" else 1.0
+
+        if type == "slow": # slow fibres curvature
+            kMU = 0.2 
+            af = self.P.af_s
+        else: # fast fibres curvature
+            kMU = 1
+            af = self.P.af_f
+
         g = FL if l_M_norm < 1 else 1.0
         b = (fmax - 1) / (2 + 2 / af)
         K = kMU * g * fv
@@ -268,10 +234,10 @@ class Ephys:
 
     def activation_dot(self, y, type: str) -> float:
 
-        if type == "slow" and self.P.scale in {'M', 'Ca'}: # slow muscle
+        if type == "slow" and self.P.scale in {'M','Ca'}: # slow muscle
             Ca, a = y[2] * self.P.Ca_max_s_M, y[4]
             k1, k2 = self.P.k1_s_M, self.P.k2_s_M
-        elif type == "fast" and self.P.scale in {'M', 'Ca'}: # fast muscle
+        elif type == "fast" and self.P.scale in {'M','Ca'}: # fast muscle
             Ca, a = y[2] * self.P.Ca_max_f_M, y[4]
             k1, k2 = self.P.k1_f_M, self.P.k2_f_M
         if type == "slow" and self.P.scale == 'MU': # slow motor-unit
@@ -292,12 +258,11 @@ class Ephys:
         return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty
 
     def sag_dot(self, s: float, t: float, fs: float) -> float: # Sag from Brown 1999
-        Ts = 0.1
         if 0 < t < 0.2 and 5 < fs < 30:
-            As = 1.2
+            As = self.P.As_peak
         else:
-            As = 1
-        return (As - s) / Ts
+            As = self.P.As_decay
+        return (As - s) / self.P.Ts
 
 
 # =============================================================================
@@ -373,7 +338,7 @@ class MuscleModel:
         T = len(P.time)
         self.alpha = np.full(T + 1, self.P.alpha_0, dtype=float)
         for name in ["l_T", "eps_T", "f_SE", "f_CE", "f_PE", "f_FL", "vel", "f_M",
-                     "l_M", "MUAP", "active_state", "free_Ca", "yielding", "sag"]:
+                     "l_M", "l_M_eff", "MUAP", "active_state", "free_Ca", "yielding", "sag"]:
             setattr(self, name, np.zeros(T, dtype=float))
 
     @property
@@ -381,7 +346,7 @@ class MuscleModel:
         m = self.P.muscle
         if m in {"rat_SOL", "cat_SOL"}:
             return "slow"
-        if m in {"rat_EDL", "cat_GM"}:
+        if m in {"rat_EDL", "cat_GM", "cat_CF"}:
             return "fast"
 
     def run_FLV_simulation(self):
@@ -390,33 +355,32 @@ class MuscleModel:
         type = self.type
         print("Computing muscle force...")
 
-        # 1) NO TENDON CASE
+         # 1) NO TENDON CASE
         if self.P.l_T_slack == 0:
 
             # Set initial states and args & solve ODE system
-            y0 = [
-                self.S.MUAP_0, self.S.MUAP_0,    # beta, dbeta
-                self.S.Ca_0,   self.S.Ca_0,      # Ca, dCa
-                self.S.act_0,                    # activation
-                self.S.s_0                       # sag
-            ]
+            y0 = [self.S.MUAP_0, self.S.MUAP_0,    # beta, dbeta
+                  self.S.Ca_0,   self.S.Ca_0,      # Ca, dCa
+                  self.S.act_0,                     # activation
+                  self.S.s_0]                       # sag
+            
             args = (distimes, type)
             sol = solve_ivp(
                 self.sys.muscle_dyn,
                 [self.P.time[0], self.P.time[-1]],
-                y0,
-                args=args,
+                y0, 
+                args=args, 
                 method="LSODA",
-                t_eval=self.P.time,
+                t_eval=self.P.time, 
                 max_step=self.P.dt / 4,
             )
 
-            # Extract solutions
-            self.MUAP        = sol.y[0]
-            self.free_Ca     = sol.y[2]
-            self.active_state= sol.y[4]
-            self.sag         = sol.y[5]
-            self.yielding    = np.ones_like(self.P.time)      # for output compatibility
+            # Extract solutions 
+            self.MUAP         = sol.y[0]
+            self.free_Ca      = sol.y[2]
+            self.active_state = sol.y[4]
+            self.sag          = sol.y[5]
+            self.yielding     = np.ones_like(self.P.time)  
             self.l_M         = self.P.l_MT[0:len(self.P.time)] # muscle length
 
             # Recompute mechanics
@@ -425,7 +389,7 @@ class MuscleModel:
             for l in range(len(self.P.time)):
                 self.f_FL[l] = self.mech.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
                 self.f_M[l] = self.mech.fv_force(self.active_state[l], v_norm[l], self.f_FL[l], self.P.l_MT[l] / self.P.l_M_opt, type)
-                self.f_PE[l] = self.mech.passive_pe(self.P.l_MT[l] / self.P.l_M_opt )
+                self.f_PE[l] = self.mech.passive_pe(self.P.l_MT[l] / self.P.l_M_opt)
 
             if self.P.yielding == 1 and self.type == "slow":
                 time_factor = self.yielding

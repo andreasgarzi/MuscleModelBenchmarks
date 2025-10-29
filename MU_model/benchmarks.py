@@ -6,7 +6,6 @@ University of New South Wales, GSBE
 Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
 
 """
-
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -21,7 +20,6 @@ from scipy.optimize import minimize
 
 from MU_model import MU_model  
 
-os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\MuscleModelBenchmarks\MU_model')
 # =====================================================================
 # Utils
 # =====================================================================
@@ -244,7 +242,7 @@ if scale == 'M': # muscle benchmarks
     elif type == 'F': # Test fast muscle (Millard exp data)
 
         path = scale_path / 'fastMuscle'
-        benchmark = simpledialog.askstring("Input", "Select benchmark ('FFR'- force-freq. isometric, 'FLR'- force-fre. isometric at different lengths, 'short'- dynamic shortening, 'len'- dynamic lengthening):") # benchmark selection
+        benchmark = simpledialog.askstring("Input", "Select benchmark ('FFR'- force-freq. isometric, 'FLR'- force-fre. isometric at different lengths, 'dyn'- dynamic):") # benchmark selection
 
         if benchmark == 'FFR': # isometric frequency variation
 
@@ -285,28 +283,37 @@ if scale == 'M': # muscle benchmarks
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = l_MT_0 + length # full MT length array (n+1 points)
 
-        elif benchmark == 'short': # dynamic shortening
+        elif benchmark == 'dyn': # dynamic shortening
 
-            exp_path = path + 'fastMuscle\\dyn\\'
+            trial = simpledialog.askstring("Input", "Displacement amplitude ('short' or 'length'):")
+            fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (20, 40, 60, 120):")
+            l = simpledialog.askstring("Input", "Norm. muscle length ('0.8', '0.95', '1.1'):")
 
-            d = simpledialog.askstring("Input", "Displacement amplitude ('short' or 'length'):")
+            exp_force = np.load(path / f"{fs}_{l}_{trial}.npy")
+            muscle = 'cat_CF' # dorsi/plantar
+
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 11.2, 56, float(l)*(56), 0] # MVC and M/T lengths
             
-            t_end = 0.16
-            Distimes = np.arange(0, t_end, 1/120) # exp. discharge times
-            muscle = 'CF' # dorsi/plantar
+            if fs == '120': # maximum stimulation trial
+                t_end = 0.16
+                if trial == 'short': # distinguish between tetanic instantaneous FV curve (max) and subtetanic FV (sub)
+                    a = 'max'
+                    mvc_sample = 1083 # to account for double normalization in Brown et al. 1999
+                elif trial == 'length':
+                    a = 'max'
+                    mvc_sample = 1090
+            else:  # sub-maximal stimulation trials
+                t_end = 0.2
+                a = 'sub' 
+
             time_dt = np.arange(0, t_end, dt)
-    
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 17, 0.37*56, 0.95, 0] # MVC and M/T lengths
-            exp_force = np.load(exp_path + '120_0.95_' + d + '_interp.npy')
-            disp = np.load(exp_path + 'disp_' +  d + '_interp.npy') # load displacement
-            l_MT_0 = l_T_slack + (l_M_opt*l_M_0)*np.cos(alpha_0)
+            Distimes = np.arange(0, t_end, 1/float(fs)) # exp. discharge times
+
+            disp = np.load(path / f"disp_{a}_{trial}.npy") # load displacement
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = np.empty((len(time_dt)+1), dtype=object) # full MT length array
             l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp*l_M_opt)*np.cos(alpha_0)
-            l_MT[-1] = l_MT[-2]
-
-
-        # elif benchmark == 'len': # dynamic lengthening
-           
+            l_MT[-1] = l_MT[-2]         
   
 
 if scale == 'MU': # motor-unit benchmarks
@@ -350,7 +357,7 @@ if scale == 'MU': # motor-unit benchmarks
         if fs == 'twitch':
             Distimes = np.round([0],3)
         elif fs == 'unfused':
-            Distimes = np.arange(0, 21*0.04, 0.04) # 25 Hz
+            Distimes = np.arange(0, 20*0.04, 0.04) # 25 Hz
         elif fs == 'tetanus':
             Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz
 
@@ -374,7 +381,7 @@ if scale == 'MU': # motor-unit benchmarks
         if fs == 'twitch':
             Distimes = np.round([0],3)
         elif fs == 'unfused':
-            Distimes = np.arange(0, 17*0.05, 0.05) # 25 Hz
+            Distimes = np.arange(0, 17*0.04, 0.04) # 25 Hz
         elif fs == 'tetanus':
             Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz 
 
@@ -481,7 +488,7 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 # def obj(x, parameters, states, Distimes, exp_force): 
     
 #     parameters['MVC'] = x[0]
-#     # parameters['af'] = x[0]
+#     # parameters['af_s'] = x[0]
     
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
@@ -497,7 +504,7 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 # print("Optimized parameters:")
 # print("MVC =", res.x[0])
-# #print("af =", res.x[0])
+# #print("af_s =", res.x[0])
 
 """  5) SUB-MAXIMAL benchmark [k1, k2] on 40Hz length trial """
 
@@ -526,30 +533,51 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 """  6) MFisof [Ca_max, k1, k2] on 80-120Hz isometric trial (Millard new exp. data) """
 
-def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force): 
     
-    parameters['Ca_max_f_M'] = x[0]
-    parameters['k1_f_M'] =  x[1]
-    parameters['k2_f_M'] = x[2]
+#     parameters['Ca_max_f_M'] = x[0]
+#     parameters['k1_f_M'] =  x[1]
+#     parameters['k2_f_M'] = x[2]
 
-    model = MU_model(parameters, states, Distimes) # Create an model class instance
-    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
-    residuals = force_sim - exp_force  
-    return np.sum(residuals**2)  
+#     residuals = force_sim - exp_force  
+#     return np.sum(residuals**2)  
 
-x0 = [5e5, 10, 14]
-bnds = [(1e5, 5e6), (10, 20), (10, 20)]
+# x0 = [5e5, 10, 14]
+# bnds = [(1e5, 5e6), (10, 20), (10, 20)]
 
-res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
-               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
-print("Optimized parameters:")
-print("Ca_max_f_M =", res.x[0])
-print("k1_f_M =", res.x[1])
-print("k2_f_M =", res.x[2])
+# print("Optimized parameters:")
+# print("Ca_max_f_M =", res.x[0])
+# print("k1_f_M =", res.x[1])
+# print("k2_f_M =", res.x[2])
 
-"""  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Millard new exp. data) """
+"""  7) MFisodyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
+
+# def obj(x, parameters, states, Distimes, exp_force): 
+    
+#     parameters['af_f'] =  x[0]
+
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+    
+#     residuals = force_sim[mvc_sample:-1]/force_sim[mvc_sample] - exp_force[mvc_sample:-1] # only when displacement is applied
+#     return np.sum(residuals**2)  
+
+# x0 = [0.4]
+# bnds = [(0.1, 20)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("af_f =", res.x[0])
+
+"""  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Burke exp. data) """
 
 # def obj(x, parameters, states, Distimes, exp_force): 
     
@@ -576,8 +604,33 @@ print("k2_f_M =", res.x[2])
 # print("k1_f_MU =", res.x[2])
 # print("k2_f_MU =", res.x[3])
 
+"""  9) MUisof [As, Ts] on unfused tetanus isometric trial (Burke exp. data) """
 
-""" 9) Ca transient ODE [c1, c2, c3] parameters estimation """
+# def obj(x, parameters, states, Distimes, exp_force): 
+    
+#     parameters['As_peak'] =  x[0]
+#     parameters['As_decay'] =  x[1]
+#     parameters['Ts'] = x[2]
+
+#     model = MU_model(parameters, states, Distimes) # Create an model class instance
+#     force_sim, _, _, _, _ = model.run_FL_simulation() # Run the simulation
+    
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [1.2, 0.9, 0.1]
+# bnds = [(1, 2), (0.1, 0.9), (0.01, 0.9)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("As_peak =", res.x[0])
+# print("As_decay =", res.x[1])
+# print("Ts =", res.x[2])
+
+
+""" 10) Ca transient ODE [c1, c2, c3] parameters estimation """
 
 # def obj(x, parameters, states, Distimes, exp_data): 
     
@@ -622,10 +675,15 @@ model = MU_model(parameters, states, Distimes)
 
 if scale == 'M':
 
-    force_sim, _, Ca, a, l_M, _, _ = model.run_FLV_simulation()
+    force_sim, _, Ca, act, l_M, _, _ = model.run_FLV_simulation()
 
     plt.figure(figsize=(8, 4))
-    plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
+    if type == 'F' and benchmark == 'dyn' and a == 'max':
+        plt.plot(time_dt[0:-1], force_sim[0:-1]/force_sim[mvc_sample], label='Simulated Force', linewidth=2) # normalised once in Brown 19
+    elif type == 'F' and benchmark == 'dyn' and a == 'sub':
+        plt.plot(time_dt[0:-1], force_sim[0:-1]/MVC, label='Simulated Force', linewidth=2) # normalised once in Brown 1999
+    else:
+        plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
     plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
     plt.ylabel('Force [N]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
