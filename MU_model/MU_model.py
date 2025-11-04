@@ -44,11 +44,11 @@ class Params:
     k1_s_MU: float = 16.7
     k2_s_MU: float = 18.3
     Ca_max_f_M: float = 456971
-    Ca_max_f_MU: float = 700730
+    Ca_max_f_MU: float = 562875
     k1_f_M: float = 5.0
     k2_f_M: float = 10.7
-    k1_f_MU: float = 16.5
-    k2_f_MU: float = 13.7
+    k1_f_MU: float = 12.0
+    k2_f_MU: float = 12.84
     c1_s: float = 30605
     c2_s: float = 896181
     c3_s: float = 2.0
@@ -56,10 +56,10 @@ class Params:
     c2_f: float = 467405
     c3_f: float = 0.435
     af_s: float = 0.419
-    af_f: float = 0.43
-    As_peak: float = 1.0
+    af_f: float = 0.38
+    As_peak: float = 2.0
     As_decay: float = 0.9
-    Ts: float = 0.9
+    Ts: float = 0.64
 
     def __post_init__(self):
  
@@ -258,11 +258,13 @@ class Ephys:
         return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty
 
     def sag_dot(self, s: float, t: float, fs: float) -> float: # Sag from Brown 1999
-        if 0 < t < 0.2 and 5 < fs < 30:
+        if 0 < t < 0.2:
             As = self.P.As_peak
         else:
             As = self.P.As_decay
+
         return (As - s) / self.P.Ts
+
 
 
 # =============================================================================
@@ -393,7 +395,7 @@ class MuscleModel:
 
             if self.P.yielding == 1 and self.type == "slow":
                 time_factor = self.yielding
-            elif self.P.sag == 1 and self.type == "fast":
+            elif self.P.sag == 1 and self.type == "fast" and self.fs > 5:
                 time_factor = self.sag
             else:
                 time_factor = 1.0
@@ -450,7 +452,7 @@ class MuscleModel:
             # Aggregate forces (apply yield only to slow MUs if enabled)
             if self.P.yielding == 1 and self.type == "slow":
                 time_factor = self.yielding 
-            elif self.P.sag == 1 and self.type == "fast":
+            elif self.P.sag == 1 and self.type == "fast" and self.fs > 5:
                 time_factor = self.sag
             else:
                 time_factor = 1.0
@@ -496,8 +498,8 @@ class MuscleModel:
             self.f_PE[l] = Mechanics.passive_pe(self.P.l_MT[l] / self.P.l_M_opt)
             self.f_FL[l] = Mechanics.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
 
-        if self.P.sag == 1 and self.type == "fast":
-             time_factor = self.sag
+        if self.P.sag == 1 and self.type == "fast" and self.fs > 5:
+            time_factor = self.sag
         else:
             time_factor = 1.0
 
