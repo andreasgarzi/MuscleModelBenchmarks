@@ -43,10 +43,10 @@ class Params:
     k2_s_M: float = 15.6
     k1_s_MU: float = 16.7
     k2_s_MU: float = 18.3
-    Ca_max_f_M: float = 456971
+    Ca_max_f_M: float = 210924
     Ca_max_f_MU: float = 562875
-    k1_f_M: float = 5.0
-    k2_f_M: float = 10.7
+    k1_f_M: float = 10
+    k2_f_M: float = 10
     k1_f_MU: float = 12.0
     k2_f_MU: float = 12.84
     c1_s: float = 30605
@@ -56,7 +56,7 @@ class Params:
     c2_f: float = 467405
     c3_f: float = 0.435
     af_s: float = 0.419
-    af_f: float = 0.38
+    af_f: float = 0.39
     As_peak: float = 2.0
     As_decay: float = 0.9
     Ts: float = 0.64

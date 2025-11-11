@@ -181,13 +181,13 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
     t_hi = np.arange(0.0, t_end + 1e-12, dt) # interpolated time
 
     kind = 'cubic' # interp
-    fs, cutoff, order = 1000, 30, 4  # LPF setup
-    b, a = signal.butter(order, cutoff, btype='lowpass', fs=fs) # LPF
+    # fs, cutoff, order = 1000, 30, 4  # LPF setup
+    # b, a = signal.butter(order, cutoff, btype='lowpass', fs=fs) # LPF
 
     force = force - force[0] # offset force
 
-    force_filt = signal.filtfilt(b, a, force) # filt force
-    force_hi = sp.interpolate.interp1d(t, force_filt, kind=kind)(t_hi) # interp force
+    # force_filt = signal.filtfilt(b, a, force) # filt force
+    force_hi = sp.interpolate.interp1d(t, force, kind=kind)(t_hi) # interp force
     force_hi[force_hi < 0] = 0 # set inferior limit to 0
 
     return {
@@ -326,7 +326,6 @@ if scale == 'M': # muscle benchmarks
 
             if fs == '1': # twitch
                 Distimes = np.round(Distimes, 3)
-         
 
     elif type == 'F': # Test fast muscle (Millard exp data)
 
@@ -348,8 +347,8 @@ if scale == 'M': # muscle benchmarks
             yielding = 0
             sag = 0
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.2, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 25.5, 19.24, 10*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
         elif benchmark == 'FLR': # isometric length variation
@@ -368,7 +367,7 @@ if scale == 'M': # muscle benchmarks
             yielding = 0
             sag = 0
 
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.2, 0, 30, 30, 10*np.pi/180] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 25.5, 25, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
             l_MT = l_MT_0 + length # full MT length array (n+1 points)
 
@@ -383,8 +382,12 @@ if scale == 'M': # muscle benchmarks
 
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 24.3, 56, float(l)*(56), 0] # MVC and M/T lengths
             
+            yielding = 0
+            sag = 0
+           
             if fs == '120': # maximum stimulation trial
                 t_end = 0.16
+                Distimes = np.arange(0, t_end, 1/float(fs)) # exp. discharge times
                 if trial == 'short': # distinguish between tetanic instantaneous FV curve (max) and subtetanic FV (sub)
                     a = 'max' 
                     mvc_sample = 1083 # last sample before displacement 
@@ -392,18 +395,18 @@ if scale == 'M': # muscle benchmarks
                     a = 'max'
                     mvc_sample = 1090 # last sample before displacement 
             else:  # sub-maximal stimulation trials
-                t_end = 0.2
+                t_end = 0.17
+                Distimes = np.arange(0, t_end, 1/float(fs)) # exp. discharge times
                 a = 'sub' 
                 mvc_sample = 1119 # last sample before displacement 
 
             time_dt = np.arange(0, t_end, dt)
-            Distimes = np.arange(0, t_end, 1/float(fs)) # exp. discharge times
+            exp_force = exp_force[0:len(time_dt)]
 
             disp = np.load(path / f"disp_{a}_{trial}_interp.npy") # load displacement
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
             l_MT = np.empty((len(time_dt)+1), dtype=object) # full MT length array
-            l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp*l_M_opt)*np.cos(alpha_0)
-            l_MT[-1] = l_MT[-2]         
+            l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp[0:len(time_dt)]*l_M_opt)*np.cos(alpha_0)     
   
 
 if scale == 'MU': # motor-unit benchmarks
@@ -625,13 +628,16 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 # print("k2 = ", res.x[1])
 # print("Ca_max = ", res.x[2])
 
-"""  6) MFisof [Ca_max, k1, k2] on 80-120Hz isometric trial (Millard new exp. data) """
+"""  6) MFisof [Ca_max, k1, k2] on 80 Hz isometric trial (Millard new exp. data) """
 
 # def obj(x, parameters, states, Distimes, exp_force): 
     
-#     parameters['Ca_max_f_M'] = x[0]
-#     parameters['k1_f_M'] =  x[1]
-#     parameters['k2_f_M'] = x[2]
+#     # parameters['Ca_max_f_M'] = x[0]
+#     # parameters['k1_f_M'] =  x[1]
+#     # parameters['k2_f_M'] = x[2]
+#     states['l_M_0'] = x[0]
+#     l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
+#     parameters['l_MT'] = np.ones((len(time_dt)+1), dtype=object)*l_MT_0
 
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
@@ -639,22 +645,25 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
-# x0 = [5e5, 10, 14]
-# bnds = [(1e5, 5e6), (10, 20), (10, 20)]
+# # x0 = [5e5, 10, 10]
+# # bnds = [(1e5, 1e6), (10, 15), (10, 15)]
+# x0 = [20]
+# bnds = [(10, 25.5)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
-# print("Ca_max_f_M =", res.x[0])
-# print("k1_f_M =", res.x[1])
-# print("k2_f_M =", res.x[2])
+# # print("Ca_max_f_M =", res.x[0])
+# # print("k1_f_M =", res.x[1])
+# # print("k2_f_M =", res.x[2])
+# print("l_M_0 =", res.x[0])
 
 """  7) MFisodyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
 
 # def obj(x, parameters, states, Distimes, exp_force): 
     
-#     parameters['af_f'] =  x[0]
+#     parameters['af_f'] = x[0]
 
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
 #     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
@@ -663,7 +672,7 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 #     return np.sum(residuals**2)  
 
 # x0 = [0.4]
-# bnds = [(0.1, 20)]
+# bnds = [(0.1, 10)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
@@ -753,7 +762,7 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 #                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
 
 # print("Optimized parameters:")
-# print("c1 =", res.x[0])
+# print("c1 =", res.x[0])M
 # parameters['c1_f'] = res.x[0]
 # print("c2 =", res.x[1])
 # parameters['c2_f'] = res.x[1]
@@ -773,11 +782,14 @@ if scale == 'M':
 
     plt.figure(figsize=(8, 4))
     if type == 'F' and benchmark == 'dyn' and a == 'max':
-        plt.plot(time_dt, force_sim/force_sim[mvc_sample], label='Simulated Force', linewidth=2) # normalised once in Brown 1999
+        force_sim = force_sim/force_sim[mvc_sample]
+        plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2) # normalised once in Brown 1999
         plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
     elif type == 'F' and benchmark == 'dyn' and a == 'sub':
-        plt.plot(time_dt, force_sim/force_sim[mvc_sample], label='Simulated Force', linewidth=2) # normalised once in Brown 1999
-        plt.plot(time_dt, exp_force/exp_force[mvc_sample], 'k', label='Exp. Force', linewidth=1.5)
+        force_sim = force_sim/force_sim[mvc_sample]
+        exp_force = exp_force/exp_force[mvc_sample]
+        plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2) # normalised once in Brown 1999
+        plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
     else:
         plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
         plt.plot(time_dt, exp_force, 'k', label='Exp. Force', linewidth=1.5)
@@ -785,7 +797,7 @@ if scale == 'M':
     plt.ylabel('Force [N]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
     #plt.title(f'Reconstructed {muscle} force', weight='bold')
-    plt.title(f'Dynamic trial (120 Hz, 2 l0/s lengthening) force', weight='bold')
+    #plt.title(f'Dynamic trial (120 Hz, 2 l0/s lengthening) force', weight='bold')
     plt.legend(loc='lower right')
     plt.grid()
     plt.tight_layout()
@@ -839,10 +851,10 @@ elif scale == 'Ca':
 # max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
 
 # Save results
-# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\MU\sim')
+# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
 
-# np.save('fast_twitch', force_sim, allow_pickle=True)
+# np.save('dyn_120_0.95_short', force_sim, allow_pickle=True)
 
-# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\MU\exp')
+# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
 
-# np.save('fast_twitch', exp_force, allow_pickle=True)
+# np.save('dyn_120_0.95_short', exp_force, allow_pickle=True)
