@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 " Files were kept separated to avoid confusion in error and statistics computation"
 #############################################################################
 
-benchmark = 'fast_M_dyn' # specify benchmark
+benchmark = 'MU' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
@@ -108,20 +108,21 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     # Errors
     exp_all = [exp1, exp2, exp3, exp4, exp5, exp6]
     sim_all = [sim1, sim2, sim3, sim4, sim5, sim6]
-    displacements = [0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+    displacements = [0.05, 0.10, 0.25, 0.50, 1.00, 2.00]
 
     mean_err_list = []
     max_err_list = []
-    std_err_list = []     
+    std_err_list = []
 
     print("\n=== Benchmark: slow_M_max ===")
     print(f"MVC = {MVC:.2f} N\n")
 
-    for i, (exp, sim, disp) in enumerate(zip(exp_all, sim_all, displacements), start=1):
- 
+    for exp, sim, disp in zip(exp_all, sim_all, displacements):
+
+        # error in %MVC
         abs_err = np.abs((sim / MVC) - (exp / MVC)) * 100.0
 
-        mae = np.mean(abs_err)
+        mae  = np.mean(abs_err)
         maxae = np.max(abs_err)
         stde = np.std(abs_err)
 
@@ -130,18 +131,18 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
         std_err_list.append(stde)
 
         print(f"Displacement ±{disp:.2f} mm:")
-        print(f"  Mean Absolute Error = {mae:.2f}% MVC")
-        print(f"  Max  Absolute Error = {maxae:.2f}% MVC\n")
+        print(f"  Mean Abs. Error = {mae:.2f}% MVC   (std = {stde:.2f})")
+        print(f"  Max  Abs. Error = {maxae:.2f}% MVC\n")
 
-        x = np.arange(1, 6 + 1)  # 1..6
+    x = np.arange(1, len(displacements) + 1)
 
     mean_err_arr = np.array(mean_err_list)
-    max_err_arr = np.array(max_err_list)
+    max_err_arr  = np.array(max_err_list)
     std_err_arr  = np.array(std_err_list)
 
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
-    # Line + area for mean
+    # mean + std area
     ax.plot(x, mean_err_arr, '-o', color='k', label='Mean absolute err.')
     ax.fill_between(
         x,
@@ -154,20 +155,14 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     # max
     ax.plot(x, max_err_arr, '--*', color='k', label='Max absolute err.')
 
-    # x: 6 trial
     ax.set_xticks(x)
-    # se vuoi vedere gli spostamenti al posto dei numeri, decommenta la riga sotto
     ax.set_xticklabels([f'{d:.2f}' for d in displacements])
-
-    ax.set_xlabel('Max. displacement amplitude', fontweight='bold')
+    ax.set_xlabel('Max. displacement amplitude [mm]', fontweight='bold')
     ax.set_ylabel('Error [%MVC]', fontweight='bold')
     ax.set_ylim(bottom=0)
-
     ax.legend()
     plt.tight_layout()
     plt.show()
-
-
 
 
 elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
@@ -374,10 +369,16 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.tight_layout()
     plt.show()
 
+    # =========================
     # Errors
-    def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
+    # =========================
+    def pct_errors_full(exp: np.ndarray, sim: np.ndarray, MVC: float):
+        # errore in %MVC
         abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        return float(np.mean(abs_err_pct)), float(np.max(abs_err_pct))
+        mae  = float(np.mean(abs_err_pct))
+        maxae = float(np.max(abs_err_pct))
+        stde = float(np.std(abs_err_pct))
+        return mae, maxae, stde
 
     print("\n=== Benchmark: slow_M_sub ===")
     print(f"MVC = {MVC:.2f} N\n")
@@ -392,13 +393,14 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("ISO Rand  30 Hz", exp_iso_v_30, sim_iso_v_30),
     ]
 
-    maes, maxaes = [], []
+    iso_mae, iso_max, iso_std = [], [], []
     print("— ISO trials —")
     for name, exp, sim in iso_trials:
-        mae, maxae = pct_errors(exp, sim, MVC)
-        maes.append(mae); maxaes.append(maxae)
-        print(f"{name:>16}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'ISO Average':>16}:  MAE = {np.mean(maes):6.2f}% MVC   MaxAE = {np.mean(maxaes):6.2f}% MVC\n")
+        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
+        iso_mae.append(mae); iso_max.append(maxae); iso_std.append(stde)
+        print(f"{name:>16}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+
+    print(f"{'ISO Average':>16}:  MAE = {np.mean(iso_mae):6.2f}% MVC  (std = {np.mean(iso_std):6.2f})   MaxAE = {np.mean(iso_max):6.2f}% MVC\n")
 
     # -------- DYN (constant displacement: 1 mm, 8 mm @ 10/20/30 Hz) --------
     dyn_c_trials = [
@@ -410,13 +412,14 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Const 30 Hz ±8 mm", exp_dyn_c_30_8, sim_dyn_c_30_8),
     ]
 
-    maes, maxaes = [], []
+    dync_mae, dync_max, dync_std = [], [], []
     print("— Dynamic (constant) trials —")
     for name, exp, sim in dyn_c_trials:
-        mae, maxae = pct_errors(exp, sim, MVC)
-        maes.append(mae); maxaes.append(maxae)
-        print(f"{name:>24}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'DYN Const Average':>24}:  MAE = {np.mean(maes):6.2f}% MVC   MaxAE = {np.mean(maxaes):6.2f}% MVC\n")
+        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
+        dync_mae.append(mae); dync_max.append(maxae); dync_std.append(stde)
+        print(f"{name:>24}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+
+    print(f"{'DYN Const Average':>24}:  MAE = {np.mean(dync_mae):6.2f}% MVC  (std = {np.mean(dync_std):6.2f})   MaxAE = {np.mean(dync_max):6.2f}% MVC\n")
 
     # -------- DYN (random/variable displacement) --------
     dyn_v_trials = [
@@ -428,15 +431,14 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Rand 30 Hz ±8 mm", exp_dyn_v_30_8, sim_dyn_v_30_8),
     ]
 
-    maes, maxaes = [], []
+    dynv_mae, dynv_max, dynv_std = [], [], []
     print("— Dynamic (random) trials —")
     for name, exp, sim in dyn_v_trials:
-        mae, maxae = pct_errors(exp, sim, MVC)
-        maes.append(mae); maxaes.append(maxae)
-        print(f"{name:>23}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'DYN Rand Average':>23}:  MAE = {np.mean(maes):6.2f}% MVC   MaxAE = {np.mean(maxaes):6.2f}% MVC\n")
+        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
+        dynv_mae.append(mae); dynv_max.append(maxae); dynv_std.append(stde)
+        print(f"{name:>23}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
 
-
+    print(f"{'DYN Rand Average':>23}:  MAE = {np.mean(dynv_mae):6.2f}% MVC  (std = {np.mean(dynv_std):6.2f})   MaxAE = {np.mean(dynv_max):6.2f}% MVC\n")
 
     def build_err(trials, MVC):
         mean_list, max_list, std_list = [], [], []
@@ -447,8 +449,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
             std_list.append(np.std(abs_err))
         return np.array(mean_list), np.array(max_list), np.array(std_list)
 
-    # --- ISO ---
-    iso_trials = [
+    iso_trials_plot = [
         ("Const 10 Hz", exp_iso_c_10, sim_iso_c_10),
         ("Const 20 Hz", exp_iso_c_20, sim_iso_c_20),
         ("Const 30 Hz", exp_iso_c_30, sim_iso_c_30),
@@ -456,9 +457,8 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("Rand 20 Hz",  exp_iso_v_20, sim_iso_v_20),
         ("Rand 30 Hz",  exp_iso_v_30, sim_iso_v_30),
     ]
-    mean_iso, max_iso, std_iso = build_err(iso_trials, MVC)
+    mean_iso, max_iso, std_iso = build_err(iso_trials_plot, MVC)
 
-    # --- DYN ±1 mm ---
     dyn_1mm_trials = [
         ("Const 10 Hz", exp_dyn_c_10_1, sim_dyn_c_10_1),
         ("Const 20 Hz", exp_dyn_c_20_1, sim_dyn_c_20_1),
@@ -469,7 +469,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     ]
     mean_1mm, max_1mm, std_1mm = build_err(dyn_1mm_trials, MVC)
 
-    # --- DYN ±8 mm ---
     dyn_8mm_trials = [
         ("Const 10 Hz", exp_dyn_c_10_8, sim_dyn_c_10_8),
         ("Const 20 Hz", exp_dyn_c_20_8, sim_dyn_c_20_8),
@@ -480,7 +479,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     ]
     mean_8mm, max_8mm, std_8mm = build_err(dyn_8mm_trials, MVC)
 
-    # --- PLOT ---
     x = np.arange(1, 6 + 1)
     x_labels = ["C10", "C20", "C30", "R10", "R20", "R30"]
 
@@ -497,7 +495,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ax.set_xticks(x)
         ax.set_xticklabels(x_labels)
         ax.set_title(title, fontweight='bold')
-        ax.set_ylim([0,45])
+        ax.set_ylim([0, 45])
 
     plot_panel(axes[0], x, mean_iso,  max_iso,  std_iso,  "Isometric")
     plot_panel(axes[1], x, mean_1mm,  max_1mm,  std_1mm,  "Dynamic ±1 mm")
@@ -647,7 +645,10 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     # Error
     def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
         abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        return float(np.mean(abs_err_pct)), float(np.max(abs_err_pct))
+        mae  = float(np.mean(abs_err_pct))
+        maxae = float(np.max(abs_err_pct))
+        stde = float(np.std(abs_err_pct))
+        return mae, maxae, stde
 
     print("\n=== Benchmark: slow_M_len (Perreault/Kim) ===")
     print(f"MVC = {MVC:.2f} N\n")
@@ -671,19 +672,24 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         ("40 Hz,  -16 mm",       exp_iso_16_40,  sim_iso_16_40),
     ]
 
-    # Stampa errori per ogni trial
-    all_mae, all_maxae = [], []
+    all_mae, all_maxae, all_stde = [], [], []
     print("— Errori per trial —")
     for name, exp, sim in trials:
-        mae, maxae = pct_errors(exp, sim, MVC)
-        all_mae.append(mae); all_maxae.append(maxae)
-        print(f"{name:>18}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
+        mae, maxae, stde = pct_errors(exp, sim, MVC)
+        all_mae.append(mae)
+        all_maxae.append(maxae)
+        all_stde.append(stde)
+        print(f"{name:>18}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
 
-    print(f"\n{'Overall Average':>18}:  MAE = {np.mean(all_mae):6.2f}% MVC   MaxAE = {np.mean(all_maxae):6.2f}% MVC\n")
+    print(
+        f"\n{'Overall Average':>18}:  "
+        f"MAE = {np.mean(all_mae):6.2f}% MVC  "
+        f"(std = {np.mean(all_stde):6.2f})   "
+        f"MaxAE = {np.mean(all_maxae):6.2f}% MVC\n"
+    )
 
 
     def build_len_err(exp_list, sim_list, MVC):
-        """exp_list e sim_list sono liste di 4 array (1,10,20,40 Hz)."""
         mean_list, max_list, std_list = [], [], []
         for exp, sim in zip(exp_list, sim_list):
             abs_err = np.abs((sim / MVC) - (exp / MVC)) * 100.0
@@ -694,21 +700,19 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
                 np.array(max_list),
                 np.array(std_list))
 
-    # blocco per 0 mm
+    # 0 mm
     mean_0, max_0, std_0 = build_len_err(
         [exp_twitch_0, exp_iso_0_10, exp_iso_0_20, exp_iso_0_40],
         [sim_twitch_0, sim_iso_0_10, sim_iso_0_20, sim_iso_0_40],
         MVC
     )
-
-    # blocco per -8 mm
+    # -8 mm
     mean_8, max_8, std_8 = build_len_err(
         [exp_twitch_8, exp_iso_8_10, exp_iso_8_20, exp_iso_8_40],
         [sim_twitch_8, sim_iso_8_10, sim_iso_8_20, sim_iso_8_40],
         MVC
     )
-
-    # blocco per -16 mm
+    # -16 mm
     mean_16, max_16, std_16 = build_len_err(
         [exp_twitch_16, exp_iso_16_10, exp_iso_16_20, exp_iso_16_40],
         [sim_twitch_16, sim_iso_16_10, sim_iso_16_20, sim_iso_16_40],
@@ -724,11 +728,8 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        # mean nera con banda
         ax.plot(x, mean_arr, '-o', color='k', label='Mean abs. err.')
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-
-        # max nera tratteggiata
         ax.plot(x, max_arr, '--*', color='k', label='Max abs. err.')
 
         ax.set_xticks(x)
@@ -742,18 +743,15 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plot_panel(axes[2], x, mean_16, max_16, std_16, "Length = -16 mm")
 
     axes[0].set_ylabel('Error [%MVC]', fontweight='bold')
-    # etichetta x solo nell’ultimo (o in tutti, come preferisci)
     for ax in axes:
         ax.set_xlabel('Stimulation frequency', fontweight='bold')
-
-    # legenda solo nel primo per non ripeterla 3 volte
     axes[0].legend()
 
     plt.tight_layout()
     plt.show()
 
 
-elif benchmark == 'MU': # Krylow & Sandercock 1997 experiments
+elif benchmark == 'MU': # Burke 1974 experiments
 
     sim_path = base_path / 'MU' / 'sim' # experimental path
     exp_path = base_path / 'MU' / 'exp' # simulations path
@@ -820,7 +818,7 @@ elif benchmark == 'MU': # Krylow & Sandercock 1997 experiments
 
     plt.subplot(2, 3, 6)
     plt.plot(time_dt_F, exp_F_fused, 'k')
-    plt.plot(time_dt_F, exp_F_fused, 'r')
+    plt.plot(time_dt_F, sim_F_fused, 'r')
     plt.title(u"40 Hz, fast", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_F))
@@ -830,9 +828,12 @@ elif benchmark == 'MU': # Krylow & Sandercock 1997 experiments
 
     def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
         abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        return float(np.mean(abs_err_pct)), float(np.max(abs_err_pct))
+        mae  = float(np.mean(abs_err_pct))
+        maxae = float(np.max(abs_err_pct))
+        stde = float(np.std(abs_err_pct))
+        return mae, maxae, stde
 
-    print("\n=== Benchmark: MU (Krylow & Sandercock 1997) ===")
+    print("\n=== Benchmark: MU (Burke 1974) ===")
     print(f"MVC_S (slow) = {MVC_S:.4f} N   |   MVC_F (fast) = {MVC_F:.4f} N\n")
 
     # --------- Slow MU trials ---------
@@ -842,13 +843,21 @@ elif benchmark == 'MU': # Krylow & Sandercock 1997 experiments
         ("Slow Fused   (40 Hz)",   exp_S_fused,    sim_S_fused,    MVC_S),
     ]
 
-    mae_s, maxae_s = [], []
+    mae_s, maxae_s, std_s = [], [], []
     print("— Slow MU trials —")
     for name, exp, sim, mvc in slow_trials:
-        mae, maxae = pct_errors(exp, sim, mvc)
-        mae_s.append(mae); maxae_s.append(maxae)
-        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'Slow Average':>22}:  MAE = {np.mean(mae_s):6.2f}% MVC   MaxAE = {np.mean(maxae_s):6.2f}% MVC\n")
+        mae, maxae, stde = pct_errors(exp, sim, mvc)
+        mae_s.append(mae)
+        maxae_s.append(maxae)
+        std_s.append(stde)
+        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+
+    print(
+        f"{'Slow Average':>22}:  "
+        f"MAE = {np.mean(mae_s):6.2f}% MVC  "
+        f"(std = {np.mean(std_s):6.2f})   "
+        f"MaxAE = {np.mean(maxae_s):6.2f}% MVC\n"
+    )
 
     # --------- Fast MU trials ---------
     fast_trials = [
@@ -857,12 +866,21 @@ elif benchmark == 'MU': # Krylow & Sandercock 1997 experiments
         ("Fast Fused   (40 Hz)",  exp_F_fused,    sim_F_fused,    MVC_F),
     ]
 
-    mae_f, maxae_f = [], []
+    mae_f, maxae_f, std_f = [], [], []
     print("— Fast MU trials —")
     for name, exp, sim, mvc in fast_trials:
-        mae, maxae = pct_errors(exp, sim, mvc)
-        mae_f.append(mae); maxae_f.append(maxae)
-        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
+        mae, maxae, stde = pct_errors(exp, sim, mvc)
+        mae_f.append(mae)
+        maxae_f.append(maxae)
+        std_f.append(stde)
+        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+
+    print(
+        f"{'Fast Average':>22}:  "
+        f"MAE = {np.mean(mae_f):6.2f}% MVC  "
+        f"(std = {np.mean(std_f):6.2f})   "
+        f"MaxAE = {np.mean(maxae_f):6.2f}% MVC\n"
+    )
 
 
 elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experiments
@@ -979,7 +997,7 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
     plt.show()
 
     # =======================
-    # CALCOLO ERRORI % MVC
+    # Erros % MVC
     # =======================
     def pct_err_all(exp_arr, sim_arr, MVC):
         abs_err_pct = np.abs((sim_arr / MVC) - (exp_arr / MVC)) * 100.0
@@ -996,10 +1014,10 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
         ffr_mean_list.append(mae)
         ffr_max_list.append(maxae)
         ffr_std_list.append(stde)
-        print(f"{f:>3} Hz:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
+        print(f"{f:>3} Hz:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
     print()
 
-    # FLR errors (solo per gli 8 spostamenti plottati)
+    # FLR errors
     flr_mean_list, flr_max_list, flr_std_list = [], [], []
     print("— FLR errors —")
     for d, e, s in zip(disp_mm, exp_FLR_series, sim_FLR_series):
@@ -1007,7 +1025,7 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
         flr_mean_list.append(mae)
         flr_max_list.append(maxae)
         flr_std_list.append(stde)
-        print(f"+{d:4.1f} mm:  MAE = {mae:6.2f}% MVC   MaxAE = {maxae:6.2f}% MVC")
+        print(f"+{d:4.1f} mm:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
     print()
 
     ffr_mean_arr = np.array(ffr_mean_list)
@@ -1134,7 +1152,7 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.title(u"40 Hz, 1.1 L0", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
-    # Disaplcement
+    # Displacement
     plt.subplot(3, 3, 7)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'k')
@@ -1163,11 +1181,10 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.tight_layout()
     plt.show()
 
-        # ==========================
-    # ERRORI fast_M_dyn
+    # ==========================
+    # ERRORs fast_M_dyn
     # ==========================
 
-    # ordine delle condizioni (come da tua richiesta)
     cond_labels = [
         "20 Hz (0.95 L0)",
         "40 Hz (0.80 L0)",
@@ -1208,7 +1225,7 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
         sim_dyn_120_095_s,
     ]
 
-    # indici di start
+    # start samples
     idx_sub = 1119
     idx_120_short = 1083
     idx_120_len   = 1090
@@ -1216,12 +1233,12 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     def compute_err_list(exp_list, sim_list, is_short=True):
         mean_list, max_list, std_list = [], [], []
         for i, (e, s) in enumerate(zip(exp_list, sim_list)):
-            if i < 4:  # tutte le condizioni non-120
+            if i < 4:  # submaximal conditions (< 120Hz)
                 start = idx_sub
-            else:      # la quinta è 120 Hz
+            else:      # maximal frequency (120 hz)
                 start = idx_120_short if is_short else idx_120_len
 
-            # calcolo errore percentuale (dati già normalizzati!)
+            # % errors (normalized data)
             abs_err = np.abs(s[start:] - e[start:]) * 100.0
             mean_list.append(np.mean(abs_err))
             max_list.append(np.max(abs_err))
@@ -1235,18 +1252,20 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     short_mean, short_max, short_std = compute_err_list(short_exp, short_sim, is_short=True)
     length_mean, length_max, length_std = compute_err_list(length_exp, length_sim, is_short=False)
 
-    # stampa a terminale
+        # sprint
     print("\n=== Benchmark: fast_M_dyn (errors) ===\n")
+
     print("Shortening:")
-    for lab, mae, mxe in zip(cond_labels, short_mean, short_max):
-        print(f"  {lab:18s}  MAE = {mae:6.2f}%   MaxAE = {mxe:6.2f}%")
+    for lab, mae, mxe, stde in zip(cond_labels, short_mean, short_max, short_std):
+        print(f"  {lab:18s}  MAE = {mae:6.2f}%  (std = {stde:6.2f})   MaxAE = {mxe:6.2f}%")
+
     print("\nLengthening:")
-    for lab, mae, mxe in zip(cond_labels, length_mean, length_max):
-        print(f"  {lab:18s}  MAE = {mae:6.2f}%   MaxAE = {mxe:6.2f}%")
+    for lab, mae, mxe, stde in zip(cond_labels, length_mean, length_max, length_std):
+        print(f"  {lab:18s}  MAE = {mae:6.2f}%  (std = {stde:6.2f})   MaxAE = {mxe:6.2f}%")
     print()
 
     # ==========================
-    # PLOT errori (2 subplot)
+    # PLOT errors (2 subplot)
     # ==========================
     x = np.arange(1, 5 + 1)
 
@@ -1277,8 +1296,6 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     ax2.set_title('Lengthening', fontweight='bold')
     ax2.set_ylim(0, 100)
     ax2.grid(True, alpha=0.4)
-    # legenda ce l’hai già a sinistra, puoi anche tenerla qui
-    # ax2.legend()
 
     plt.tight_layout()
     plt.show()
