@@ -43,10 +43,10 @@ class Params:
     k2_s_M: float = 15.6
     k1_s_MU: float = 16.7
     k2_s_MU: float = 18.3
-    Ca_max_f_M: float = 210924
+    Ca_max_f_M: float = 192770
     Ca_max_f_MU: float = 562875
     k1_f_M: float = 10
-    k2_f_M: float = 10
+    k2_f_M: float = 10.28
     k1_f_MU: float = 12.0
     k2_f_MU: float = 12.84
     c1_s: float = 30605
@@ -56,7 +56,7 @@ class Params:
     c2_f: float = 467405
     c3_f: float = 0.435
     af_s: float = 0.419
-    af_f: float = 0.39
+    af_f: float = 0.361
     As_peak: float = 2.0
     As_decay: float = 0.9
     Ts: float = 0.64
@@ -66,6 +66,11 @@ class Params:
         assert self.yielding in (0, 1)
         assert self.sag in (0, 1)
         self.vmax = self.vmax * self.l_M_opt
+
+        if self.muscle in {"cat_SOL", "rat_SOL"}:
+            self.eps_0 = 0.06
+        elif self.muscle in {"rat_EDL", "cat_GM", "cat_CF"}:
+            self.eps_0 = 0.04
 
 @dataclass
 class States:
@@ -96,9 +101,8 @@ class Mechanics:
     def __init__(self, P: Params):
         self.P = P
 
-    @staticmethod
-    def tendon_force(eps: float) -> float:
-        eps_0 = 0.06
+    def tendon_force(self, eps: float) -> float:
+        eps_0 = self.P.eps_0 # species dependent
         klin = 1.712 / eps_0
         eps_toe = 0.609 * eps_0
         F_toe = 0.33
@@ -385,22 +389,23 @@ class MuscleModel:
             self.yielding     = np.ones_like(self.P.time)  
             self.l_M         = self.P.l_MT[0:len(self.P.time)] # muscle length
 
-            # Recompute mechanics
-            v_norm = np.gradient(self.P.l_MT / self.P.l_M_opt, self.P.dt) # derivative of muscle length (known)
+            v = np.gradient(self.P.l_MT, self.P.dt)                 # m/s (o cm/s, a seconda delle unità)
+            v_norm = (v / self.P.l_M_opt) / self.P.vmax            # normalizzato a l_M_opt e vmax
 
             for l in range(len(self.P.time)):
-                self.f_FL[l] = self.mech.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
-                self.f_M[l] = self.mech.fv_force(self.active_state[l], v_norm[l], self.f_FL[l], self.P.l_MT[l] / self.P.l_M_opt, type)
-                self.f_PE[l] = self.mech.passive_pe(self.P.l_MT[l] / self.P.l_M_opt)
+                l_M_norm = self.P.l_MT[l] / self.P.l_M_opt
+                self.f_FL[l] = self.mech.force_length(self.active_state[l], l_M_norm)
+                self.f_M[l] = self.mech.fv_force(self.active_state[l], v_norm[l], self.f_FL[l], l_M_norm, type)
+                self.f_PE[l] = self.mech.passive_pe(l_M_norm)
 
             if self.P.yielding == 1 and self.type == "slow":
                 time_factor = self.yielding
-            elif self.P.sag == 1 and self.type == "fast" and self.fs > 5:
+            elif self.P.sag == 1 and self.type == "fast":
                 time_factor = self.sag
             else:
                 time_factor = 1.0
 
-            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
+            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL 
             F_MU = self.P.MVC * MU_force_norm 
             
         # 2) TENDON CASE
@@ -452,12 +457,12 @@ class MuscleModel:
             # Aggregate forces (apply yield only to slow MUs if enabled)
             if self.P.yielding == 1 and self.type == "slow":
                 time_factor = self.yielding 
-            elif self.P.sag == 1 and self.type == "fast" and self.fs > 5:
+            elif self.P.sag == 1 and self.type == "fast":
                 time_factor = self.sag
             else:
                 time_factor = 1.0
 
-            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL + self.f_PE
+            MU_force_norm = time_factor * self.active_state * self.f_M * self.f_FL 
             F_MU = self.P.MVC * MU_force_norm
 
         return F_MU, self.MUAP, self.free_Ca, self.active_state, self.l_M, self.yielding, self.sag
@@ -498,7 +503,7 @@ class MuscleModel:
             self.f_PE[l] = Mechanics.passive_pe(self.P.l_MT[l] / self.P.l_M_opt)
             self.f_FL[l] = Mechanics.force_length(self.active_state[l], self.P.l_MT[l] / self.P.l_M_opt)
 
-        if self.P.sag == 1 and self.type == "fast" and self.fs > 5:
+        if self.P.sag == 1 and self.type == "fast":
             time_factor = self.sag
         else:
             time_factor = 1.0

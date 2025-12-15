@@ -6,7 +6,6 @@ University of New South Wales, GSBE
 Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
 
 """
-#%%
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -21,93 +20,6 @@ from scipy.optimize import minimize
 
 from MU_model import MU_model  
 
-
-# from scipy.signal import butter, filtfilt
-# from scipy.interpolate import interp1d
-
-# base_path = Path(r"C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Data\biologicalBenchmark\MU_FR")
-
-# csv_file = base_path / "MU_FR_twitch.csv"
-# data = pd.read_csv(csv_file, sep=r"\s", engine="python").to_numpy()
-# data_x = data[:,0] - data[:,0].min()
-# data_y = np.where(data[:,1] < 0, 0.0, data[:,1])
-# data_y[0] = 0
-
-# dx = np.diff(data_x)
-# fs = 1.0 / np.median(dx) 
-
-# # # cs = interp1d(data_x, data_y, kind="cubic")
-# # # data_x = np.linspace(data_x[0], data_x[-1], 200)
-# # # data_y = cs(data_x)
-
-# b, a = butter(N=3, Wn=30/(fs / 2.0), btype="low", analog=False)
-# data_y = filtfilt(b, a, data_y)
-# data_y = np.where(data_y < 0, 0.0, data_y)
-
-# plt.plot(data_x, data_y)
-
-# out_array = np.column_stack((data_x, data_y))
-# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Data\biologicalBenchmark\MU_FR')
-# np.save(base_path / "MU_FR_twitch.npy", out_array)
-
-#%%
-os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\MuscleModelBenchmarks\MU_model')
-# disp = np.load('disp_sub_length_interp.npy')
-# time_dt = np.arange(0, 0.2, 1e-4)         # passo 1e-4 s -> 2000 campioni
-
-# # --- Intervallo da smussare ---
-# i0, i1 = 1120, 1800
-# assert 0 <= i0 < i1 < len(disp), "Indici fuori range"
-
-# t0, t1 = time_dt[i0], time_dt[i1]
-# y0, y1 = float(disp[i0]), float(disp[i1])
-
-# # Derivate locali (pendenze) ai due estremi — usiamo differenze finite robuste
-# def local_slope(y, x, i):
-#     if 0 < i < len(y)-1:
-#         return (y[i+1] - y[i-1]) / (x[i+1] - x[i-1])  # centrale
-#     elif i == 0:
-#         return (y[1] - y[0]) / (x[1] - x[0])          # forward
-#     else:  # i == len(y)-1
-#         return (y[-1] - y[-2]) / (x[-1] - x[-2])      # backward
-
-# dy0 = local_slope(disp, time_dt, i0)
-# dy1 = local_slope(disp, time_dt, i1)
-
-# # === Cubico con vincoli: p(t0)=y0, p'(t0)=dy0, p(t1)=y1, p'(t1)=dy1 ===
-# # Scriviamo p(t) = a*t^3 + b*t^2 + c*t + d
-# # Risolviamo il sistema lineare per [a,b,c,d]
-# A = np.array([
-#     [t0**3, t0**2, t0, 1.0],        # p(t0) = y0
-#     [3*t0**2, 2*t0, 1.0, 0.0],      # p'(t0) = dy0
-#     [t1**3, t1**2, t1, 1.0],        # p(t1) = y1
-#     [3*t1**2, 2*t1, 1.0, 0.0],      # p'(t1) = dy1
-# ], dtype=float)
-# b = np.array([y0, dy0, y1, dy1], dtype=float)
-
-# a, b_, c, d = np.linalg.solve(A, b)
-
-# def p(t):
-#     return ((a*t + b_)*t + c)*t + d
-
-# # Costruiamo la nuova traccia: copiamo l’originale e sostituiamo SOLO [i0:i1]
-# disp_concat = np.copy(disp)
-# disp_concat[i0:i1+1] = p(time_dt[i0:i1+1])
-
-# # (Opzionale) Salva
-# np.save('disp_sub_length.npy', disp_concat)
-
-# # --- Plot di controllo: prima/dopo, e zona di smussamento ---
-# plt.figure(figsize=(9,4))
-# plt.plot(time_dt, disp,  label='Original', alpha=0.55)
-# plt.plot(time_dt, disp_concat, '--', label='Cubic C¹ splice [1120–1748]', linewidth=2)
-# plt.axvline(time_dt[i0], color='k', linestyle='--', alpha=0.4)
-# plt.axvline(time_dt[i1], color='k', linestyle='--', alpha=0.4)
-# plt.xlabel('Time [s]'); plt.ylabel('Displacement')
-# plt.legend(); plt.grid(True); plt.tight_layout()
-# plt.show()
-
-#%%
 # =====================================================================
 # Utils
 # =====================================================================
@@ -347,8 +259,8 @@ if scale == 'M': # muscle benchmarks
             yielding = 0
             sag = 0
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 25.5, 19.24, 10*np.pi/180] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 4.73, 10*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) # 19.24
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
         elif benchmark == 'FLR': # isometric length variation
@@ -360,16 +272,16 @@ if scale == 'M': # muscle benchmarks
             Distimes = part['spike_times_sec']
             time_dt = part['t_hi']
             exp_force = part['force_hi']
-            length = np.ones((len(time_dt)+1), dtype=object)*float(l)
+            length = float(l)
 
             muscle = 'rat_EDL'
             
             yielding = 0
             sag = 0
 
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 25.5, 25, 10*np.pi/180] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)
-            l_MT = l_MT_0 + length # full MT length array (n+1 points)
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 6.6, 10*np.pi/180] # MVC and M/T lengths
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) + length
+            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array (n+1 points)
 
         elif benchmark == 'dyn': # dynamic shortening
 
@@ -380,7 +292,7 @@ if scale == 'M': # muscle benchmarks
             exp_force = np.load(path / f"{fs}_{l}_{trial}.npy")
             muscle = 'cat_CF' # dorsi/plantar
 
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 24.3, 56, float(l)*(56), 0] # MVC and M/T lengths
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 24.3, 21.84, float(l)*(21.84), 0] # MVC and M/T lengths
             
             yielding = 0
             sag = 0
@@ -396,7 +308,7 @@ if scale == 'M': # muscle benchmarks
                     mvc_sample = 1090 # last sample before displacement 
             else:  # sub-maximal stimulation trials
                 t_end = 0.17
-                Distimes = np.arange(0, t_end, 1/float(fs)) # exp. discharge times
+                Distimes = np.arange(0, 0.15, 1/float(fs)) # exp. discharge times
                 a = 'sub' 
                 mvc_sample = 1119 # last sample before displacement 
 
@@ -630,55 +542,56 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 
 """  6) MFisof [Ca_max, k1, k2] on 80 Hz isometric trial (Millard new exp. data) """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+#def obj(x, parameters, states, Distimes, exp_force): 
     
-#     # parameters['Ca_max_f_M'] = x[0]
-#     # parameters['k1_f_M'] =  x[1]
-#     # parameters['k2_f_M'] = x[2]
-#     states['l_M_0'] = x[0]
-#     l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
-#     parameters['l_MT'] = np.ones((len(time_dt)+1), dtype=object)*l_MT_0
+    #parameters['Ca_max_f_M'] = x[0]
+    #parameters['k1_f_M'] =  x[1]
+    #parameters['k2_f_M'] = x[2]
+#    states['l_M_0'] = x[0]
+#    l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
+#    parameters['l_MT'] = np.ones((len(time_dt)+1), dtype=object)*l_MT_0
 
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#    model = MU_model(parameters, states, Distimes) # Create an model class instance
+#    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
-#     residuals = force_sim - exp_force  
-#     return np.sum(residuals**2)  
+#    residuals = force_sim - exp_force  
+#    return np.sum(residuals**2)  
 
-# # x0 = [5e5, 10, 10]
-# # bnds = [(1e5, 1e6), (10, 15), (10, 15)]
-# x0 = [20]
-# bnds = [(10, 25.5)]
+#x0 = [5e5, 10, 10]
+#bnds = [(1e5, 1e6), (10, 15), (10, 15)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
-#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+#x0 = [3]
+#bnds = [(1, 6.6)]
 
-# print("Optimized parameters:")
-# # print("Ca_max_f_M =", res.x[0])
-# # print("k1_f_M =", res.x[1])
-# # print("k2_f_M =", res.x[2])
-# print("l_M_0 =", res.x[0])
+#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+#print("Optimized parameters:")
+#print("Ca_max_f_M =", res.x[0])
+#print("k1_f_M =", res.x[1])
+#print("k2_f_M =", res.x[2])
+#print("l_M_0 =", res.x[0])
 
 """  7) MFisodyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+#def obj(x, parameters, states, Distimes, exp_force): 
     
-#     parameters['af_f'] = x[0]
+#    parameters['af_f'] = x[0]
 
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#    model = MU_model(parameters, states, Distimes) # Create an model class instance
+#    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
     
-#     residuals = force_sim[mvc_sample:]/force_sim[mvc_sample] - exp_force[mvc_sample:] # only when displacement is applied
-#     return np.sum(residuals**2)  
+#    residuals = force_sim[mvc_sample:]/force_sim[mvc_sample] - exp_force[mvc_sample:] # only when displacement is applied
+#    return np.sum(residuals**2)  
 
-# x0 = [0.4]
-# bnds = [(0.1, 10)]
+#x0 = [0.4]
+#bnds = [(0.1, 3)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
-#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#            x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
-# print("Optimized parameters:")
-# print("af_f =", res.x[0])
+#print("Optimized parameters:")
+#print("af_f =", res.x[0])
 
 """  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Burke exp. data) """
 
@@ -851,10 +764,10 @@ elif scale == 'Ca':
 # max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
 
 # Save results
-# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
+#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
 
-# np.save('dyn_120_0.95_short', force_sim, allow_pickle=True)
+#np.save('dyn_60_0.95_length', force_sim, allow_pickle=True)
 
-# os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
+#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
 
-# np.save('dyn_120_0.95_short', exp_force, allow_pickle=True)
+#np.save('dyn_60_0.95_length', exp_force, allow_pickle=True)

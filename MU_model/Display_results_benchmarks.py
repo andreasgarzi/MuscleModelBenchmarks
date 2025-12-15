@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 " Files were kept separated to avoid confusion in error and statistics computation"
 #############################################################################
 
-benchmark = 'MU' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'fast_M_dyn' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
@@ -55,8 +55,8 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 1)
     plt.plot(time_dt, exp1, 'k', label='Experimental')
     plt.plot(time_dt, sim1, 'r', label='Simulated')
-    plt.title(u"Max. displ. = \u00B1 0.05 mm", x=0.16, y=0.97, weight='bold')
-    plt.legend(loc=(0.7, -0.18), fontsize=12)
+    plt.title(u"\u00B1 0.05 mm", x=0.1, y=0.97, weight='bold')
+    plt.legend(loc=(0.7, -0.2), fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -64,7 +64,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 2)
     plt.plot(time_dt, exp2, 'k')
     plt.plot(time_dt, sim2, 'r')
-    plt.title(u"Max. displ. = \u00B1 0.10 mm", x=0.16, y=0.97, weight='bold')
+    plt.title(u"\u00B1 0.10 mm", x=0.1, y=0.97, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -72,7 +72,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 3)
     plt.plot(time_dt, exp3, 'k')
     plt.plot(time_dt, sim3, 'r')
-    plt.title(u"Max. displ. = \u00B1 0.25 mm", x=0.16, y=0.97, weight='bold')
+    plt.title(u"\u00B1 0.25 mm", x=0.1, y=0.97, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -80,7 +80,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 4)
     plt.plot(time_dt, exp4, 'k')
     plt.plot(time_dt, sim4, 'r')
-    plt.title(u"Max. displ. = \u00B1 0.50 mm", x=0.16, y=0.97, weight='bold')
+    plt.title(u"\u00B1 0.50 mm", x=0.1, y=0.97, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -88,7 +88,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 5)
     plt.plot(time_dt, exp5, 'k')
     plt.plot(time_dt, sim5, 'r')
-    plt.title(u"Max. displ. = \u00B1 1.00 mm", x=0.16, y=0.97, weight='bold')
+    plt.title(u"\u00B1 1.00 mm", x=0.1, y=0.97, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -97,10 +97,13 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.subplot(6, 1, 6)
     plt.plot(time_dt, exp6, 'k')
     plt.plot(time_dt, sim6, 'r')
-    plt.title(u"Max. displ. = \u00B1 2.00 mm", x=0.16, y=0.97, weight='bold')
+    plt.title(u"\u00B1 2.00 mm", x=0.1, y=0.97, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
+
+    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical', 
+         weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
@@ -119,20 +122,29 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
 
     for exp, sim, disp in zip(exp_all, sim_all, displacements):
 
-        # error in %MVC
-        abs_err = np.abs((sim / MVC) - (exp / MVC)) * 100.0
+        # maschera: prendi solo punti dove almeno uno è ≠ 0
+        mask = (exp != 0) | (sim != 0)
 
-        mae  = np.mean(abs_err)
-        maxae = np.max(abs_err)
-        stde = np.std(abs_err)
+        if np.any(mask):  # evita errori se tutti 0
+            abs_err = np.abs((sim[mask] / MVC) - (exp[mask] / MVC)) * 100.0
+
+            mae  = np.mean(abs_err)
+            maxae = np.max(abs_err)
+            stde = np.std(abs_err)
+        else:
+            mae = maxae = stde = 0.0
 
         mean_err_list.append(mae)
         max_err_list.append(maxae)
         std_err_list.append(stde)
 
         print(f"Displacement ±{disp:.2f} mm:")
-        print(f"  Mean Abs. Error = {mae:.2f}% MVC   (std = {stde:.2f})")
-        print(f"  Max  Abs. Error = {maxae:.2f}% MVC\n")
+        print(f"  mAE = {mae:.2f}% MVC   (std = {stde:.2f})")
+        print(f"  MAE = {maxae:.2f}% MVC\n")
+
+    mmae  = np.mean(mean_err_list)
+    mstde = np.std(mean_err_list)
+    print(f"  Mean mAE = {mmae:.2f}% MVC   (std = {mstde:.2f})")
 
     x = np.arange(1, len(displacements) + 1)
 
@@ -143,7 +155,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
     # mean + std area
-    ax.plot(x, mean_err_arr, '-o', color='k', label='Mean absolute err.')
+    ax.plot(x, mean_err_arr, '-o', color='k', label='mean absolute err. ± SD')
     ax.fill_between(
         x,
         mean_err_arr - std_err_arr,
@@ -153,11 +165,11 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     )
 
     # max
-    ax.plot(x, max_err_arr, '--*', color='k', label='Max absolute err.')
+    ax.plot(x, max_err_arr, '--*', color='k', label='max. absolute err.')
 
     ax.set_xticks(x)
     ax.set_xticklabels([f'{d:.2f}' for d in displacements])
-    ax.set_xlabel('Max. displacement amplitude [mm]', fontweight='bold')
+    ax.set_xlabel('Max. length variation amplitude [mm]', fontweight='bold')
     ax.set_ylabel('Error [%MVC]', fontweight='bold')
     ax.set_ylim(bottom=0)
     ax.legend()
@@ -191,18 +203,17 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     fig = plt.figure(figsize=(10, 9))
 
     plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_iso_c_10, 'k', label='Experimental')
-    plt.plot(time_dt, sim_iso_c_10, 'r', label='Simulated')
+    plt.plot(time_dt, exp_iso_c_10, 'k')
+    plt.plot(time_dt, sim_iso_c_10, 'r')
     plt.title(u"Constant 10 Hz", x=0.16, y=0.99, weight='bold')
-    plt.legend(loc=(0.7, 0.95), fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_iso_v_10, 'k')
-    plt.plot(time_dt, sim_iso_v_10, 'r')
+    plt.plot(time_dt, exp_iso_v_10, 'k', label='Experimental')
+    plt.plot(time_dt, sim_iso_v_10, 'r', label='Simulated')
     plt.title(u"Random 10 Hz", x=0.16, y=0.99, weight='bold')
+    plt.legend(loc='upper right', fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
@@ -226,7 +237,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.plot(time_dt, sim_iso_c_30, 'r')
     plt.title(u"Constant 30 Hz", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 6)
@@ -246,6 +256,13 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     sim_dyn_c_20_8 = np.load(sim_path / 'sub_dyn_c_20_8.npy')
     sim_dyn_c_30_8 = np.load(sim_path / 'sub_dyn_c_30_8.npy')
 
+    sim_dyn_c_10_1_noy = np.load(sim_path / 'sub_dyn_c_10_1_noy.npy')
+    sim_dyn_c_20_1_noy = np.load(sim_path / 'sub_dyn_c_20_1_noy.npy')
+    sim_dyn_c_30_1_noy = np.load(sim_path / 'sub_dyn_c_30_1_noy.npy')
+    sim_dyn_c_10_8_noy = np.load(sim_path / 'sub_dyn_c_10_8_noy.npy')
+    sim_dyn_c_20_8_noy = np.load(sim_path / 'sub_dyn_c_20_8_noy.npy')
+    sim_dyn_c_30_8_noy = np.load(sim_path / 'sub_dyn_c_30_8_noy.npy')
+
     exp_dyn_c_10_1 = np.load(exp_path / 'sub_dyn_c_10_1.npy')
     exp_dyn_c_20_1 = np.load(exp_path / 'sub_dyn_c_20_1.npy')
     exp_dyn_c_30_1 = np.load(exp_path / 'sub_dyn_c_30_1.npy')
@@ -256,50 +273,54 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     fig = plt.figure(figsize=(10, 9))
     
     plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_dyn_c_10_1, 'k', label='Experimental')
-    plt.plot(time_dt, sim_dyn_c_10_1, 'r', label='Simulated')
-    plt.title(u"Const. 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
-    plt.legend(loc=(0.7, 0.95), fontsize=12)
+    plt.plot(time_dt, exp_dyn_c_10_1, 'k')
+    plt.plot(time_dt, sim_dyn_c_10_1, 'r')
+    plt.plot(time_dt, sim_dyn_c_10_1_noy, 'r--')
+    plt.title(u"Constant 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_c_10_8, 'k')
-    plt.plot(time_dt, sim_dyn_c_10_8, 'r')
-    plt.title(u"Const. 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, exp_dyn_c_10_8, 'k', label='Experimental')
+    plt.plot(time_dt, sim_dyn_c_10_8, 'r', label='Simulated (yielding)')
+    plt.plot(time_dt, sim_dyn_c_10_8_noy, 'r--', label='Simulated (no yielding)')
+    plt.legend(loc='upper right', fontsize=12)
+    plt.title(u"Constant 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 3)
     plt.plot(time_dt, exp_dyn_c_20_1, 'k')
     plt.plot(time_dt, sim_dyn_c_20_1, 'r')
-    plt.title(u"Const. 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_c_20_1_noy, 'r--')
+    plt.title(u"Constant 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_dyn_c_20_8, 'k')
     plt.plot(time_dt, sim_dyn_c_20_8, 'r')
-    plt.title(u"Const. 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_c_20_8_noy, 'r--')
+    plt.title(u"Constant 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 5)
     plt.plot(time_dt, exp_dyn_c_30_1, 'k')
     plt.plot(time_dt, sim_dyn_c_30_1, 'r')
-    plt.title(u"Const. 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_c_30_1_noy, 'r--')
+    plt.title(u"Constant 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 6)
     plt.plot(time_dt, exp_dyn_c_30_8, 'k')
     plt.plot(time_dt, sim_dyn_c_30_8, 'r')
-    plt.title(u"Const. 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_c_30_8_noy, 'r--')
+    plt.title(u"Constant 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.tight_layout()
     plt.show()
@@ -311,6 +332,13 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     sim_dyn_v_20_8 = np.load(sim_path / 'sub_dyn_v_20_8.npy')
     sim_dyn_v_30_8 = np.load(sim_path / 'sub_dyn_v_30_8.npy')
 
+    sim_dyn_v_10_1_noy = np.load(sim_path / 'sub_dyn_v_10_1_noy.npy')
+    sim_dyn_v_20_1_noy = np.load(sim_path / 'sub_dyn_v_20_1_noy.npy')
+    sim_dyn_v_30_1_noy = np.load(sim_path / 'sub_dyn_v_30_1_noy.npy')
+    sim_dyn_v_10_8_noy = np.load(sim_path / 'sub_dyn_v_10_8_noy.npy')
+    sim_dyn_v_20_8_noy = np.load(sim_path / 'sub_dyn_v_20_8_noy.npy')
+    sim_dyn_v_30_8_noy = np.load(sim_path / 'sub_dyn_v_30_8_noy.npy')
+
     exp_dyn_v_10_1 = np.load(exp_path / 'sub_dyn_v_10_1.npy')
     exp_dyn_v_20_1 = np.load(exp_path / 'sub_dyn_v_20_1.npy')
     exp_dyn_v_30_1 = np.load(exp_path / 'sub_dyn_v_30_1.npy')
@@ -321,50 +349,54 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     fig = plt.figure(figsize=(10, 9))
 
     plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_dyn_v_10_1, 'k', label='Experimental')
-    plt.plot(time_dt, sim_dyn_v_10_1, 'r', label='Simulated')
-    plt.title(u"Rand. 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
-    plt.legend(loc=(0.7, 0.95), fontsize=12)
+    plt.plot(time_dt, exp_dyn_v_10_1, 'k')
+    plt.plot(time_dt, sim_dyn_v_10_1, 'r')
+    #plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
+    plt.title(u"Random 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_v_10_8, 'k')
-    plt.plot(time_dt, sim_dyn_v_10_8, 'r')
-    plt.title(u"Rand. 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, exp_dyn_v_10_8, 'k', label='Experimental')
+    plt.plot(time_dt, sim_dyn_v_10_8, 'r', label='Simulated')
+    #plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--', label='Simulated (no yielding)')
+    plt.legend(loc='upper right', fontsize=12)
+    plt.title(u"Random 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 3)
     plt.plot(time_dt, exp_dyn_v_20_1, 'k')
     plt.plot(time_dt, sim_dyn_v_20_1, 'r')
-    plt.title(u"Rand. 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    #plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
+    plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_dyn_v_20_8, 'k')
     plt.plot(time_dt, sim_dyn_v_20_8, 'r')
-    plt.title(u"Rand. 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    #plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
+    plt.title(u"Random 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 5)
     plt.plot(time_dt, exp_dyn_v_30_1, 'k')
     plt.plot(time_dt, sim_dyn_v_30_1, 'r')
-    plt.title(u"Rand. 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    #plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
+    plt.title(u"Random 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.subplot(3, 2, 6)
     plt.plot(time_dt, exp_dyn_v_30_8, 'k')
     plt.plot(time_dt, sim_dyn_v_30_8, 'r')
-    plt.title(u"Rand. 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    #plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
+    plt.title(u"Random 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
+    plt.ylim((0, 37))
 
     plt.tight_layout()
     plt.show()
@@ -373,11 +405,18 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     # Errors
     # =========================
     def pct_errors_full(exp: np.ndarray, sim: np.ndarray, MVC: float):
-        # errore in %MVC
-        abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        mae  = float(np.mean(abs_err_pct))
+
+        mask = (exp != 0) | (sim != 0)
+        if not np.any(mask):
+           return 0.0, 0.0, 0.0
+
+        exp_nz = exp[mask]
+        sim_nz = sim[mask]
+
+        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
+        mae   = float(np.mean(abs_err_pct))
         maxae = float(np.max(abs_err_pct))
-        stde = float(np.std(abs_err_pct))
+        stde  = float(np.std(abs_err_pct))
         return mae, maxae, stde
 
     print("\n=== Benchmark: slow_M_sub ===")
@@ -440,14 +479,65 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
 
     print(f"{'DYN Rand Average':>23}:  MAE = {np.mean(dynv_mae):6.2f}% MVC  (std = {np.mean(dynv_std):6.2f})   MaxAE = {np.mean(dynv_max):6.2f}% MVC\n")
 
+
+    # -------- DYN (constant) — NO YIELDING --------
+    dyn_c_trials_noy = [
+        ("DYN Const 10 Hz ±1 mm (NOY)", exp_dyn_c_10_1, sim_dyn_c_10_1_noy),
+        ("DYN Const 10 Hz ±8 mm (NOY)", exp_dyn_c_10_8, sim_dyn_c_10_8_noy),
+        ("DYN Const 20 Hz ±1 mm (NOY)", exp_dyn_c_20_1, sim_dyn_c_20_1_noy),
+        ("DYN Const 20 Hz ±8 mm (NOY)", exp_dyn_c_20_8, sim_dyn_c_20_8_noy),
+        ("DYN Const 30 Hz ±1 mm (NOY)", exp_dyn_c_30_1, sim_dyn_c_30_1_noy),
+        ("DYN Const 30 Hz ±8 mm (NOY)", exp_dyn_c_30_8, sim_dyn_c_30_8_noy),
+    ]
+
+    dync_noy_mae, dync_noy_max, dync_noy_std = [], [], []
+    print("— Dynamic (constant) trials — NO YIELDING —")
+    for name, exp, sim_noy in dyn_c_trials_noy:
+        mae, maxae, stde = pct_errors_full(exp, sim_noy, MVC)
+        dync_noy_mae.append(mae); dync_noy_max.append(maxae); dync_noy_std.append(stde)
+        print(f"{name:>34}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    print(f"{'DYN Const Average (NOY)':>34}:  MAE = {np.mean(dync_noy_mae):6.2f}% MVC  "
+          f"(std = {np.mean(dync_noy_std):6.2f})   MaxAE = {np.mean(dync_noy_max):6.2f}% MVC\n")
+
+    # -------- DYN (random/variable) — NO YIELDING --------
+    dyn_v_trials_noy = [
+        ("DYN Rand 10 Hz ±1 mm (NOY)", exp_dyn_v_10_1, sim_dyn_v_10_1_noy),
+        ("DYN Rand 10 Hz ±8 mm (NOY)", exp_dyn_v_10_8, sim_dyn_v_10_8_noy),
+        ("DYN Rand 20 Hz ±1 mm (NOY)", exp_dyn_v_20_1, sim_dyn_v_20_1_noy),
+        ("DYN Rand 20 Hz ±8 mm (NOY)", exp_dyn_v_20_8, sim_dyn_v_20_8_noy),
+        ("DYN Rand 30 Hz ±1 mm (NOY)", exp_dyn_v_30_1, sim_dyn_v_30_1_noy),
+        ("DYN Rand 30 Hz ±8 mm (NOY)", exp_dyn_v_30_8, sim_dyn_v_30_8_noy),
+    ]
+
+    dynv_noy_mae, dynv_noy_max, dynv_noy_std = [], [], []
+    print("— Dynamic (random) trials — NO YIELDING —")
+    for name, exp, sim_noy in dyn_v_trials_noy:
+        mae, maxae, stde = pct_errors_full(exp, sim_noy, MVC)
+        dynv_noy_mae.append(mae); dynv_noy_max.append(maxae); dynv_noy_std.append(stde)
+        print(f"{name:>33}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    print(f"{'DYN Rand Average (NOY)':>33}:  MAE = {np.mean(dynv_noy_mae):6.2f}% MVC  "
+          f"(std = {np.mean(dynv_noy_std):6.2f})   MaxAE = {np.mean(dynv_noy_max):6.2f}% MVC\n")
+
+
+    # ---------------------------
+    # helper per i plot
+    # ---------------------------
     def build_err(trials, MVC):
         mean_list, max_list, std_list = [], [], []
         for _, exp, sim in trials:
-            abs_err = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-            mean_list.append(np.mean(abs_err))
-            max_list.append(np.max(abs_err))
-            std_list.append(np.std(abs_err))
+            # filtro anche qui
+            mask = (exp != 0) | (sim != 0)
+            if np.any(mask):
+                abs_err = np.abs((sim[mask] / MVC) - (exp[mask] / MVC)) * 100.0
+                mean_list.append(np.mean(abs_err))
+                max_list.append(np.max(abs_err))
+                std_list.append(np.std(abs_err))
+            else:
+                mean_list.append(0.0)
+                max_list.append(0.0)
+                std_list.append(0.0)
         return np.array(mean_list), np.array(max_list), np.array(std_list)
+
 
     iso_trials_plot = [
         ("Const 10 Hz", exp_iso_c_10, sim_iso_c_10),
@@ -456,7 +546,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("Rand 10 Hz",  exp_iso_v_10, sim_iso_v_10),
         ("Rand 20 Hz",  exp_iso_v_20, sim_iso_v_20),
         ("Rand 30 Hz",  exp_iso_v_30, sim_iso_v_30),
-    ]
+    ]  
     mean_iso, max_iso, std_iso = build_err(iso_trials_plot, MVC)
 
     dyn_1mm_trials = [
@@ -482,24 +572,24 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     x = np.arange(1, 6 + 1)
     x_labels = ["C10", "C20", "C30", "R10", "R20", "R30"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(11, 4), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
 
     def plot_panel(ax, x, mean_arr, max_arr, std_arr, title):
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        ax.plot(x, mean_arr, '-o', color='k', label='Mean abs. err.')
+        ax.plot(x, mean_arr, '-o', color='k', label='Mean absolute err. ± SD')
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-        ax.plot(x, max_arr, '--*', color='k', label='Max abs. err.')
+        ax.plot(x, max_arr, '--*', color='k', label='Max. absolute err.')
 
         ax.set_xticks(x)
         ax.set_xticklabels(x_labels)
         ax.set_title(title, fontweight='bold')
         ax.set_ylim([0, 45])
 
-    plot_panel(axes[0], x, mean_iso,  max_iso,  std_iso,  "Isometric")
-    plot_panel(axes[1], x, mean_1mm,  max_1mm,  std_1mm,  "Dynamic ±1 mm")
-    plot_panel(axes[2], x, mean_8mm,  max_8mm,  std_8mm,  "Dynamic ±8 mm")
+    #plot_panel(axes[0], x, mean_iso,  max_iso,  std_iso,  "Isometric")
+    plot_panel(axes[0], x, mean_1mm,  max_1mm,  std_1mm,  "Dynamic ±1 mm")
+    plot_panel(axes[1], x, mean_8mm,  max_8mm,  std_8mm,  "Dynamic ±8 mm")
 
     axes[0].set_ylabel('Error [%MVC]', fontweight='bold')
     for ax in axes:
@@ -550,15 +640,14 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 1)
     plt.plot(time_dt, exp_twitch_0, 'k')
     plt.plot(time_dt, sim_twitch_0, 'r')
-    plt.title(u"1 Hz, 0.0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 2)
     plt.plot(time_dt, exp_twitch_8, 'k', label='Experimental')
     plt.plot(time_dt, sim_twitch_8, 'r', label='Simulated')
-    plt.title(u"1 Hz, - 8.0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
     plt.legend(loc=(0.2, 0.6), fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
@@ -566,88 +655,91 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 3)
     plt.plot(time_dt, exp_twitch_16, 'k')
     plt.plot(time_dt, sim_twitch_16, 'r')
-    plt.title(u"1 Hz, - 16.0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
     plt.subplot(4, 3, 4)
     plt.plot(time_dt, exp_iso_0_10, 'k')
     plt.plot(time_dt, sim_iso_0_10, 'r')
-    plt.title(u"10 Hz, - 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 5)
     plt.plot(time_dt, exp_iso_8_10, 'k')
     plt.plot(time_dt, sim_iso_8_10, 'r')
-    plt.title(u"10 Hz, - 8 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 6)
     plt.plot(time_dt, exp_iso_16_10, 'k')
     plt.plot(time_dt, sim_iso_16_10, 'r')
-    plt.title(u"10 Hz, - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 7)
     plt.plot(time_dt, exp_iso_0_20, 'k')
     plt.plot(time_dt, sim_iso_0_20, 'r')
-    plt.title(u"20 Hz, - 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 8)
     plt.plot(time_dt, exp_iso_8_20, 'k')
     plt.plot(time_dt, sim_iso_8_20, 'r')
-    plt.title(u"20 Hz, - 8 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 9)
     plt.plot(time_dt, exp_iso_16_20, 'k')
     plt.plot(time_dt, sim_iso_16_20, 'r')
-    plt.title(u"20 Hz, - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 10)
     plt.plot(time_dt, exp_iso_0_40, 'k')
     plt.plot(time_dt, sim_iso_0_40, 'r')
-    plt.title(u"40 Hz, - 0 mm", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 35))
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 11)
     plt.plot(time_dt, exp_iso_8_40, 'k')
     plt.plot(time_dt, sim_iso_8_40, 'r')
-    plt.title(u"40 Hz, - 8 mm", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 35))
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 12)
     plt.plot(time_dt, exp_iso_16_40, 'k')
     plt.plot(time_dt, sim_iso_16_40, 'r')
-    plt.title(u"40 Hz, - 16 mm", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 35))
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
+
+    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical', 
+         weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
 
     # Error
     def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
-        abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        mae  = float(np.mean(abs_err_pct))
+        # considera solo i punti dove almeno uno è diverso da zero
+        mask = (exp != 0) | (sim != 0)
+        if not np.any(mask):
+            return 0.0, 0.0, 0.0
+
+        exp_nz = exp[mask]
+        sim_nz = sim[mask]
+
+        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
+        mae   = float(np.mean(abs_err_pct))
         maxae = float(np.max(abs_err_pct))
-        stde = float(np.std(abs_err_pct))
+        stde  = float(np.std(abs_err_pct))
         return mae, maxae, stde
 
     print("\n=== Benchmark: slow_M_len (Perreault/Kim) ===")
@@ -688,17 +780,30 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         f"MaxAE = {np.mean(all_maxae):6.2f}% MVC\n"
     )
 
-
+    # ------------------------------------------------
+    # funzione per i 3 pannelli (0, -8, -16 mm)
+    # ------------------------------------------------
     def build_len_err(exp_list, sim_list, MVC):
         mean_list, max_list, std_list = [], [], []
         for exp, sim in zip(exp_list, sim_list):
-            abs_err = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-            mean_list.append(np.mean(abs_err))
-            max_list.append(np.max(abs_err))
-            std_list.append(np.std(abs_err))
-        return (np.array(mean_list),
-                np.array(max_list),
-                np.array(std_list))
+            # maschera non-zero
+            mask = (exp != 0) | (sim != 0)
+            if np.any(mask):
+                exp_nz = exp[mask]
+                sim_nz = sim[mask]
+                abs_err = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
+                mean_list.append(np.mean(abs_err))
+                max_list.append(np.max(abs_err))
+                std_list.append(np.std(abs_err))
+            else:
+                mean_list.append(0.0)
+                max_list.append(0.0)
+                std_list.append(0.0)
+        return (
+            np.array(mean_list),
+            np.array(max_list),
+            np.array(std_list),
+        )
 
     # 0 mm
     mean_0, max_0, std_0 = build_len_err(
@@ -711,7 +816,7 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         [exp_twitch_8, exp_iso_8_10, exp_iso_8_20, exp_iso_8_40],
         [sim_twitch_8, sim_iso_8_10, sim_iso_8_20, sim_iso_8_40],
         MVC
-    )
+    ) 
     # -16 mm
     mean_16, max_16, std_16 = build_len_err(
         [exp_twitch_16, exp_iso_16_10, exp_iso_16_20, exp_iso_16_40],
@@ -728,19 +833,18 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        ax.plot(x, mean_arr, '-o', color='k', label='Mean abs. err.')
+        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD')
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-        ax.plot(x, max_arr, '--*', color='k', label='Max abs. err.')
+        ax.plot(x, max_arr, '--*', color='k', label='MAE')
 
         ax.set_xticks(x)
         ax.set_xticklabels(x_labels)
         ax.set_title(title, fontweight='bold')
-        ax.grid(True, alpha=0.4)
         ax.set_ylim(bottom=0)
 
-    plot_panel(axes[0], x, mean_0,  max_0,  std_0,  "Length = 0 mm")
-    plot_panel(axes[1], x, mean_8,  max_8,  std_8,  "Length = -8 mm")
-    plot_panel(axes[2], x, mean_16, max_16, std_16, "Length = -16 mm")
+    plot_panel(axes[0], x, mean_0,  max_0,  std_0,  r"$\boldsymbol{\Delta}\mathbf{L}$ = 0 mm")
+    plot_panel(axes[1], x, mean_8,  max_8,  std_8,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm")
+    plot_panel(axes[2], x, mean_16,  max_16,  std_16,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm")
 
     axes[0].set_ylabel('Error [%MVC]', fontweight='bold')
     for ax in axes:
@@ -750,7 +854,7 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.tight_layout()
     plt.show()
 
-
+    
 elif benchmark == 'MU': # Burke 1974 experiments
 
     sim_path = base_path / 'MU' / 'sim' # experimental path
@@ -767,7 +871,9 @@ elif benchmark == 'MU': # Burke 1974 experiments
     sim_S_unfused = np.load(sim_path / 'slow_unfused.npy')
     sim_S_fused = np.load(sim_path / 'slow_fused.npy')
     sim_F_twitch = np.load(sim_path / 'fast_twitch.npy')
+    sim_F_twitch_nosag = np.load(sim_path / 'fast_twitch_nosag.npy')
     sim_F_unfused = np.load(sim_path / 'fast_unfused.npy')
+    sim_F_unfused_nosag = np.load(sim_path / 'fast_unfused_nosag.npy')
     sim_F_fused = np.load(sim_path / 'fast_fused.npy')
 
     t_end_S = 1.8 # total seconds
@@ -780,16 +886,16 @@ elif benchmark == 'MU': # Burke 1974 experiments
     fig = plt.figure(figsize=(12, 7))
 
     plt.subplot(2, 3, 1)
-    plt.plot(time_dt_S, exp_S_twitch, 'k', label='Experimental')
-    plt.plot(time_dt_S, sim_S_twitch, 'r', label='Simulated')
+    plt.plot(time_dt_S, exp_S_twitch, 'k')
+    plt.plot(time_dt_S, sim_S_twitch, 'r')
     plt.title(u"1 Hz, slow", x=0.3, y=0.99, weight='bold')
-    plt.legend(loc=(0.7, 0.9), fontsize=12)
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, MVC_S+0.01))
 
     plt.subplot(2, 3, 4)
     plt.plot(time_dt_F, exp_F_twitch, 'k')
     plt.plot(time_dt_F, sim_F_twitch, 'r')
+    plt.plot(time_dt_F, sim_F_twitch_nosag, 'r--')
     plt.title(u"1 Hz, fast", x=0.3, y=0.99, weight='bold')
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, MVC_F))
@@ -804,15 +910,18 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.subplot(2, 3, 5)
     plt.plot(time_dt_F, exp_F_unfused, 'k')
     plt.plot(time_dt_F, sim_F_unfused, 'r')
+    plt.plot(time_dt_F, sim_F_unfused_nosag, 'r--')
     plt.title(u"25 Hz, fast", x=0.3, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_F))
 
     plt.subplot(2, 3, 3)
-    plt.plot(time_dt_S, exp_S_fused, 'k')
-    plt.plot(time_dt_S, sim_S_fused, 'r')
+    plt.plot(time_dt_S, exp_S_fused, 'k', label='Experimental')
+    plt.plot(time_dt_S, sim_S_fused, 'r', label='Simulated (sag)')
+    plt.plot(time_dt_S, sim_S_fused, 'r--', label='Simulated (no sag)')
     plt.title(u"40 Hz, slow", x=0.3, y=0.99, weight='bold')
+    plt.legend(loc='upper right', fontsize=12)
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_S+0.01))
 
@@ -827,10 +936,17 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.show()
 
     def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
-        abs_err_pct = np.abs((sim / MVC) - (exp / MVC)) * 100.0
-        mae  = float(np.mean(abs_err_pct))
+        mask = (exp != 0) | (sim != 0)
+        if not np.any(mask):
+            return 0.0, 0.0, 0.0
+
+        exp_nz = exp[mask]
+        sim_nz = sim[mask]
+
+        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
+        mae   = float(np.mean(abs_err_pct))
         maxae = float(np.max(abs_err_pct))
-        stde = float(np.std(abs_err_pct))
+        stde  = float(np.std(abs_err_pct))
         return mae, maxae, stde
 
     print("\n=== Benchmark: MU (Burke 1974) ===")
@@ -882,8 +998,30 @@ elif benchmark == 'MU': # Burke 1974 experiments
         f"MaxAE = {np.mean(maxae_f):6.2f}% MVC\n"
     )
 
+        # --------- Fast MU trials — NO SAG ---------
+    fast_trials_nosag = [
+        ("Fast Twitch  (1 Hz, no sag)",   exp_F_twitch,  sim_F_twitch_nosag,   MVC_F),
+        ("Fast Unfused (25 Hz, no sag)",  exp_F_unfused, sim_F_unfused_nosag,  MVC_F),
+    ]
 
-elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experiments
+    mae_f_nosag, maxae_f_nosag, std_f_nosag = [], [], []
+    print("— Fast MU trials — NO SAG —")
+    for name, exp, sim_nosag, mvc in fast_trials_nosag:
+        mae, maxae, stde = pct_errors(exp, sim_nosag, mvc)
+        mae_f_nosag.append(mae)
+        maxae_f_nosag.append(maxae)
+        std_f_nosag.append(stde)
+        print(f"{name:>30}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+
+    print(
+        f"{'Fast Average (no sag)':>30}:  "
+        f"MAE = {np.mean(mae_f_nosag):6.2f}% MVC  "
+        f"(std = {np.mean(std_f_nosag):6.2f})   "
+        f"MaxAE = {np.mean(maxae_f_nosag):6.2f}% MVC\n"
+    )
+
+
+elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
 
     sim_path = base_path / 'fast_M' / 'sim'
     exp_path = base_path / 'fast_M' / 'exp'
@@ -964,14 +1102,18 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
     # FFR experimental
     for i, (f, y) in enumerate(zip(freqs, exp_FFR_series)):
         ax_ffr_exp.plot(time_dt, y, color=str(gray_levels[i]), label=f"{f} Hz")
-    ax_ffr_exp.set_title("Experimental FFR", weight='bold')
+    ax_ffr_exp.set_title("Experimental", weight='bold')
+    ax_ffr_exp.set_ylim([-0.08, 1.7])
     ax_ffr_exp.set_ylabel("Force [N]", weight='bold')
+    ax_ffr_exp.set_xlabel("Time [s]", weight='bold')
     ax_ffr_exp.legend(loc='upper right', fontsize=7)
 
     # FFR simulated
     for i, (f, y) in enumerate(zip(freqs, sim_FFR_series)):
         ax_ffr_sim.plot(time_dt, y, color=(red_levels[i], 0, 0), label=f"{f} Hz")
-    ax_ffr_sim.set_title("Simulated FFR", weight='bold')
+    ax_ffr_sim.set_ylim([-0.08, 1.7])
+    ax_ffr_sim.set_title("Simulated", weight='bold')
+    ax_ffr_sim.set_xlabel("Time [s]", weight='bold')
     ax_ffr_sim.legend(loc='upper right', fontsize=7)
 
     # FLR experimental
@@ -980,16 +1122,16 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
     red_levels_flr = np.linspace(0.4, 1.0, n_flr)
 
     for i, (d, y) in enumerate(zip(disp_mm, exp_FLR_series)):
-        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]), label=f"+ {d:.1f} mm")
-    ax_flr_exp.set_title("Experimental FLR", weight='bold')
+        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]),  label=f"$\Delta L$ = + {d:.1f} mm")
+    ax_flr_exp.set_title("Experimental", weight='bold')
     ax_flr_exp.set_ylabel("Force [N]", weight='bold')
     ax_flr_exp.set_xlabel("Time [s]", weight='bold')
     ax_flr_exp.legend(loc='upper right', fontsize=7)
 
     # FLR simulated
     for i, (d, y) in enumerate(zip(disp_mm, sim_FLR_series)):
-        ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0), label=f"+ {d:.1f} mm")
-    ax_flr_sim.set_title("Simulated FLR", weight='bold')
+        ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0), label=f"$\Delta L$ = + {d:.1f} mm")
+    ax_flr_sim.set_title("Simulated", weight='bold')
     ax_flr_sim.set_xlabel("Time [s]", weight='bold')
     ax_flr_sim.legend(loc='upper right', fontsize=7)
 
@@ -997,11 +1139,22 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
     plt.show()
 
     # =======================
-    # Erros % MVC
+    # Errors % MVC
     # =======================
-    def pct_err_all(exp_arr, sim_arr, MVC):
-        abs_err_pct = np.abs((sim_arr / MVC) - (exp_arr / MVC)) * 100.0
-        return float(np.mean(abs_err_pct)), float(np.max(abs_err_pct)), float(np.std(abs_err_pct))
+    def pct_err_all(exp_arr: np.ndarray, sim_arr: np.ndarray, MVC: float):
+        # usa solo i campioni dove almeno uno è diverso da 0
+        mask = (exp_arr != 0) | (sim_arr != 0)
+        if not np.any(mask):
+            return 0.0, 0.0, 0.0
+
+        exp_nz = exp_arr[mask]
+        sim_nz = sim_arr[mask]
+
+        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
+        mae   = float(np.mean(abs_err_pct))
+        maxae = float(np.max(abs_err_pct))
+        stde  = float(np.std(abs_err_pct))
+        return mae, maxae, stde
 
     print("\n=== Benchmark: fast_M_iso ===")
     print(f"MVC = {MVC:.2f} N\n")
@@ -1031,43 +1184,48 @@ elif benchmark == 'fast_M_iso':  # Kim et al. 2015 from Perreault 2003 experimen
     ffr_mean_arr = np.array(ffr_mean_list)
     ffr_max_arr  = np.array(ffr_max_list)
     ffr_std_arr  = np.array(ffr_std_list)
+    ffr_mmae = np.mean(ffr_mean_arr)
+    ffr_mstd = np.std(ffr_mean_arr)
+    print(f"average MAE = {ffr_mmae:6.2f}% MVC  (std = {ffr_mstd:6.2f})")
 
     flr_mean_arr = np.array(flr_mean_list)
     flr_max_arr  = np.array(flr_max_list)
     flr_std_arr  = np.array(flr_std_list)
+    flr_mmae = np.mean(flr_mean_arr)
+    flr_mstd = np.std(flr_mean_arr)
+    print(f"average MAE = {flr_mmae:6.2f}% MVC  (std = {flr_mstd:6.2f})")
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
 
     # --- FFR ---
     lower = np.maximum(ffr_mean_arr - ffr_std_arr, 0)
     upper = ffr_mean_arr + ffr_std_arr
-    ax1.plot(freqs, ffr_mean_arr, '-o', color='k', label='Mean abs. err.')
+    ax1.plot(freqs, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
     ax1.fill_between(freqs, lower, upper, color='k', alpha=0.2)
-    ax1.plot(freqs, ffr_max_arr, '--*', color='k', label='Max abs. err.')
+    ax1.plot(freqs, ffr_max_arr, '--*', color='k', label='MAE')
+    ax1.set_ylim([0,60])
     ax1.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
     ax1.set_ylabel('Error [%MVC]', fontweight='bold')
-    ax1.set_title('FFR errors', fontweight='bold')
-    ax1.grid(True, alpha=0.4)
-    ax1.set_ylim(0, 100)
-    ax1.legend()
+    #ax1.set_title('FFR', fontweight='bold')
+    ax1.set_ylim([0, 70])
+    ax1.legend(loc='upper left')
 
     # --- FLR ---
     lower_f = np.maximum(flr_mean_arr - flr_std_arr, 0)
     upper_f = flr_mean_arr + flr_std_arr
-    ax2.plot(disp_mm, flr_mean_arr, '-o', color='k', label='Mean abs. err.')
+    ax2.plot(disp_mm, flr_mean_arr, '-o', color='k', label='mAE ± SD')
     ax2.fill_between(disp_mm, lower_f, upper_f, color='k', alpha=0.2)
-    ax2.plot(disp_mm, flr_max_arr, '--*', color='k', label='Max abs. err.')
-    ax2.set_xlabel('Displacement amplitude [mm]', fontweight='bold')
-    ax2.set_title('FLR errors', fontweight='bold')
-    ax2.grid(True, alpha=0.4)
-    ax2.set_ylim(0, 100)
-    ax2.legend()
+    ax2.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
+    ax2.set_ylim([0,60])
+    ax2.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
+    #ax2.set_title('FLR', fontweight='bold')
+    ax2.set_ylim([0, 70])
 
     plt.tight_layout()
     plt.show()
 
 
-elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiments
+elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
 
     sim_path = base_path / 'fast_M' / 'sim' # experimental path
     exp_path = base_path / 'fast_M' / 'exp' # simulations path
@@ -1112,8 +1270,8 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_20_095_s[0:len(disp_sub_l)], 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_s[0:len(disp_sub_l)], 'r')
-    plt.title(u"20 Hz, 0.95 L0", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
+    plt.title(r"20 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 2)
@@ -1121,17 +1279,17 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_08_s[0:len(disp_sub_l)], 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_s[0:len(disp_sub_l)], 'r')
-    plt.title(u"40 Hz, 0.8 L0", x=0.3, y=0.99, weight='bold')
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
+    plt.title(r"40 Hz, 0.8$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 3)
-    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k', label='Experimental')
+    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k')
     plt.plot(time_dt_max, exp_dyn_120_095_s, 'k')
     plt.plot(time_dt_max, sim_dyn_120_095_l, 'r')
-    plt.plot(time_dt_max, sim_dyn_120_095_s, 'r', label='Simulated')
-    plt.title(u"120 Hz, 0.95 L0", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.legend(loc=(0.7, 0.9), fontsize=12)
+    plt.plot(time_dt_max, sim_dyn_120_095_s, 'r')
+    plt.axvline(time_dt_sub[1100], color='gray', linestyle='--', linewidth=1)
+    plt.title(r"120 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.7))
     plt.xlim((0.08, 0.16))
 
@@ -1140,8 +1298,8 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_60_095_s[0:len(disp_sub_l)], 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_s[0:len(disp_sub_l)], 'r')
-    plt.title(u"60 Hz, 0.95 L0", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
+    plt.title(r"60 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 5)
@@ -1149,34 +1307,40 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_11_s[0:len(disp_sub_l)], 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_s[0:len(disp_sub_l)], 'r')
-    plt.title(u"40 Hz, 1.1 L0", x=0.3, y=0.99, weight='bold')
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
+    plt.title(r"40 Hz, 1.1$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     # Displacement
     plt.subplot(3, 3, 7)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'k')
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('L0 variation', weight='bold', fontsize=14)
+    plt.ylabel(r'$\boldsymbol{\Delta}\mathbf{L^{M}_{0}}$', weight='bold', fontsize=14)
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((-0.1, 0.12))
 
     plt.subplot(3, 3, 8)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'k')
+    plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((-0.1, 0.12))
     plt.subplot(3, 3, 7)
 
-    plt.subplot(3, 3, 6)
+    plt.subplot(3, 3, 9)
     plt.plot(time_dt_max, disp_max_l[0:len(time_dt_max)], 'k')
     plt.plot(time_dt_max, disp_max_s[0:len(time_dt_max)], 'k')
+    plt.axvline(time_dt_sub[1119], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('L0 variation', weight='bold', fontsize=14)
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((-0.1, 0.12))
     plt.xlim((0.08, 0.16))
+
+    fig.text(0.03, 0.67, 'Normalized force', va='center', rotation='vertical', 
+        weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
@@ -1274,28 +1438,28 @@ elif benchmark == 'fast_M_dyn': # Kim et al. 2015 from Perreault 2003 experiment
     # --- SHORTENING ---
     lower_s = np.maximum(short_mean - short_std, 0)
     upper_s = short_mean + short_std
-    ax1.plot(x, short_mean, '-o', color='k', label='Mean abs. err.')
+    ax1.plot(x, short_mean, '-o', color='k', label='mAE ± SD')
     ax1.fill_between(x, lower_s, upper_s, color='k', alpha=0.2)
-    ax1.plot(x, short_max, '--*', color='k', label='Max abs. err.')
+    ax1.plot(x, short_max, '--*', color='k', label='MAE')
     ax1.set_xticks(x)
     ax1.set_xticklabels(cond_labels, rotation=20, ha='right')
     ax1.set_title('Shortening', fontweight='bold')
     ax1.set_ylabel('Error [%]', fontweight='bold')
+    ax1.set_xlabel('Condition', fontweight='bold')
     ax1.set_ylim(0, 100)
-    ax1.grid(True, alpha=0.4)
-    ax1.legend()
+    ax1.legend(loc='upper left')
 
     # --- LENGTHENING ---
     lower_l = np.maximum(length_mean - length_std, 0)
     upper_l = length_mean + length_std
-    ax2.plot(x, length_mean, '-o', color='k', label='Mean abs. err.')
+    ax2.plot(x, length_mean, '-o', color='k', label='mAE ± SD')
     ax2.fill_between(x, lower_l, upper_l, color='k', alpha=0.2)
-    ax2.plot(x, length_max, '--*', color='k', label='Max abs. err.')
+    ax2.plot(x, length_max, '--*', color='k', label='MAE')
     ax2.set_xticks(x)
     ax2.set_xticklabels(cond_labels, rotation=20, ha='right')
+    ax2.set_xlabel('Condition', fontweight='bold')
     ax2.set_title('Lengthening', fontweight='bold')
     ax2.set_ylim(0, 100)
-    ax2.grid(True, alpha=0.4)
 
     plt.tight_layout()
     plt.show()
