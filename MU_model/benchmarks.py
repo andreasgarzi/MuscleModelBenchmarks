@@ -18,7 +18,7 @@ import tkinter as tk
 from tkinter import simpledialog
 from scipy.optimize import minimize
 
-from MU_model import MU_model  
+from MU_model import MU_model, ModelConfig 
 
 # =====================================================================
 # Utils
@@ -139,10 +139,12 @@ Distimes = None
 if scale == 'M': # muscle benchmarks
 
     scale_path = base_path / 'Muscle'
+    use_FV = True
     type = simpledialog.askstring("Input", "Select fibre type ('S'- slow, 'F' - fast):") # fibre type selection
 
     if type == 'S':
        
+        use_PE = True
         benchmark = simpledialog.askstring("Input", "Select benchmark ('max'- max. activation, 'sub'- submax. activation, 'len'- length dependency):") # benchmark selection
 
         if benchmark == 'max':  # MAXIMAL benchmark - SLOW MUSCLE (Sandercock 1997)
@@ -241,6 +243,7 @@ if scale == 'M': # muscle benchmarks
 
     elif type == 'F': # Test fast muscle (Millard exp data)
 
+        use_PE = False
         path = scale_path / 'fastMuscle'
         benchmark = simpledialog.askstring("Input", "Select benchmark ('FFR'- force-freq. isometric, 'FLR'- force-fre. isometric at different lengths, 'dyn'- dynamic):") # benchmark selection
 
@@ -323,6 +326,8 @@ if scale == 'M': # muscle benchmarks
 
 if scale == 'MU': # motor-unit benchmarks
 
+    use_FV = False
+    use_PE = True
     scale_path = base_path / 'Motorunit'
     type = simpledialog.askstring("Input", "Select fibre type ('S'- slow, 'FF'- fast fatiguable, 'FR'- fast fatigue resistent):") # fibre type selection
 
@@ -410,6 +415,8 @@ elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     type = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
     yielding = 0
     sag = 0
+    use_PE = False
+    use_FV = False
     
     path = base_path / 'Ca_transients'
     t_end = 1.4
@@ -440,6 +447,8 @@ elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
 # Dict input to the model
 # =====================================================================
 
+l_MT = np.asarray(l_MT, dtype=float).ravel() # make sure is numeric
+
 parameters = {
     'muscle': muscle,
     'scale': scale,
@@ -456,6 +465,19 @@ parameters = {
 }
 
 states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0, 's_0': 1.0,}
+
+# build model_config for the new model
+# tendon is "on" when you provide a real tendon slack length (>0); MU benchmarks set l_T_slack=0 so this becomes False
+use_tendon = bool(l_T_slack is not None and float(l_T_slack) > 0)
+
+model_config = ModelConfig(
+    use_tendon=use_tendon,
+    use_PE=use_PE,
+    use_FL=True,
+    use_FV=use_FV,
+    use_yielding=bool(yielding),  
+    use_sag=bool(sag),
+)
 
 
 ###############################################################################
@@ -687,11 +709,15 @@ states = {'MUAP_0': 0.0, 'Ca_0': 0.0, 'act_0': 1e-9, 'l_M_0': l_M_0, 'y_0': 1.0,
 # Simulation & plots
 # =====================================================================
 
-model = MU_model(parameters, states, Distimes)
+model = MU_model(parameters, states, Distimes, model_config)
 
 if scale == 'M':
 
-    force_sim, _, Ca, act, l_M, _, _ = model.run_FLV_simulation()
+    out = model.run(output_force=True)  # ✅ NEW API
+    force_sim = out["force"]
+    Ca = out["Ca"]
+    act = out["act"]
+    l_M = out["l_M"]
 
     plt.figure(figsize=(8, 4))
     if type == 'F' and benchmark == 'dyn' and a == 'max':
@@ -709,8 +735,6 @@ if scale == 'M':
 
     plt.ylabel('Force [N]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
-    #plt.title(f'Reconstructed {muscle} force', weight='bold')
-    #plt.title(f'Dynamic trial (120 Hz, 2 l0/s lengthening) force', weight='bold')
     plt.legend(loc='lower right')
     plt.grid()
     plt.tight_layout()
@@ -718,7 +742,8 @@ if scale == 'M':
 
 elif scale == 'MU': # MU
 
-    force_sim, _, _, _, _ = model.run_FL_simulation()
+    out = model.run(output_force=True)  # ✅ NEW API
+    force_sim = out["force"]
 
     plt.figure(figsize=(8, 4))
     plt.plot(time_dt, force_sim, label='Simulated Force', linewidth=2)
@@ -733,30 +758,26 @@ elif scale == 'MU': # MU
 
 elif scale == 'Ca':
 
-    _, _, Ca, _, _ = model.run_FL_simulation()
+    out = model.run(output_force=False)  # ✅ NEW API (force not needed here)
+    Ca = out["Ca"]
 
     plt.figure(figsize=(5, 3), dpi=300)
     if type == 'slow':
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
                  label='Rincon 2021 (23°C)')
-        #plt.title(r'Free [$Ca^{2+}$] slow fibres', fontsize=14)
         plt.ylim([0,20])
     else:
         plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (35°C)')
         plt.plot((Ca_fast_35[:, 0] - Ca_fast_35[0, 0]) * 1e-3, Ca_fast_35[:, 1], 'k--',
                  label='Hollingworth 1996 (35°C)')
-        #plt.title(r'Free [$Ca^{2+}$] fast fibres', weight='bold', fontsize=14)
         plt.ylim([0,20])
 
-    # plt.ylabel(r'[$Ca^{2+}$] [$\mu$M]', fontsize=12)
     plt.xlabel('Time [s]', fontsize=12)
     plt.xlim((0, 0.12))
     plt.grid()
-    #plt.legend()
     plt.tight_layout()
-    plt.show() 
-
+    plt.show()
 
 
 # # Error metrics (%mAE, %MAE)
