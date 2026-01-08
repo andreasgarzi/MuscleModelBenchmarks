@@ -1,14 +1,29 @@
 """
 Author: Andrea Sgarzi
-a.sgarzi@ad.unsw.edu.au
-University of New South Wales, GSBE
+Email: a.sgarzi@ad.unsw.edu.au
+Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
-MU model updated from Caillet et al. 2023 for simulating animal in-vitro/in-situ isometric and dynamic muscle contractions
-given the experimental discharge times as inputs. The muscle is modelled as a single 3-el. (maximum) Hill-type model,
-representative of all active MUs of the same type in that muscle. An extensive excitation and activation dynamics are
-added on top of a contraction dynamics, with different electrophysiological & contractile properties for slow &
-fast MUs.
+Description:
+This module implements a physiologically based motor-unit (MU) driven
+muscle model for simulating force production in skeletal muscle.
 
+Key features of the model include:
+- MU-level excitation–activation dynamics driven by discharge times
+- Second-order calcium transient dynamics for slow and fast fibres
+- Hill-type muscle mechanics with configurable components:
+  * Tendon compliance and pennation
+  * Passive elastic element (PE)
+  * Force–length (FL) and force–velocity (FV) relationships
+  * Yielding (slow fibres) and sag (fast fibres)
+- Flexible configuration via a ModelConfig object
+
+The model supports simulations at different scales:
+- Muscle scale ("M")
+- Motor-unit scale ("MU")
+- Calcium-transient scale ("Ca")
+
+This file contains the core model definitions and numerical integration
+routines used by the benchmark scripts.
 """
 
 from __future__ import annotations  

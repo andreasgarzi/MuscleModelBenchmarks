@@ -1,11 +1,26 @@
 """
 Author: Andrea Sgarzi
-a.sgarzi@ad.unsw.edu.au
-University of New South Wales, GSBE
+Email: a.sgarzi@ad.unsw.edu.au
+Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
-Animal benchmarks of slow & fast muscle isometric & dynamic contrations for testing MU model.
+Description:
+This script implements a collection of animal-based experimental benchmarks
+used to validate and test a motor-unit (MU) driven muscle model.
 
+The benchmarks include:
+- Slow and fast muscle contractions
+- Isometric and dynamic conditions
+- Muscle-scale, motor-unit-scale, and calcium-transient-scale simulations
+
+Experimental datasets are derived from the literature and are used to:
+- Configure model parameters and inputs (stimulation, length, force)
+- Select active model components (tendon, force–length, force–velocity, yielding, sag)
+- Compare simulated outputs against experimental force or calcium traces
+
+This script acts as an interface for reproducing and evaluating
+benchmark simulations across different physiological conditions.
 """
+
 from __future__ import annotations
 import os
 from pathlib import Path
