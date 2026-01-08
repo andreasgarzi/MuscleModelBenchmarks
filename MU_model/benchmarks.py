@@ -123,8 +123,8 @@ scale = simpledialog.askstring("Input", "Select muscle scale ('M'- muscle, 'MU' 
 
 # Variables to be populated
 muscle = None
-yielding = 0
-sag = 0
+use_yielding = None
+use_sag = None
 MVC = None
 l_T_slack = None
 l_M_opt = None
@@ -169,8 +169,8 @@ if scale == 'M': # muscle benchmarks
             exp_force = read_data(exp_force_path, 'f_M')
             exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='quadratic')(np.arange(0,2,dt)) # interpolate to have equal n of points
 
-            yielding = 0 # yielding not included
-            sag = 0
+            use_yielding = False # yielding not included
+            use_sag = False
     
     
         elif benchmark == 'sub': # SUB-MAXIMAL benchmark - SLOW MUSCLE (Perreault 2003) 
@@ -181,8 +181,8 @@ if scale == 'M': # muscle benchmarks
             fs = simpledialog.askstring("Input", "Stimulation frequency (10, 20, 30 Hz):")
 
             muscle = 'cat_SOL' # 
-            yielding = 1 # yielding included
-            sag = 0
+            use_yielding = True # yielding included
+            use_sag = False
     
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [26.13, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4  # Musculo-tendon length (mm)
@@ -216,8 +216,8 @@ if scale == 'M': # muscle benchmarks
             path = scale_path / 'slowMuscle_length'
             l = simpledialog.askstring("Input", "Length? ('0', '8', or '16'):")
             fs = simpledialog.askstring("Input", '"Stimulation frequency (1, 10, 20, 40 Hz):"')
-            yielding = 0
-            sag = 0
+            use_yielding = False
+            use_sag = False
     
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [30.25, 65, 30, 30, 7.5*np.pi/180] # MVC and M/T lengths
             t_end = 1.4
@@ -259,8 +259,8 @@ if scale == 'M': # muscle benchmarks
             
             muscle = 'rat_EDL'
             
-            yielding = 0
-            sag = 0
+            use_yielding = False
+            use_sag = False
             
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 4.73, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) # 19.24
@@ -279,8 +279,8 @@ if scale == 'M': # muscle benchmarks
 
             muscle = 'rat_EDL'
             
-            yielding = 0
-            sag = 0
+            use_yielding = False
+            use_sag = False
 
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 6.6, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) + length
@@ -297,8 +297,8 @@ if scale == 'M': # muscle benchmarks
 
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [15.4, 24.3, 21.84, float(l)*(21.84), 0] # MVC and M/T lengths
             
-            yielding = 0
-            sag = 0
+            use_yielding = False
+            use_sag = False
            
             if fs == '120': # maximum stimulation trial
                 t_end = 0.16
@@ -334,8 +334,8 @@ if scale == 'MU': # motor-unit benchmarks
     if type == 'S': # slow MU
 
         path = scale_path / 'MU_S'
-        yielding = 0
-        sag = 0
+        use_yielding = False
+        use_sag = False
         
         fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
         exp_force = np.load(path / f"MU_S_{fs}.npy")
@@ -358,8 +358,8 @@ if scale == 'MU': # motor-unit benchmarks
     elif type == 'FF': # fast fatiguable MU
 
         path = scale_path / 'MU_FF'
-        yielding = 0
-        sag = 1
+        use_yielding = False
+        use_sag = True
         
         fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
         exp_force = np.load(path / f"MU_FF_{fs}.npy")
@@ -382,8 +382,8 @@ if scale == 'MU': # motor-unit benchmarks
     elif type == 'FR': # fast fatigue resistent MU
 
         path = scale_path / 'MU_FR'
-        yielding = 0
-        sag = 1
+        use_yielding = False
+        use_sag = True
         
         fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
         exp_force = np.load(path / f"MU_FR_{fs}.npy")
@@ -413,8 +413,8 @@ if scale == 'MU': # motor-unit benchmarks
 elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     
     type = simpledialog.askstring("Input", "Fibre type? ('slow', 'fast'):")
-    yielding = 0
-    sag = 0
+    use_yielding = False
+    use_sag = False
     use_PE = False
     use_FV = False
     
@@ -455,8 +455,6 @@ parameters = {
     'time': time_dt,
     'dt': dt,
     'MVC': MVC,
-    'yielding': yielding,
-    'sag': sag,
     'l_T_slack': l_T_slack,
     'l_M_opt': l_M_opt,
     'alpha_0': alpha_0,
@@ -475,8 +473,8 @@ model_config = ModelConfig(
     use_PE=use_PE,
     use_FL=True,
     use_FV=use_FV,
-    use_yielding=bool(yielding),  
-    use_sag=bool(sag),
+    use_yielding=use_yielding,  
+    use_sag=use_sag,
 )
 
 
@@ -487,7 +485,7 @@ model_config = ModelConfig(
 
 """  1) MSisof [MVC, Ca_max, k1, k2] on 30Hz isometric trial (Perreault 2003) """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
 #     parameters['MVC'] =  x[0]
 #     parameters['Ca_max_slow'] = x[1]
@@ -495,7 +493,8 @@ model_config = ModelConfig(
 #     parameters['k2_s'] = x[3]
 
 #     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
@@ -503,7 +502,7 @@ model_config = ModelConfig(
 # x0 = [27, 5e5, 10, 14]
 # bnds = [(25, 30), (1e5, 1e6), (10, 20), (10, 20)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
@@ -516,13 +515,14 @@ model_config = ModelConfig(
     2b) MSdyn2 [af] on 2.00 mm dynamic trial (Krylow 1997)
     2c) MSisol [MVC] on 40 Hz isometric trial (Perreault 2003, digitized from Kim 2015)"""
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
 #     parameters['MVC'] = x[0]
 #     # parameters['af_s'] = x[0]
     
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
@@ -530,7 +530,7 @@ model_config = ModelConfig(
 # x0 = [28] # 1.2 N, 0.4, 27 N
 # bnds = [(25, 31)] # (1.1, 1.5), (0.1, 1), (26, 30)
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
@@ -539,14 +539,15 @@ model_config = ModelConfig(
 
 """  5) SUB-MAXIMAL benchmark [k1, k2] on 40Hz length trial """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
 #     parameters['k1'] =  x[0]
 #     parameters['k2'] = x[1]
 #     parameters['Ca_max'] = x[2]
     
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
@@ -554,7 +555,7 @@ model_config = ModelConfig(
 # x0 = [11, 17, 188000]
 # bnds = [(10, 19), (10, 19), (5e4, 1e6)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
@@ -564,7 +565,7 @@ model_config = ModelConfig(
 
 """  6) MFisof [Ca_max, k1, k2] on 80 Hz isometric trial (Millard new exp. data) """
 
-#def obj(x, parameters, states, Distimes, exp_force): 
+#def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
     #parameters['Ca_max_f_M'] = x[0]
     #parameters['k1_f_M'] =  x[1]
@@ -573,8 +574,9 @@ model_config = ModelConfig(
 #    l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
 #    parameters['l_MT'] = np.ones((len(time_dt)+1), dtype=object)*l_MT_0
 
-#    model = MU_model(parameters, states, Distimes) # Create an model class instance
-#    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#    out = model.run(output_force=True)
+#    force_sim = out["force"]
     
 #    residuals = force_sim - exp_force  
 #    return np.sum(residuals**2)  
@@ -585,7 +587,7 @@ model_config = ModelConfig(
 #x0 = [3]
 #bnds = [(1, 6.6)]
 
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 #print("Optimized parameters:")
@@ -596,12 +598,13 @@ model_config = ModelConfig(
 
 """  7) MFisodyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
 
-#def obj(x, parameters, states, Distimes, exp_force): 
+#def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
 #    parameters['af_f'] = x[0]
 
-#    model = MU_model(parameters, states, Distimes) # Create an model class instance
-#    force_sim, _, _, _, _, _, _ = model.run_FLV_simulation() # Run the simulation
+#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#    out = model.run(output_force=True)
+#    force_sim = out["force"]
     
 #    residuals = force_sim[mvc_sample:]/force_sim[mvc_sample] - exp_force[mvc_sample:] # only when displacement is applied
 #    return np.sum(residuals**2)  
@@ -609,7 +612,7 @@ model_config = ModelConfig(
 #x0 = [0.4]
 #bnds = [(0.1, 3)]
 
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #            x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 #print("Optimized parameters:")
@@ -617,23 +620,24 @@ model_config = ModelConfig(
 
 """  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Burke exp. data) """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
-#    parameters['MVC'] =  x[0]
-#    parameters['Ca_max_f_MU'] = x[1]
-#    parameters['k1_f_MU'] =  x[2]
-#    parameters['k2_f_MU'] = x[3]
+#     parameters['MVC'] =  x[0]
+#     parameters['Ca_max_f_MU'] = x[1]
+#     parameters['k1_f_MU'] =  x[2]
+#     parameters['k2_f_MU'] = x[3]
 
-#    model = MU_model(parameters, states, Distimes) # Create an model class instance
-#    force_sim, _, _, _, _ = model.run_FL_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
-#    residuals = force_sim[0:len(exp_force)] - exp_force  
-#    return np.sum(residuals**2)  
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
 
 # x0 = [0.35, 5e5, 10, 10]
 # bnds = [(0.3, 0.4), (1e5, 1e6), (2, 15), (2, 15)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
@@ -644,14 +648,15 @@ model_config = ModelConfig(
 
 """  9) MUisof [As, Ts] on unfused tetanus isometric trial (Burke exp. data) """
 
-# def obj(x, parameters, states, Distimes, exp_force): 
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
 #     parameters['As_peak'] =  x[0]
 #     parameters['As_decay'] =  x[1]
 #     parameters['Ts'] = x[2]
 
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     force_sim, _, _, _, _ = model.run_FL_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
 #     residuals = force_sim[0:len(exp_force)] - exp_force  
 #     return np.sum(residuals**2)  
@@ -659,7 +664,7 @@ model_config = ModelConfig(
 # x0 = [1.2, 0.9, 0.1]
 # bnds = [(1, 2), (0.1, 0.9), (0.01, 0.9)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
@@ -670,14 +675,15 @@ model_config = ModelConfig(
 
 """ 10) Ca transient ODE [c1, c2, c3] parameters estimation """
 
-# def obj(x, parameters, states, Distimes, exp_data): 
+# def obj(x, parameters, states, Distimes, exp_data, model_config): 
     
 #     parameters['c1_f'] = x[0]
 #     parameters['c2_f'] = x[1]
 #     parameters['c3_f'] = x[2]
     
-#     model = MU_model(parameters, states, Distimes) # Create an model class instance
-#     _, _, Ca, _, _ = model.run_FL_simulation() # Run the simulation
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=False)  
+#     Ca = out["Ca"]
 
 #     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
 
@@ -693,7 +699,7 @@ model_config = ModelConfig(
 #     x0 = [2.4e3, 4.3e5, 0.6]
 #     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
 
-# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data, model_config), 
 #                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
 
 # print("Optimized parameters:")
@@ -713,7 +719,7 @@ model = MU_model(parameters, states, Distimes, model_config)
 
 if scale == 'M':
 
-    out = model.run(output_force=True)  # ✅ NEW API
+    out = model.run(output_force=True)  
     force_sim = out["force"]
     Ca = out["Ca"]
     act = out["act"]
@@ -742,7 +748,7 @@ if scale == 'M':
 
 elif scale == 'MU': # MU
 
-    out = model.run(output_force=True)  # ✅ NEW API
+    out = model.run(output_force=True)  
     force_sim = out["force"]
 
     plt.figure(figsize=(8, 4))
@@ -758,7 +764,7 @@ elif scale == 'MU': # MU
 
 elif scale == 'Ca':
 
-    out = model.run(output_force=False)  # ✅ NEW API (force not needed here)
+    out = model.run(output_force=False)  
     Ca = out["Ca"]
 
     plt.figure(figsize=(5, 3), dpi=300)
@@ -779,10 +785,6 @@ elif scale == 'Ca':
     plt.tight_layout()
     plt.show()
 
-
-# # Error metrics (%mAE, %MAE)
-# mean_abs_error = np.mean((np.abs(force_sim - exp_force)/MVC)*100)
-# max_abs_error = np.max((np.abs(force_sim - exp_force)/MVC)*100)
 
 # Save results
 #os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')

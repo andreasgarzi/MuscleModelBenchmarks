@@ -30,8 +30,6 @@ class Params:  # container for all model parameters and time-series inputs
     dt: float                   # time resolution (s)
     muscle: str                 # e.g. 'rat_SOL', 'rat_EDL', 'cat_SOL', 'cat_GM', 'cat_CF'
     scale: str                  # 'M', 'MU', 'Ca'
-    yielding: int               # 0/1 
-    sag: int                    # 0/1 
     MVC: float                  # maximum isometric force [N]
     vmax: float                 # maximum contraction velocity [l0/s] (later scaled by l_M_opt)
     alpha_0: float              # initial pennation angle [rad]
@@ -65,8 +63,6 @@ class Params:  # container for all model parameters and time-series inputs
     Ts: float = 0.64            # sag time constant
 
     def __post_init__(self):  
-        assert self.yielding in (0, 1)  # yielding flag
-        assert self.sag in (0, 1)       # sag flag
 
         self.vmax = self.vmax * self.l_M_opt  # convert vmax from l0/s to length units per second
 
@@ -171,7 +167,7 @@ class Mechanics:
 
 
     @staticmethod
-    def force_length(act: float, l_M_norm: float) -> float:  # Lloyd & Besier style FL relationship
+    def force_length(act: float, l_M_norm: float) -> float:  # Lloyd & Besier FL relationship
 
         """
         Computes the active force-length scaling factor FL(act, l_M_norm).
@@ -212,9 +208,11 @@ class Mechanics:
             kMU = 1.0  # curvature scaling
             af = self.P.af_f  # fast af
 
-        g = FL if l_M_norm < 1 else 1.0  # length dependence for shortening region
-        b = (fmax - 1) / (2 + 2 / af)  # b parameter for Hill curve
+        g = FL if l_M_norm < 1 else 1.0  # length dependence for shortening
+        af = max(float(af), 1e-8) # clamp
+        b = (fmax - 1) / (2 + 2 / af)  # Hill b parameter
         K = kMU * g * fv  # effective scaling
+        K = max(float(K), 1e-12) # clamp
 
         eps = 1e-6  
         f = float(np.clip(f_CE_over_FL, eps, fmax - eps))  # clamp force ratio into valid range
@@ -252,8 +250,10 @@ class Mechanics:
             af = self.P.af_f  # fast af
 
         g = FL if l_M_norm < 1 else 1.0  # length dependence for shortening
+        af = max(float(af), 1e-8) # clamp
         b = (fmax - 1) / (2 + 2 / af)  # Hill b parameter
         K = kMU * g * fv  # effective scaling
+        K = max(float(K), 1e-12) # clamp
 
         if v_norm < 0:  # shortening 
             return float(1 / (1 - (v_norm / (af * K))))  
@@ -441,7 +441,7 @@ class Ephys:
 # =============================================================================
 
 @dataclass(frozen=True)  # fixed configuration
-class ModelConfig:  # configuration of which model components are enabled
+class ModelConfig:  # configuration of model components
     use_tendon: bool = True     # SE + pennation + l_M ODE, otherwise l_M == l_MT
     use_PE: bool = True         # include passive elastic element
     use_FL: bool = True         # include force-length relationship
@@ -536,7 +536,7 @@ class ODESystem:  # ODE assembly and consistent force computations
             lM_norm = float(l_M / P.l_M_opt)  # normalized fibre length
 
         f_PE = float(self.mech.passive_pe(lM_norm)) if model_config.use_PE else 0.0  # passive force if enabled
-        FL = float(self.mech.force_length(act, lM_norm)) if model_config.use_FL else 1.0  # FL factor if enabled
+        FL = float(self.mech.force_length(act, lM_norm)) if model_config.use_FL else 1.0  # FL force if enabled
 
         if model_config.use_tendon:  # if tendon: CE force from equilibrium
             f_CE = float(f_SE / max(1e-9, np.cos(alpha)) - f_PE)  # CE force (normalized)
@@ -649,7 +649,7 @@ class MuscleModel:  # main model object
         self.P.l_MT = np.asarray(self.P.l_MT, dtype=float).ravel()  # standardize l_MT to 1D float
         if len(self.P.l_MT) == len(self.P.time) + 1:  # allow len(time)+1 input (common from earlier scripts)
             self.P.l_MT = self.P.l_MT[:-1]  # drop last sample to match time length
-        if len(self.P.l_MT) != len(self.P.time):  # enforce consistent lengths
+        if len(self.P.l_MT) != len(self.P.time):  # consistent lengths
             raise ValueError(f"Expected l_MT length {len(self.P.time)} (or +1), got {len(self.P.l_MT)}")  # error
 
         self.mech = Mechanics(P)  # create mechanics block
