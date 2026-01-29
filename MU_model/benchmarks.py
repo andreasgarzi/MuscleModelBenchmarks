@@ -14,7 +14,7 @@ The benchmarks include:
 
 Experimental datasets are derived from the literature and are used to:
 - Configure model parameters and inputs (stimulation, length, force)
-- Select active model components (tendon, force–length, force–velocity, yielding, sag)
+- Select active model components (tendon, force-length, force-velocity, yielding, sag)
 - Compare simulated outputs against experimental force or calcium traces
 
 This script acts as an interface for reproducing and evaluating
