@@ -18,12 +18,38 @@ import scipy as sp
 from scipy import signal
 import matplotlib.pyplot as plt
 
+# Helper function to summarize errors across trials 
+def summarize_trials(mae_list, maxae_list, label="", unit="% MVC"):
+    """
+    mae_list   : iterable di MAE (mean absolute error) per trial
+    maxae_list : iterable di MaxAE (max absolute error) per trial
+    """
+    mae_arr   = np.asarray(mae_list, dtype=float)
+    maxae_arr = np.asarray(maxae_list, dtype=float)
+
+    if mae_arr.size == 0 or maxae_arr.size == 0:
+        print(f"{label} (no trials)")
+        return
+
+    print(f"{label}")
+    print(
+        f"  MAE   = {mae_arr.mean():6.2f} ± {mae_arr.std(ddof=0):6.2f} {unit}   "
+        f"[{mae_arr.min():6.2f} – {mae_arr.max():6.2f}]"
+    )
+    print(
+        f"  MaxAE = {maxae_arr.mean():6.2f} ± {maxae_arr.std(ddof=0):6.2f} {unit}   "
+        f"[{maxae_arr.min():6.2f} – {maxae_arr.max():6.2f}]"
+    )
+    print()
+
+
+
 #############################################################################
 " PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 " Files were kept separated to avoid confusion in error and statistics computation"
 #############################################################################
 
-benchmark = 'fast_M_dyn' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'MU' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
@@ -56,7 +82,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.plot(time_dt, exp1, 'k', label='Experimental')
     plt.plot(time_dt, sim1, 'r', label='Simulated')
     plt.title(u"\u00B1 0.05 mm", x=0.1, y=0.97, weight='bold')
-    plt.legend(loc=(0.7, -0.2), fontsize=12)
+    plt.legend(loc=(0.8, 1.1), fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -146,6 +172,10 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     mstde = np.std(mean_err_list)
     print(f"  Mean mAE = {mmae:.2f}% MVC   (std = {mstde:.2f})")
 
+    summarize_trials(mean_err_list, max_err_list,
+                 label="— slow_M_max summary (all displacements) —",
+                 unit="% MVC")
+
     x = np.arange(1, len(displacements) + 1)
 
     mean_err_arr = np.array(mean_err_list)
@@ -155,7 +185,7 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
     # mean + std area
-    ax.plot(x, mean_err_arr, '-o', color='k', label='mean absolute err. ± SD')
+    ax.plot(x, mean_err_arr, '-o', color='k', label='mAE ± SD')
     ax.fill_between(
         x,
         mean_err_arr - std_err_arr,
@@ -165,12 +195,12 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     )
 
     # max
-    ax.plot(x, max_err_arr, '--*', color='k', label='max. absolute err.')
+    ax.plot(x, max_err_arr, '--*', color='k', label='MAE')
 
     ax.set_xticks(x)
     ax.set_xticklabels([f'{d:.2f}' for d in displacements])
     ax.set_xlabel('Max. length variation amplitude [mm]', fontweight='bold')
-    ax.set_ylabel('Error [%MVC]', fontweight='bold')
+    ax.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     ax.set_ylim(bottom=0)
     ax.legend()
     plt.tight_layout()
@@ -518,6 +548,14 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     print(f"{'DYN Rand Average (NOY)':>33}:  MAE = {np.mean(dynv_noy_mae):6.2f}% MVC  "
           f"(std = {np.mean(dynv_noy_std):6.2f})   MaxAE = {np.mean(dynv_noy_max):6.2f}% MVC\n")
 
+    summarize_trials(iso_mae,  iso_max,  label="— slow_M_sub summary: ISO (all trials) —", unit="% MVC")
+    all_mae_dyn = list(dync_mae)  + list(dynv_mae)
+    all_max_dyn = list(dync_max) + list(dynv_max)
+    summarize_trials(all_mae_dyn, all_max_dyn, label="— slow_M_sub summary: DYN (all trials) —", unit="% MVC")
+
+    all_mae_noy_dyn = list(dync_noy_mae)  + list(dynv_noy_mae)
+    all_max_noy_dyn = list(dync_noy_max) + list(dynv_noy_max)
+    summarize_trials(all_mae_noy_dyn, all_max_noy_dyn, label="— slow_M_sub summary: DYN NO YIELDING (all trials) —", unit="% MVC")
 
     # ---------------------------
     # helper per i plot
@@ -570,7 +608,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     mean_8mm, max_8mm, std_8mm = build_err(dyn_8mm_trials, MVC)
 
     x = np.arange(1, 6 + 1)
-    x_labels = ["C10", "C20", "C30", "R10", "R20", "R30"]
+    x_labels = ["Constant 10 Hz", "Constant 20 Hz", "Constant 30 Hz", "Random 10 Hz", "Random 20 Hz", "Random 30 Hz"]
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
 
@@ -578,12 +616,14 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        ax.plot(x, mean_arr, '-o', color='k', label='Mean absolute err. ± SD')
+        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD')
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-        ax.plot(x, max_arr, '--*', color='k', label='Max. absolute err.')
+        ax.plot(x, max_arr, '--*', color='k', label='MAE')
 
         ax.set_xticks(x)
         ax.set_xticklabels(x_labels)
+        ax.set_xticks(x)
+        ax.set_xticklabels(x_labels, rotation=30, ha='right', rotation_mode='anchor')
         ax.set_title(title, fontweight='bold')
         ax.set_ylim([0, 45])
 
@@ -591,9 +631,9 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plot_panel(axes[0], x, mean_1mm,  max_1mm,  std_1mm,  "Dynamic ±1 mm")
     plot_panel(axes[1], x, mean_8mm,  max_8mm,  std_8mm,  "Dynamic ±8 mm")
 
-    axes[0].set_ylabel('Error [%MVC]', fontweight='bold')
+    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     for ax in axes:
-        ax.set_xlabel('Condition', fontweight='bold')
+        ax.set_xlabel('Stimulation', fontweight='bold')
     axes[0].legend()
 
     plt.tight_layout()
@@ -780,6 +820,10 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
         f"MaxAE = {np.mean(all_maxae):6.2f}% MVC\n"
     )
 
+    summarize_trials(all_mae, all_maxae,
+                 label="— slow_M_len summary (all trials) —",
+                 unit="% MVC")
+
     # ------------------------------------------------
     # funzione per i 3 pannelli (0, -8, -16 mm)
     # ------------------------------------------------
@@ -846,7 +890,7 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plot_panel(axes[1], x, mean_8,  max_8,  std_8,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm")
     plot_panel(axes[2], x, mean_16,  max_16,  std_16,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm")
 
-    axes[0].set_ylabel('Error [%MVC]', fontweight='bold')
+    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     for ax in axes:
         ax.set_xlabel('Stimulation frequency', fontweight='bold')
     axes[0].legend()
@@ -870,7 +914,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     sim_S_twitch = np.load(sim_path / 'slow_twitch.npy') # load simulated forces
     sim_S_unfused = np.load(sim_path / 'slow_unfused.npy')
     sim_S_fused = np.load(sim_path / 'slow_fused.npy')
-    sim_F_twitch = np.load(sim_path / 'fast_twitch.npy')
+    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy') # sag is not actiove as tp is not detected during a twitch
     sim_F_twitch_nosag = np.load(sim_path / 'fast_twitch_nosag.npy')
     sim_F_unfused = np.load(sim_path / 'fast_unfused.npy')
     sim_F_unfused_nosag = np.load(sim_path / 'fast_unfused_nosag.npy')
@@ -888,22 +932,22 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.subplot(2, 3, 1)
     plt.plot(time_dt_S, exp_S_twitch, 'k')
     plt.plot(time_dt_S, sim_S_twitch, 'r')
-    plt.title(u"1 Hz, slow", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, MVC_S+0.01))
 
     plt.subplot(2, 3, 4)
     plt.plot(time_dt_F, exp_F_twitch, 'k')
     plt.plot(time_dt_F, sim_F_twitch, 'r')
-    plt.plot(time_dt_F, sim_F_twitch_nosag, 'r--')
-    plt.title(u"1 Hz, fast", x=0.3, y=0.99, weight='bold')
+    #plt.plot(time_dt_F, sim_F_twitch_nosag, 'r--')
+    plt.title(r"1 Hz at $\mathbf{L^{CE}_{0}}$ (F MU)", x=0.3, y=0.99, weight='bold')
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, MVC_F))
 
     plt.subplot(2, 3, 2)
     plt.plot(time_dt_S, exp_S_unfused, 'k')
     plt.plot(time_dt_S, sim_S_unfused, 'r')
-    plt.title(u"12.5 Hz, slow", x=0.3, y=0.99, weight='bold')
+    plt.title(r"12.5 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_S+0.01))
 
@@ -911,7 +955,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.plot(time_dt_F, exp_F_unfused, 'k')
     plt.plot(time_dt_F, sim_F_unfused, 'r')
     plt.plot(time_dt_F, sim_F_unfused_nosag, 'r--')
-    plt.title(u"25 Hz, fast", x=0.3, y=0.99, weight='bold')
+    plt.title(r"25 Hz at $\mathbf{L^{CE}_{0}}$ (F MU)", x=0.3, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_F))
@@ -920,7 +964,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.plot(time_dt_S, exp_S_fused, 'k', label='Experimental')
     plt.plot(time_dt_S, sim_S_fused, 'r', label='Simulated (sag)')
     plt.plot(time_dt_S, sim_S_fused, 'r--', label='Simulated (no sag)')
-    plt.title(u"40 Hz, slow", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.legend(loc='upper right', fontsize=12)
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_S+0.01))
@@ -928,7 +972,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.subplot(2, 3, 6)
     plt.plot(time_dt_F, exp_F_fused, 'k')
     plt.plot(time_dt_F, sim_F_fused, 'r')
-    plt.title(u"40 Hz, fast", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz at $\mathbf{L^{CE}_{0}}$ (F MU)", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
     plt.ylim((0, MVC_F))
 
@@ -1019,6 +1063,10 @@ elif benchmark == 'MU': # Burke 1974 experiments
         f"(std = {np.mean(std_f_nosag):6.2f})   "
         f"MaxAE = {np.mean(maxae_f_nosag):6.2f}% MVC\n"
     )
+
+    summarize_trials(mae_s, maxae_s, label="— MU summary: S MU (all trials) —", unit="% MVC")
+    summarize_trials(mae_f, maxae_f, label="— MU summary: F MU (all trials) —", unit="% MVC")
+    summarize_trials(mae_f_nosag, maxae_f_nosag, label="— MU summary: F MU NO SAG (all trials) —", unit="% MVC")
 
 
 elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
@@ -1195,6 +1243,14 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     flr_mstd = np.std(flr_mean_arr)
     print(f"average MAE = {flr_mmae:6.2f}% MVC  (std = {flr_mstd:6.2f})")
 
+    summarize_trials(ffr_mean_list, ffr_max_list,
+                 label="— fast_M_iso summary: FFR (all freqs) —",
+                 unit="% MVC")
+
+    summarize_trials(flr_mean_list, flr_max_list,
+                 label="— fast_M_iso summary: FLR (all ΔL) —",
+                 unit="% MVC")
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
 
     # --- FFR ---
@@ -1205,7 +1261,7 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     ax1.plot(freqs, ffr_max_arr, '--*', color='k', label='MAE')
     ax1.set_ylim([0,60])
     ax1.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
-    ax1.set_ylabel('Error [%MVC]', fontweight='bold')
+    ax1.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     #ax1.set_title('FFR', fontweight='bold')
     ax1.set_ylim([0, 70])
     ax1.legend(loc='upper left')
@@ -1267,63 +1323,64 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
 
     plt.subplot(3, 3, 1)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_20_095_l[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_20_095_s[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_l[0:len(disp_sub_l)], 'r')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_s[0:len(disp_sub_l)], 'r')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_20_095_s[0:len(disp_sub_l)], 'gray')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_l[0:len(disp_sub_l)], 'red')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"20 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 2)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_08_l[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_08_s[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_l[0:len(disp_sub_l)], 'r')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_s[0:len(disp_sub_l)], 'r')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_08_s[0:len(disp_sub_l)], 'gray')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_l[0:len(disp_sub_l)], 'red')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"40 Hz, 0.8$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, 0.8$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 3)
-    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k')
-    plt.plot(time_dt_max, exp_dyn_120_095_s, 'k')
-    plt.plot(time_dt_max, sim_dyn_120_095_l, 'r')
-    plt.plot(time_dt_max, sim_dyn_120_095_s, 'r')
+    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k', label='Experimental-Shortening')
+    plt.plot(time_dt_max, exp_dyn_120_095_s, 'gray', label='Experimental-Lengthening')
+    plt.plot(time_dt_max, sim_dyn_120_095_l, 'r', label='Simulated-Shortening')
+    plt.plot(time_dt_max, sim_dyn_120_095_s, 'orange', label='Simulated-Lengthening')
     plt.axvline(time_dt_sub[1100], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"120 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"120 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.legend(loc=(0.2, 1.3), fontsize=12)
     plt.ylim((0, 1.7))
     plt.xlim((0.08, 0.16))
 
     plt.subplot(3, 3, 4)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_60_095_l[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_60_095_s[0:len(disp_sub_l)], 'k')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_60_095_s[0:len(disp_sub_l)], 'gray')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_l[0:len(disp_sub_l)], 'r')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_s[0:len(disp_sub_l)], 'r')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"60 Hz, 0.95$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"60 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 5)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_11_l[0:len(disp_sub_l)], 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_11_s[0:len(disp_sub_l)], 'k')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_40_11_s[0:len(disp_sub_l)], 'gray')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_l[0:len(disp_sub_l)], 'r')
-    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_s[0:len(disp_sub_l)], 'r')
+    plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"40 Hz, 1.1$\mathbf{L^{M}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, 1.1$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     # Displacement
     plt.subplot(3, 3, 7)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'k')
+    plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'gray')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
-    plt.ylabel(r'$\boldsymbol{\Delta}\mathbf{L^{M}_{0}}$', weight='bold', fontsize=14)
+    plt.ylabel(r'$\boldsymbol{\Delta}\mathbf{L^{CE}_{0}}$', weight='bold', fontsize=14)
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((-0.1, 0.12))
 
     plt.subplot(3, 3, 8)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
-    plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'k')
+    plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'gray')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
@@ -1332,7 +1389,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
 
     plt.subplot(3, 3, 9)
     plt.plot(time_dt_max, disp_max_l[0:len(time_dt_max)], 'k')
-    plt.plot(time_dt_max, disp_max_s[0:len(time_dt_max)], 'k')
+    plt.plot(time_dt_max, disp_max_s[0:len(time_dt_max)], 'gray')
     plt.axvline(time_dt_sub[1119], color='gray', linestyle='--', linewidth=1)
     plt.title(u"Displacement", x=0.3, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
@@ -1427,6 +1484,13 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     for lab, mae, mxe, stde in zip(cond_labels, length_mean, length_max, length_std):
         print(f"  {lab:18s}  MAE = {mae:6.2f}%  (std = {stde:6.2f})   MaxAE = {mxe:6.2f}%")
     print()
+
+    all_mae  = list(short_mean)  + list(length_mean)  
+    all_maxe = list(short_max)   + list(length_max)
+
+    summarize_trials(all_mae, all_maxe,
+                 label="— fast_M_dyn summary: (all conditions) —",
+                 unit="%")
 
     # ==========================
     # PLOT errors (2 subplot)

@@ -278,7 +278,7 @@ if scale == 'M': # muscle benchmarks
             use_sag = False
             
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 4.73, 10*np.pi/180] # MVC and M/T lengths
-            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) # 19.24
+            l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
         elif benchmark == 'FLR': # isometric length variation
@@ -784,18 +784,20 @@ elif scale == 'Ca':
 
     plt.figure(figsize=(5, 3), dpi=300)
     if type == 'slow':
-        plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (23°C)')
+        plt.plot(time_dt, Ca * 1e6, 'g', label='Simulated')
         plt.plot((Ca_slow_23[:, 0] - Ca_slow_23[0, 0]) * 1e-3, Ca_slow_23[:, 1], 'k--',
-                 label='Rincon 2021 (23°C)')
+                 label='Experimental (23°C)')
         plt.ylim([0,20])
     else:
-        plt.plot(time_dt, Ca * 1e6, 'g', label='Sim (35°C)')
+        plt.plot(time_dt, Ca * 1e6, 'g', label='Simulated')
         plt.plot((Ca_fast_35[:, 0] - Ca_fast_35[0, 0]) * 1e-3, Ca_fast_35[:, 1], 'k--',
-                 label='Hollingworth 1996 (35°C)')
+                 label='Experimental (35°C)')
         plt.ylim([0,20])
 
     plt.xlabel('Time [s]', fontsize=12)
-    plt.xlim((0, 0.12))
+    plt.ylabel(r'[$Ca^{2+}$] [$\mu$M]', fontsize=12)
+    plt.legend(loc='upper right')
+    plt.xlim((0, 0.15))
     plt.grid()
     plt.tight_layout()
     plt.show()

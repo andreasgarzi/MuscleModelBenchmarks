@@ -418,7 +418,7 @@ class Ephys:
 
     @staticmethod
     def yield_dot(y_val: float, V_norm: float) -> float:  # yielding ODE (Brown 1999)
-
+        
         """
         Computes yielding state derivative as a function of normalized velocity.
         Inputs:
