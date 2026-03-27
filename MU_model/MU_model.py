@@ -83,7 +83,7 @@ class Params:  # container for all model parameters and time-series inputs
 
         if self.muscle in {"cat_SOL", "rat_SOL"}:  # tendon stiffness is muscle-specific
             self.eps_0 = 0.06  # Soleus literature (see paper)
-        elif self.muscle in {"rat_EDL", "cat_GM", "cat_CF"}:  # other muscle group
+        elif self.muscle in {"rat_EDL", "cat_GM", "cat_CF", "rat_GM"}:  # other muscle group
             self.eps_0 = 0.04  # Thelen-type stiffness (see paper notes)
         else:  
             self.eps_0 = 0.06  # animal soleus literature
@@ -381,7 +381,7 @@ class Ephys:
         return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca  # ODE
 
 
-    def activation_dot_from(self, Ca_norm: float, act: float, fibre_type: str) -> float:  # activation ODE
+    def activation_dot_from(self, Ca: float, act: float, fibre_type: str) -> float:  # activation ODE
 
         """
         Computes d(act)/dt given Ca_norm, current act, and fibre_type, with scale-dependent parameters.
@@ -396,24 +396,24 @@ class Ephys:
         P = self.P  # keep parameters
 
         if fibre_type == "slow" and P.scale in {"M", "Ca"}:  # slow muscle scale
-            Ca = Ca_norm * P.Ca_max_s_M  # scale normalized Ca
+            Ca_norm = Ca * P.Ca_max_s_M  # scale normalized Ca
             k1, k2 = P.k1_s_M, P.k2_s_M  # kinetics
         elif fibre_type == "fast" and P.scale in {"M", "Ca"}:  # fast muscle scale
-            Ca = Ca_norm * P.Ca_max_f_M  
+            Ca_norm = Ca * P.Ca_max_f_M  
             k1, k2 = P.k1_f_M, P.k2_f_M  
         elif fibre_type == "slow" and P.scale == "MU":  # slow MU scale
-            Ca = Ca_norm * P.Ca_max_s_MU  
+            Ca_norm = Ca * P.Ca_max_s_MU  
             k1, k2 = P.k1_s_MU, P.k2_s_MU  
         elif fibre_type == "fast" and P.scale == "MU":  # fast MU scale
-            Ca = Ca_norm * P.Ca_max_f_MU  
+            Ca_norm = Ca * P.Ca_max_f_MU  
             k1, k2 = P.k1_f_MU, P.k2_f_MU  
         else:  
             raise ValueError("No scale-type combination")  
 
-        if Ca > act:  # ascending / normalized branch
-            return (k1 * Ca - k2 * act) * (1 - act)  # Hussein-like normalization
+        if Ca_norm > act:  # ascending / normalized branch
+            return (k1 * Ca_norm - k2 * act) * (1 - act)  # Hussein-like normalization
         else:  # descending branch
-            return (k1 * Ca - k2 * act)  # not limited to 1
+            return (k1 * Ca_norm - k2 * act)  # not limited to 1
 
 
     @staticmethod
@@ -444,7 +444,7 @@ class Ephys:
         - dsag: float, sag derivative.
         """
         
-        if 0 < t < 0.2:  # early phase
+        if 0 < t < 0.262:  # early phase
             As = self.P.As_peak  # peak value
         else:  # later phase
             As = self.P.As_decay  # decay value
@@ -687,7 +687,7 @@ class MuscleModel:  # main model object
         m = self.P.muscle  # local muscle name
         if m in {"rat_SOL", "cat_SOL"}:  # slow muscles
             return "slow"  
-        if m in {"rat_EDL", "cat_GM", "cat_CF"}:  # fast muscles
+        if m in {"rat_EDL", "cat_GM", "cat_CF", "rat_GM"}:  # fast muscles
             return "fast"  
         raise ValueError(f"Unknown muscle '{m}'")  # error if unknown
     

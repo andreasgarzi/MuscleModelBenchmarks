@@ -97,7 +97,7 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
 
     t = np.arange(N, dtype=float) / f # original time
 
-    force  = np.asarray(data[seg_slice, 4], dtype=float)
+    force  = np.asarray(data[seg_slice, 2], dtype=float)
     spikes = np.asarray(data[seg_slice, 11], dtype=float)
     prev = spikes[:-1] # 0-1 transitions
     curr = spikes[1:]
@@ -400,30 +400,42 @@ if scale == 'MU': # motor-unit benchmarks
         use_yielding = False
         use_sag = True
         
-        fs = simpledialog.askstring("Input", "Stimulation type ('twitch', 'unfused', 'tetanus'):")
+        fs = simpledialog.askstring("Input", "Stimulation ('twitch', 'unfused', 'tetanus') or ('25', '30', '35', '40', '150') Hz:")
         exp_force = np.load(path / f"MU_FR_{fs}.npy")
         
         if fs == 'twitch':
-            Distimes = np.round([0],3)
+            Distimes = np.round([0],3) # twitch (Burke 1974)
+            t_end = 1.2
+            muscle = 'cat_GM' # dorsi/plantar
         elif fs == 'unfused':
-            Distimes = np.arange(0, 17*0.05, 0.05) # 20 Hz
+            Distimes = np.arange(0, 17*0.05, 0.05) # 20 Hz (Burke 1974)
+            t_end = 1.2
+            muscle = 'cat_GM' # dorsi/plantar
         elif fs == 'tetanus':
-            Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz 
+            Distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz (Burke 1974)
+            t_end = 1.2
+            muscle = 'cat_GM' # dorsi/plantar
+        else: 
+            Distimes = np.load(path / f"MU_FR_{fs}_times.npy") # (Chelichowski 1999)
+            t_end = 0.7
+            muscle = 'rat_GM' # dorsi/plantar
 
-        t_end = 1.2
-        muscle = 'cat_GM' # dorsi/plantar
         time_dt = np.arange(0, t_end, dt)
-    
-        MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.39, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
+        if muscle == 'cat_GM':
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.39, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
+        elif muscle == 'rat_GM':
+            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0.078, 0, 20, 20, 9.2*np.pi/180] # MVC and M/T lengths
+
         l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0)  # Musculo-tendon length (mm)
         l_MT = np.full(len(time_dt), float(l_MT_0)) # full MT length array
 
-    time_exp = np.arange(0, exp_force[-1,0], dt)
-    exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='linear')(time_exp)
-    target_len = len(time_dt)
-    if len(exp_force) < target_len:
-        n_pad = target_len - len(exp_force)
-        exp_force = np.concatenate([exp_force, np.zeros(n_pad)])
+    if muscle != 'rat_GM': # for rat GM, exp. force is already interpolated to time_dt
+        time_exp = np.arange(0, exp_force[-1,0], dt)
+        exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='linear')(time_exp)
+        target_len = len(time_dt)
+        if len(exp_force) < target_len:
+            n_pad = target_len - len(exp_force)
+            exp_force = np.concatenate([exp_force, np.zeros(n_pad)])
 
 elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
     
@@ -804,10 +816,10 @@ elif scale == 'Ca':
 
 
 # Save results
-#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
+#os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\MU\sim')
 
-#np.save('dyn_60_0.95_length', force_sim, allow_pickle=True)
+#np.save('fast_unfused', force_sim, allow_pickle=True)
 
-#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
+#os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
 
 #np.save('dyn_60_0.95_length', exp_force, allow_pickle=True)

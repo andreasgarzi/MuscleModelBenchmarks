@@ -8,8 +8,8 @@ Display MU-model benchmarks results among:
 Slow_M: ("slow_M_max", "slow_M_sub", slow_M_len) 
 Fast_M: (fast_M_iso, fast_M_len, fast_M_dyn)
 MU: (slow_MU, fast_MU)
-"""
 
+"""
 import os
 from pathlib import Path
 import numpy as np
@@ -18,7 +18,10 @@ import scipy as sp
 from scipy import signal
 import matplotlib.pyplot as plt
 
-# Helper function to summarize errors across trials 
+####################################################################################
+# Helper functions
+####################################################################################
+
 def summarize_trials(mae_list, maxae_list, label="", unit="% MVC"):
     """
     mae_list   : iterable di MAE (mean absolute error) per trial
@@ -42,11 +45,713 @@ def summarize_trials(mae_list, maxae_list, label="", unit="% MVC"):
     )
     print()
 
+def load_series(folder: Path, names):
+    return [np.load(folder / f"{name}.npy") for name in names]
 
+def pct_errors(exp: np.ndarray, sim: np.ndarray, F0: float):
+    """
+    Compute:
+    - mAE  : mean absolute error, in %F0
+    - MAE  : maximum absolute error, in %F0
+    - stde : standard deviation of absolute error, in %F0
+
+    Only samples where at least one signal is non-zero are considered.
+    """
+    exp = np.asarray(exp, dtype=float).ravel()
+    sim = np.asarray(sim, dtype=float).ravel()
+
+    mask = (exp != 0) | (sim != 0)
+    if not np.any(mask):
+        return 0.0, 0.0, 0.0
+
+    exp_nz = exp[mask]
+    sim_nz = sim[mask]
+
+    abs_err_pctF0 = np.abs(sim_nz - exp_nz) / F0 * 100.0
+    mae = float(np.mean(abs_err_pctF0))
+    maxae = float(np.max(abs_err_pctF0))
+    stde = float(np.std(abs_err_pctF0))
+    return mae, maxae, stde
+
+def compute_r2(exp: np.ndarray, sim: np.ndarray) -> float:
+    """
+    Compute coefficient of determination (R^2).
+    Only samples where at least one signal is non-zero are considered.
+    """
+    exp = np.asarray(exp, dtype=float).ravel()
+    sim = np.asarray(sim, dtype=float).ravel()
+
+    mask = (exp != 0) | (sim != 0)
+    if not np.any(mask):
+        return np.nan
+
+    exp_m = exp[mask]
+    sim_m = sim[mask]
+
+    ss_res = np.sum((exp_m - sim_m) ** 2)
+    ss_tot = np.sum((exp_m - np.mean(exp_m)) ** 2)
+
+    if ss_tot <= 0:
+        return np.nan
+
+    return float(1.0 - ss_res / ss_tot)
+
+def summarize_trials(mae_list, maxae_list, label="", unit="% F0"):
+    """
+    Print summary statistics for mAE and MAE across trials.
+    """
+    mae_arr = np.asarray(mae_list, dtype=float)
+    maxae_arr = np.asarray(maxae_list, dtype=float)
+
+    if mae_arr.size == 0 or maxae_arr.size == 0:
+        print(f"{label} (no trials)")
+        return
+
+    print(f"{label}")
+    print(
+        f"  mAE  = {mae_arr.mean():6.2f} ± {mae_arr.std(ddof=0):6.2f} {unit}   "
+        f"[{mae_arr.min():6.2f} – {mae_arr.max():6.2f}]"
+    )
+    print(
+        f"  MAE  = {maxae_arr.mean():6.2f} ± {maxae_arr.std(ddof=0):6.2f} {unit}   "
+        f"[{maxae_arr.min():6.2f} – {maxae_arr.max():6.2f}]"
+    )
+    print()
+
+def summarize_metric_list(values, label="", unit=""):
+    """
+    Print summary statistics for a generic metric list, ignoring NaNs.
+    """
+    arr = np.asarray(values, dtype=float)
+    arr = arr[~np.isnan(arr)]
+
+    if arr.size == 0:
+        print(f"{label} (no valid values)")
+        return
+
+    print(
+        f"{label}: {arr.mean():6.4f} ± {arr.std(ddof=0):6.4f} {unit}   "
+        f"[{arr.min():6.4f} – {arr.max():6.4f}]"
+    )
+
+def first_crossing_time(
+    time: np.ndarray,
+    signal: np.ndarray,
+    level: float,
+    start_idx: int = 0,
+    end_idx: int | None = None,
+    direction: str = "rising",
+):
+    """
+    Return the first interpolated crossing time of 'level' in 'signal'.
+
+    Parameters
+    ----------
+    time : array
+        Time vector.
+    signal : array
+        Signal vector.
+    level : float
+        Threshold to be crossed.
+    start_idx : int
+        Index from which to start searching.
+    end_idx : int or None
+        Final index for the search.
+    direction : str
+        'rising' for upward crossing, 'falling' for downward crossing.
+
+    Returns
+    -------
+    crossing_time : float
+        Interpolated crossing time, or np.nan if not found.
+    """
+    time = np.asarray(time, dtype=float).ravel()
+    signal = np.asarray(signal, dtype=float).ravel()
+
+    if end_idx is None:
+        end_idx = len(signal)
+
+    start_idx = max(1, int(start_idx))
+    end_idx = min(int(end_idx), len(signal))
+
+    for i in range(start_idx, end_idx):
+        y0 = signal[i - 1]
+        y1 = signal[i]
+
+        if direction == "rising":
+            crossed = (y0 < level <= y1)
+        elif direction == "falling":
+            crossed = (y0 > level >= y1)
+        else:
+            raise ValueError("direction must be 'rising' or 'falling'")
+
+        if crossed:
+            if y1 == y0:
+                return float(time[i])
+            alpha = (level - y0) / (y1 - y0)
+            return float(time[i - 1] + alpha * (time[i] - time[i - 1]))
+
+    return np.nan
+
+def first_positive_sample(time: np.ndarray, force: np.ndarray, threshold: float = 0.0):
+    """
+    Return time, force, and index of the first sample above threshold.
+    """
+    time = np.asarray(time, dtype=float).ravel()
+    force = np.asarray(force, dtype=float).ravel()
+
+    idx = np.where(force > threshold)[0]
+    if idx.size == 0:
+        return np.nan, np.nan, np.nan
+
+    i0 = int(idx[0])
+    return float(time[i0]), float(force[i0]), i0
+
+def peak_metrics(force: np.ndarray, time: np.ndarray, F0: float):
+    """
+    Return peak force, peak time, peak index, and peak normalized to F0 (%F0).
+    """
+    force = np.asarray(force, dtype=float).ravel()
+    time = np.asarray(time, dtype=float).ravel()
+
+    if force.size == 0:
+        return {
+            "peak_force": np.nan,
+            "peak_time": np.nan,
+            "peak_idx": np.nan,
+            "peak_force_pctF0": np.nan,
+        }
+
+    peak_idx = int(np.argmax(force))
+    peak_force = float(force[peak_idx])
+    peak_time = float(time[peak_idx])
+
+    return {
+        "peak_force": peak_force,
+        "peak_time": peak_time,
+        "peak_idx": peak_idx,
+        "peak_force_pctF0": np.nan if np.isclose(F0, 0.0) else float(peak_force / F0 * 100.0),
+    }
+
+def compute_twitch_metrics(
+    force: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+    force_threshold: float = 0.0,
+):
+    """
+    Metrics for twitch trials:
+    - peak force
+    - rise time: from first non-zero sample to peak
+    - half decay time: from peak to half-peak after peak
+    """
+    force = np.asarray(force, dtype=float).ravel()
+    time = np.asarray(time, dtype=float).ravel()
+
+    peak = peak_metrics(force, time, F0)
+    onset_time, onset_force, onset_idx = first_positive_sample(time, force, threshold=force_threshold)
+
+    out = {
+        "trial_type": "twitch",
+        "onset_time": onset_time,
+        "onset_force": onset_force,
+        "onset_idx": onset_idx,
+        "peak_force": peak["peak_force"],
+        "peak_time": peak["peak_time"],
+        "peak_idx": peak["peak_idx"],
+        "peak_force_pctF0": peak["peak_force_pctF0"],
+        "rise_time_twitch": np.nan,
+        "half_decay_force": np.nan,
+        "half_decay_time": np.nan,
+        "half_decay_time_twitch": np.nan,
+    }
+
+    if np.isnan(onset_time) or np.isnan(peak["peak_time"]):
+        return out
+
+    out["rise_time_twitch"] = float(peak["peak_time"] - onset_time)
+
+    if peak["peak_force"] <= 0:
+        return out
+
+    half_peak = 0.5 * peak["peak_force"]
+    half_decay_time = first_crossing_time(
+        time=time,
+        signal=force,
+        level=half_peak,
+        start_idx=int(peak["peak_idx"]) + 1,
+        end_idx=len(force),
+        direction="falling",
+    )
+
+    out["half_decay_force"] = half_peak
+    out["half_decay_time"] = half_decay_time
+
+    if not np.isnan(half_decay_time):
+        out["half_decay_time_twitch"] = float(half_decay_time - peak["peak_time"])
+
+    return out
+
+def compute_first_order_tetanus_metrics(
+    force: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+):
+    """
+    First-order-style metrics for non-twitch trials:
+    - peak force
+    - tau_rise_1st: time at 63.2% of peak before peak
+    - tau_decay_1st: time at 36.8% of peak after peak
+    """
+    force = np.asarray(force, dtype=float).ravel()
+    time = np.asarray(time, dtype=float).ravel()
+
+    peak = peak_metrics(force, time, F0)
+
+    out = {
+        "peak_force": peak["peak_force"],
+        "peak_time": peak["peak_time"],
+        "peak_idx": peak["peak_idx"],
+        "peak_force_pctF0": peak["peak_force_pctF0"],
+        "rise_force_1st": np.nan,
+        "rise_time_1st": np.nan,
+        "tau_rise_1st": np.nan,
+        "decay_force_1st": np.nan,
+        "decay_time_1st": np.nan,
+        "tau_decay_1st": np.nan,
+    }
+
+    if np.isnan(peak["peak_idx"]) or peak["peak_force"] <= 0:
+        return out
+
+    rise_force = 0.632 * peak["peak_force"]
+    decay_force = 0.368 * peak["peak_force"]
+
+    rise_time = first_crossing_time(
+        time=time,
+        signal=force,
+        level=rise_force,
+        start_idx=1,
+        end_idx=int(peak["peak_idx"]) + 1,
+        direction="rising",
+    )
+
+    decay_time = first_crossing_time(
+        time=time,
+        signal=force,
+        level=decay_force,
+        start_idx=int(peak["peak_idx"]) + 1,
+        end_idx=len(force),
+        direction="falling",
+    )
+
+    out["rise_force_1st"] = rise_force
+    out["rise_time_1st"] = rise_time
+    out["tau_rise_1st"] = rise_time
+
+    out["decay_force_1st"] = decay_force
+    out["decay_time_1st"] = decay_time
+    out["tau_decay_1st"] = decay_time
+
+    return out
+
+def compute_fusion_index(
+    force: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+    peak_window_s: float = 0.1,
+):
+    """
+    Fusion index:
+        FI = local minimum around peak / peak force
+
+    Returned:
+    - fusion_peak_force
+    - fusion_min_force
+    - fusion_min_time
+    - fusion_index_ratio
+    """
+    force = np.asarray(force, dtype=float).ravel()
+    time = np.asarray(time, dtype=float).ravel()
+
+    peak = peak_metrics(force, time, F0)
+    if np.isnan(peak["peak_idx"]):
+        return {
+            "fusion_peak_force": np.nan,
+            "fusion_min_force": np.nan,
+            "fusion_min_time": np.nan,
+            "fusion_index_ratio": np.nan,
+        }
+
+    t_peak = peak["peak_time"]
+    t0 = t_peak - peak_window_s / 2.0
+    t1 = t_peak + peak_window_s / 2.0
+
+    idx_win = np.where((time >= t0) & (time <= t1))[0]
+    if idx_win.size == 0:
+        return {
+            "fusion_peak_force": peak["peak_force"],
+            "fusion_min_force": np.nan,
+            "fusion_min_time": np.nan,
+            "fusion_index_ratio": np.nan,
+        }
+
+    local_force = force[idx_win]
+    local_time = time[idx_win]
+    min_idx_local = int(np.argmin(local_force))
+
+    fusion_min_force = float(local_force[min_idx_local])
+    fusion_min_time = float(local_time[min_idx_local])
+
+    if np.isclose(peak["peak_force"], 0.0):
+        fusion_index_ratio = np.nan
+    else:
+        fusion_index_ratio = float(fusion_min_force / peak["peak_force"])
+
+    return {
+        "fusion_peak_force": peak["peak_force"],
+        "fusion_min_force": fusion_min_force,
+        "fusion_min_time": fusion_min_time,
+        "fusion_index_ratio": fusion_index_ratio,
+    }
+
+def compute_nontwitch_metrics(
+    force: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+    peak_window_s: float = 0.05,
+):
+    """
+    Metrics for non-twitch isometric trials:
+    - peak force
+    - first-order rise/decay metrics
+    - fusion index
+    """
+    first_order = compute_first_order_tetanus_metrics(force, time, F0)
+    fusion = compute_fusion_index(force, time, F0, peak_window_s=peak_window_s)
+
+    out = {"trial_type": "nontwitch"}
+    out.update(first_order)
+    out.update(fusion)
+    return out
+
+def compute_isometric_trial_metrics(
+    force: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+    trial_type: str,
+    peak_window_s: float = 0.05,
+    force_threshold: float = 0.0,
+):
+    """
+    trial_type:
+    - 'twitch'
+    - 'nontwitch'
+    """
+    if trial_type == "twitch":
+        return compute_twitch_metrics(
+            force=force,
+            time=time,
+            F0=F0,
+            force_threshold=force_threshold,
+        )
+    elif trial_type == "nontwitch":
+        return compute_nontwitch_metrics(
+            force=force,
+            time=time,
+            F0=F0,
+            peak_window_s=peak_window_s,
+        )
+    else:
+        raise ValueError("trial_type must be 'twitch' or 'nontwitch'")
+
+def add_peak_ratio_to_twitch(
+    metrics: dict,
+    twitch_peak_force_ref: float,
+):
+    """
+    Add peak/twitch ratio to a metrics dictionary.
+
+    Returned values:
+    - peak_force
+    - twitch_peak_force_ref
+    - peak_twitch_ratio
+    """
+    out = dict(metrics)
+    peak_force = out.get("peak_force", np.nan)
+
+    out["twitch_peak_force_ref"] = twitch_peak_force_ref
+
+    if np.isnan(peak_force) or np.isnan(twitch_peak_force_ref) or np.isclose(twitch_peak_force_ref, 0.0):
+        out["peak_twitch_ratio"] = np.nan
+    else:
+        out["peak_twitch_ratio"] = float(peak_force / twitch_peak_force_ref)
+
+    return out
+
+def abs_error_time(sim_val: float, exp_val: float) -> float:
+    """
+    Absolute error in seconds.
+    """
+    if np.isnan(sim_val) or np.isnan(exp_val):
+        return np.nan
+    return float(np.abs(sim_val - exp_val))
+
+def abs_error_force_pctF0(sim_force: float, exp_force: float, F0: float) -> float:
+    """
+    Absolute force error expressed as %F0.
+    """
+    if np.isnan(sim_force) or np.isnan(exp_force) or np.isclose(F0, 0.0):
+        return np.nan
+    return float(np.abs(sim_force - exp_force) / F0 * 100.0)
+
+def abs_error_scalar(sim_val: float, exp_val: float) -> float:
+    """
+    Absolute error for dimensionless scalar metrics.
+    """
+    if np.isnan(sim_val) or np.isnan(exp_val):
+        return np.nan
+    return float(np.abs(sim_val - exp_val))
+
+def compute_isometric_metric_errors(
+    metrics_exp: dict,
+    metrics_sim: dict,
+    F0: float,
+):
+    """
+    Compute errors between experimental and simulated isometric metrics.
+
+    Rules:
+    - force-derived metrics -> absolute error in %F0
+    - time-derived metrics  -> absolute error in s
+    - ratio metrics         -> absolute absolute error on the ratio
+    """
+    out = {}
+
+    # Common peak metrics
+    out["peak_force_err_pctF0"] = abs_error_force_pctF0(
+        metrics_sim.get("peak_force", np.nan),
+        metrics_exp.get("peak_force", np.nan),
+        F0
+    )
+
+    # Peak/twitch ratio
+    out["peak_twitch_ratio_err"] = abs_error_scalar(
+        metrics_sim.get("peak_twitch_ratio", np.nan),
+        metrics_exp.get("peak_twitch_ratio", np.nan),
+    )
+
+    # Twitch-only metrics
+    out["rise_time_twitch_err_s"] = abs_error_time(
+        metrics_sim.get("rise_time_twitch", np.nan),
+        metrics_exp.get("rise_time_twitch", np.nan),
+    )
+
+    out["half_decay_time_twitch_err_s"] = abs_error_time(
+        metrics_sim.get("half_decay_time_twitch", np.nan),
+        metrics_exp.get("half_decay_time_twitch", np.nan),
+    )
+
+    # First-order tetanus metrics
+    out["tau_rise_1st_err_s"] = abs_error_time(
+        metrics_sim.get("tau_rise_1st", np.nan),
+        metrics_exp.get("tau_rise_1st", np.nan),
+    )
+
+    out["tau_decay_1st_err_s"] = abs_error_time(
+        metrics_sim.get("tau_decay_1st", np.nan),
+        metrics_exp.get("tau_decay_1st", np.nan),
+    )
+
+    # Fusion index ratio
+    out["fusion_index_ratio_err"] = abs_error_scalar(
+        metrics_sim.get("fusion_index_ratio", np.nan),
+        metrics_exp.get("fusion_index_ratio", np.nan),
+    )
+
+    return out
+
+def compute_full_isometric_evaluation(
+    exp: np.ndarray,
+    sim: np.ndarray,
+    time: np.ndarray,
+    F0: float,
+    trial_type: str,
+    twitch_peak_exp: float,
+    twitch_peak_sim: float,
+    peak_window_s: float = 0.05,
+    force_threshold: float = 0.0,
+):
+    """
+    Full evaluation for an isometric trial:
+    - mAE, MAE, std (%F0)
+    - R²
+    - trial-specific metrics
+    - peak/twitch ratio
+    - metric errors
+    """
+    out = {}
+
+    mae, maxae, stde = pct_errors(exp, sim, F0)
+    out["mae"] = mae
+    out["maxae"] = maxae
+    out["stde"] = stde
+    out["R2"] = compute_r2(exp, sim)
+
+    metrics_exp = compute_isometric_trial_metrics(
+        force=exp,
+        time=time,
+        F0=F0,
+        trial_type=trial_type,
+        peak_window_s=peak_window_s,
+        force_threshold=force_threshold,
+    )
+    metrics_sim = compute_isometric_trial_metrics(
+        force=sim,
+        time=time,
+        F0=F0,
+        trial_type=trial_type,
+        peak_window_s=peak_window_s,
+        force_threshold=force_threshold,
+    )
+
+    metrics_exp = add_peak_ratio_to_twitch(metrics_exp, twitch_peak_exp)
+    metrics_sim = add_peak_ratio_to_twitch(metrics_sim, twitch_peak_sim)
+
+    metric_errors = compute_isometric_metric_errors(metrics_exp, metrics_sim, F0)
+
+    out["metrics_exp"] = metrics_exp
+    out["metrics_sim"] = metrics_sim
+    out["metric_errors"] = metric_errors
+
+    return out
+
+def plot_twitch_metric_points(
+    time: np.ndarray,
+    force_exp: np.ndarray,
+    force_sim: np.ndarray,
+    metrics_exp: dict,
+    metrics_sim: dict,
+    title: str = "",
+    figsize=(7, 4),
+):
+    """
+    Plot twitch traces with onset, peak, and half-decay points.
+    """
+    plt.figure(figsize=figsize)
+    plt.plot(time, force_exp, 'k', label='Experimental')
+    plt.plot(time, force_sim, 'r', label='Simulated')
+
+    if not np.isnan(metrics_exp.get("onset_time", np.nan)):
+        plt.plot(metrics_exp["onset_time"], metrics_exp["onset_force"], 'ko', label='Exp onset')
+    if not np.isnan(metrics_exp.get("peak_time", np.nan)):
+        plt.plot(metrics_exp["peak_time"], metrics_exp["peak_force"], 'kD', label='Exp peak')
+    if not np.isnan(metrics_exp.get("half_decay_time", np.nan)):
+        plt.plot(metrics_exp["half_decay_time"], metrics_exp["half_decay_force"], 'kP', label='Exp half decay')
+
+    if not np.isnan(metrics_sim.get("onset_time", np.nan)):
+        plt.plot(metrics_sim["onset_time"], metrics_sim["onset_force"], 'ro', label='Sim onset')
+    if not np.isnan(metrics_sim.get("peak_time", np.nan)):
+        plt.plot(metrics_sim["peak_time"], metrics_sim["peak_force"], 'rD', label='Sim peak')
+    if not np.isnan(metrics_sim.get("half_decay_time", np.nan)):
+        plt.plot(metrics_sim["half_decay_time"], metrics_sim["half_decay_force"], 'rP', label='Sim half decay')
+
+    plt.title(title, weight='bold')
+    plt.xlabel('Time [s]', weight='bold')
+    plt.ylabel('Force', weight='bold')
+    plt.legend(fontsize=8, ncol=2)
+    plt.tight_layout()
+    plt.show()
+
+def plot_nontwitch_metric_points(
+    time: np.ndarray,
+    force_exp: np.ndarray,
+    force_sim: np.ndarray,
+    metrics_exp: dict,
+    metrics_sim: dict,
+    title: str = "",
+    figsize=(7, 4),
+):
+    """
+    Plot non-twitch traces with peak, first-order points, and fusion-index minimum.
+    """
+    plt.figure(figsize=figsize)
+    plt.plot(time, force_exp, 'k', label='Experimental')
+    plt.plot(time, force_sim, 'r', label='Simulated')
+
+    if not np.isnan(metrics_exp.get("peak_time", np.nan)):
+        plt.plot(metrics_exp["peak_time"], metrics_exp["peak_force"], 'kD', label='Exp peak')
+    if not np.isnan(metrics_exp.get("rise_time_1st", np.nan)):
+        plt.plot(metrics_exp["rise_time_1st"], metrics_exp["rise_force_1st"], 'k^', label='Exp 63.2% peak')
+    if not np.isnan(metrics_exp.get("decay_time_1st", np.nan)):
+        plt.plot(metrics_exp["decay_time_1st"], metrics_exp["decay_force_1st"], 'kP', label='Exp 36.8% peak')
+    if not np.isnan(metrics_exp.get("fusion_min_time", np.nan)):
+        plt.plot(metrics_exp["fusion_min_time"], metrics_exp["fusion_min_force"], 'ks', label='Exp fusion min')
+
+    if not np.isnan(metrics_sim.get("peak_time", np.nan)):
+        plt.plot(metrics_sim["peak_time"], metrics_sim["peak_force"], 'rD', label='Sim peak')
+    if not np.isnan(metrics_sim.get("rise_time_1st", np.nan)):
+        plt.plot(metrics_sim["rise_time_1st"], metrics_sim["rise_force_1st"], 'r^', label='Sim 63.2% peak')
+    if not np.isnan(metrics_sim.get("decay_time_1st", np.nan)):
+        plt.plot(metrics_sim["decay_time_1st"], metrics_sim["decay_force_1st"], 'rP', label='Sim 36.8% peak')
+    if not np.isnan(metrics_sim.get("fusion_min_time", np.nan)):
+        plt.plot(metrics_sim["fusion_min_time"], metrics_sim["fusion_min_force"], 'rs', label='Sim fusion min')
+
+    plt.title(title, weight='bold')
+    plt.xlabel('Time [s]', weight='bold')
+    plt.ylabel('Force', weight='bold')
+    plt.legend(fontsize=8, ncol=2)
+    plt.tight_layout()
+    plt.show()
+
+def print_twitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: dict, metric_errors: dict, align: int = 24):
+    print(
+        f"{label:>{align}}   "
+        f"peak_exp = {metrics_exp.get('peak_force_pctF0', np.nan):.2f}%F0   "
+        f"peak_sim = {metrics_sim.get('peak_force_pctF0', np.nan):.2f}%F0   "
+        f"peak/twitch_exp = {metrics_exp.get('peak_twitch_ratio', np.nan):.4f}   "
+        f"peak/twitch_sim = {metrics_sim.get('peak_twitch_ratio', np.nan):.4f}"
+    )
+    print(
+        f"{'':>{align}}   "
+        f"peak err = {metric_errors['peak_force_err_pctF0']:.2f}%F0   "
+        f"peak/twitch err = {metric_errors['peak_twitch_ratio_err']:.4f}   "
+        f"rise err = {metric_errors['rise_time_twitch_err_s']:.4f} s   "
+        f"half-decay err = {metric_errors['half_decay_time_twitch_err_s']:.4f} s"
+    )
+
+def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: dict, metric_errors: dict, align: int = 24):
+    print(
+        f"{label:>{align}}   "
+        f"peak_exp = {metrics_exp.get('peak_force_pctF0', np.nan):.2f}%F0   "
+        f"peak_sim = {metrics_sim.get('peak_force_pctF0', np.nan):.2f}%F0   "
+        f"peak/twitch_exp = {metrics_exp.get('peak_twitch_ratio', np.nan):.4f}   "
+        f"peak/twitch_sim = {metrics_sim.get('peak_twitch_ratio', np.nan):.4f}"
+    )
+    print(
+        f"{'':>{align}}   "
+        f"fusion peak_exp = {metrics_exp.get('fusion_peak_force', np.nan):.4f}   "
+        f"fusion min_exp = {metrics_exp.get('fusion_min_force', np.nan):.4f}   "
+        f"FI_exp = {metrics_exp.get('fusion_index_ratio', np.nan):.4f}"
+    )
+    print(
+        f"{'':>{align}}   "
+        f"fusion peak_sim = {metrics_sim.get('fusion_peak_force', np.nan):.4f}   "
+        f"fusion min_sim = {metrics_sim.get('fusion_min_force', np.nan):.4f}   "
+        f"FI_sim = {metrics_sim.get('fusion_index_ratio', np.nan):.4f}"
+    )
+    print(
+        f"{'':>{align}}   "
+        f"peak err = {metric_errors['peak_force_err_pctF0']:.2f}%F0   "
+        f"peak/twitch err = {metric_errors['peak_twitch_ratio_err']:.4f}   "
+        f"τrise err = {metric_errors['tau_rise_1st_err_s']:.4f} s   "
+        f"τdecay err = {metric_errors['tau_decay_1st_err_s']:.4f} s   "
+        f"FI err = {metric_errors['fusion_index_ratio_err']:.4f}"
+    )
 
 #############################################################################
-" PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
-" Files were kept separated to avoid confusion in error and statistics computation"
+"PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
+"Files were kept separated to avoid confusion in error and statistics computation"
 #############################################################################
 
 benchmark = 'MU' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
@@ -207,11 +912,14 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.show()
 
 
-elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
-    
-    sim_path = base_path / 'slow_M' / 'sim' # experimental path
-    exp_path = base_path / 'slow_M' / 'exp' # simulations path
+elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
 
+    sim_path = base_path / 'slow_M' / 'sim'
+    exp_path = base_path / 'slow_M' / 'exp'
+
+    # -------------------------------------------------------------------------
+    # Load isometric trials
+    # -------------------------------------------------------------------------
     sim_iso_c_10 = np.load(sim_path / 'sub_iso_c_10.npy')
     sim_iso_c_20 = np.load(sim_path / 'sub_iso_c_20.npy')
     sim_iso_c_30 = np.load(sim_path / 'sub_iso_c_30.npy')
@@ -226,10 +934,13 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     exp_iso_v_20 = np.load(exp_path / 'sub_iso_v_20.npy')
     exp_iso_v_30 = np.load(exp_path / 'sub_iso_v_30.npy')
 
-    t_end = 2 # total seconds
-    time_dt = np.arange(0, t_end, dt) # time for BB
+    t_end = 2
+    time_dt = np.arange(0, t_end, dt)
     MVC = 26.13
 
+    # -------------------------------------------------------------------------
+    # ISO plots (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(10, 9))
 
     plt.subplot(3, 2, 1)
@@ -279,6 +990,9 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.tight_layout()
     plt.show()
 
+    # -------------------------------------------------------------------------
+    # Load dynamic constant trials
+    # -------------------------------------------------------------------------
     sim_dyn_c_10_1 = np.load(sim_path / 'sub_dyn_c_10_1.npy')
     sim_dyn_c_20_1 = np.load(sim_path / 'sub_dyn_c_20_1.npy')
     sim_dyn_c_30_1 = np.load(sim_path / 'sub_dyn_c_30_1.npy')
@@ -300,8 +1014,11 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     exp_dyn_c_20_8 = np.load(exp_path / 'sub_dyn_c_20_8.npy')
     exp_dyn_c_30_8 = np.load(exp_path / 'sub_dyn_c_30_8.npy')
 
+    # -------------------------------------------------------------------------
+    # Dynamic constant plots (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(10, 9))
-    
+
     plt.subplot(3, 2, 1)
     plt.plot(time_dt, exp_dyn_c_10_1, 'k')
     plt.plot(time_dt, sim_dyn_c_10_1, 'r')
@@ -355,6 +1072,9 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.tight_layout()
     plt.show()
 
+    # -------------------------------------------------------------------------
+    # Load dynamic random trials
+    # -------------------------------------------------------------------------
     sim_dyn_v_10_1 = np.load(sim_path / 'sub_dyn_v_10_1.npy')
     sim_dyn_v_20_1 = np.load(sim_path / 'sub_dyn_v_20_1.npy')
     sim_dyn_v_30_1 = np.load(sim_path / 'sub_dyn_v_30_1.npy')
@@ -376,12 +1096,15 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     exp_dyn_v_20_8 = np.load(exp_path / 'sub_dyn_v_20_8.npy')
     exp_dyn_v_30_8 = np.load(exp_path / 'sub_dyn_v_30_8.npy')
 
+    # -------------------------------------------------------------------------
+    # Dynamic random plots (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(10, 9))
 
     plt.subplot(3, 2, 1)
     plt.plot(time_dt, exp_dyn_v_10_1, 'k')
     plt.plot(time_dt, sim_dyn_v_10_1, 'r')
-    #plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
+    # plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
     plt.title(u"Random 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
@@ -389,7 +1112,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.subplot(3, 2, 2)
     plt.plot(time_dt, exp_dyn_v_10_8, 'k', label='Experimental')
     plt.plot(time_dt, sim_dyn_v_10_8, 'r', label='Simulated')
-    #plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--', label='Simulated (no yielding)')
+    # plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--', label='Simulated (no yielding)')
     plt.legend(loc='upper right', fontsize=12)
     plt.title(u"Random 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
@@ -398,7 +1121,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.subplot(3, 2, 3)
     plt.plot(time_dt, exp_dyn_v_20_1, 'k')
     plt.plot(time_dt, sim_dyn_v_20_1, 'r')
-    #plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
+    # plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
     plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
@@ -407,7 +1130,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_dyn_v_20_8, 'k')
     plt.plot(time_dt, sim_dyn_v_20_8, 'r')
-    #plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
+    # plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
     plt.title(u"Random 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
@@ -415,7 +1138,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.subplot(3, 2, 5)
     plt.plot(time_dt, exp_dyn_v_30_1, 'k')
     plt.plot(time_dt, sim_dyn_v_30_1, 'r')
-    #plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
+    # plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
     plt.title(u"Random 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
@@ -423,7 +1146,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.subplot(3, 2, 6)
     plt.plot(time_dt, exp_dyn_v_30_8, 'k')
     plt.plot(time_dt, sim_dyn_v_30_8, 'r')
-    #plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
+    # plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
     plt.title(u"Random 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
@@ -431,47 +1154,21 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.tight_layout()
     plt.show()
 
-    # =========================
-    # Errors
-    # =========================
-    def pct_errors_full(exp: np.ndarray, sim: np.ndarray, MVC: float):
-
-        mask = (exp != 0) | (sim != 0)
-        if not np.any(mask):
-           return 0.0, 0.0, 0.0
-
-        exp_nz = exp[mask]
-        sim_nz = sim[mask]
-
-        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
-        mae   = float(np.mean(abs_err_pct))
-        maxae = float(np.max(abs_err_pct))
-        stde  = float(np.std(abs_err_pct))
-        return mae, maxae, stde
-
+    # -------------------------------------------------------------------------
+    # Trial definitions
+    # -------------------------------------------------------------------------
     print("\n=== Benchmark: slow_M_sub ===")
     print(f"MVC = {MVC:.2f} N\n")
 
-    # -------- ISO (isometric: constant/random 10,20,30 Hz) --------
     iso_trials = [
-        ("ISO Const 10 Hz", exp_iso_c_10, sim_iso_c_10),
-        ("ISO Rand  10 Hz", exp_iso_v_10, sim_iso_v_10),
-        ("ISO Const 20 Hz", exp_iso_c_20, sim_iso_c_20),
-        ("ISO Rand  20 Hz", exp_iso_v_20, sim_iso_v_20),
-        ("ISO Const 30 Hz", exp_iso_c_30, sim_iso_c_30),
-        ("ISO Rand  30 Hz", exp_iso_v_30, sim_iso_v_30),
+        ("ISO Const 10 Hz", exp_iso_c_10, sim_iso_c_10, MVC, time_dt),
+        ("ISO Rand  10 Hz", exp_iso_v_10, sim_iso_v_10, MVC, time_dt),
+        ("ISO Const 20 Hz", exp_iso_c_20, sim_iso_c_20, MVC, time_dt),
+        ("ISO Rand  20 Hz", exp_iso_v_20, sim_iso_v_20, MVC, time_dt),
+        ("ISO Const 30 Hz", exp_iso_c_30, sim_iso_c_30, MVC, time_dt),
+        ("ISO Rand  30 Hz", exp_iso_v_30, sim_iso_v_30, MVC, time_dt),
     ]
 
-    iso_mae, iso_max, iso_std = [], [], []
-    print("— ISO trials —")
-    for name, exp, sim in iso_trials:
-        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
-        iso_mae.append(mae); iso_max.append(maxae); iso_std.append(stde)
-        print(f"{name:>16}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-
-    print(f"{'ISO Average':>16}:  MAE = {np.mean(iso_mae):6.2f}% MVC  (std = {np.mean(iso_std):6.2f})   MaxAE = {np.mean(iso_max):6.2f}% MVC\n")
-
-    # -------- DYN (constant displacement: 1 mm, 8 mm @ 10/20/30 Hz) --------
     dyn_c_trials = [
         ("DYN Const 10 Hz ±1 mm", exp_dyn_c_10_1, sim_dyn_c_10_1),
         ("DYN Const 10 Hz ±8 mm", exp_dyn_c_10_8, sim_dyn_c_10_8),
@@ -481,16 +1178,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Const 30 Hz ±8 mm", exp_dyn_c_30_8, sim_dyn_c_30_8),
     ]
 
-    dync_mae, dync_max, dync_std = [], [], []
-    print("— Dynamic (constant) trials —")
-    for name, exp, sim in dyn_c_trials:
-        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
-        dync_mae.append(mae); dync_max.append(maxae); dync_std.append(stde)
-        print(f"{name:>24}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-
-    print(f"{'DYN Const Average':>24}:  MAE = {np.mean(dync_mae):6.2f}% MVC  (std = {np.mean(dync_std):6.2f})   MaxAE = {np.mean(dync_max):6.2f}% MVC\n")
-
-    # -------- DYN (random/variable displacement) --------
     dyn_v_trials = [
         ("DYN Rand 10 Hz ±1 mm", exp_dyn_v_10_1, sim_dyn_v_10_1),
         ("DYN Rand 10 Hz ±8 mm", exp_dyn_v_10_8, sim_dyn_v_10_8),
@@ -500,17 +1187,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Rand 30 Hz ±8 mm", exp_dyn_v_30_8, sim_dyn_v_30_8),
     ]
 
-    dynv_mae, dynv_max, dynv_std = [], [], []
-    print("— Dynamic (random) trials —")
-    for name, exp, sim in dyn_v_trials:
-        mae, maxae, stde = pct_errors_full(exp, sim, MVC)
-        dynv_mae.append(mae); dynv_max.append(maxae); dynv_std.append(stde)
-        print(f"{name:>23}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-
-    print(f"{'DYN Rand Average':>23}:  MAE = {np.mean(dynv_mae):6.2f}% MVC  (std = {np.mean(dynv_std):6.2f})   MaxAE = {np.mean(dynv_max):6.2f}% MVC\n")
-
-
-    # -------- DYN (constant) — NO YIELDING --------
     dyn_c_trials_noy = [
         ("DYN Const 10 Hz ±1 mm (NOY)", exp_dyn_c_10_1, sim_dyn_c_10_1_noy),
         ("DYN Const 10 Hz ±8 mm (NOY)", exp_dyn_c_10_8, sim_dyn_c_10_8_noy),
@@ -520,16 +1196,6 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Const 30 Hz ±8 mm (NOY)", exp_dyn_c_30_8, sim_dyn_c_30_8_noy),
     ]
 
-    dync_noy_mae, dync_noy_max, dync_noy_std = [], [], []
-    print("— Dynamic (constant) trials — NO YIELDING —")
-    for name, exp, sim_noy in dyn_c_trials_noy:
-        mae, maxae, stde = pct_errors_full(exp, sim_noy, MVC)
-        dync_noy_mae.append(mae); dync_noy_max.append(maxae); dync_noy_std.append(stde)
-        print(f"{name:>34}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'DYN Const Average (NOY)':>34}:  MAE = {np.mean(dync_noy_mae):6.2f}% MVC  "
-          f"(std = {np.mean(dync_noy_std):6.2f})   MaxAE = {np.mean(dync_noy_max):6.2f}% MVC\n")
-
-    # -------- DYN (random/variable) — NO YIELDING --------
     dyn_v_trials_noy = [
         ("DYN Rand 10 Hz ±1 mm (NOY)", exp_dyn_v_10_1, sim_dyn_v_10_1_noy),
         ("DYN Rand 10 Hz ±8 mm (NOY)", exp_dyn_v_10_8, sim_dyn_v_10_8_noy),
@@ -539,43 +1205,204 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("DYN Rand 30 Hz ±8 mm (NOY)", exp_dyn_v_30_8, sim_dyn_v_30_8_noy),
     ]
 
-    dynv_noy_mae, dynv_noy_max, dynv_noy_std = [], [], []
-    print("— Dynamic (random) trials — NO YIELDING —")
-    for name, exp, sim_noy in dyn_v_trials_noy:
-        mae, maxae, stde = pct_errors_full(exp, sim_noy, MVC)
-        dynv_noy_mae.append(mae); dynv_noy_max.append(maxae); dynv_noy_std.append(stde)
-        print(f"{name:>33}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-    print(f"{'DYN Rand Average (NOY)':>33}:  MAE = {np.mean(dynv_noy_mae):6.2f}% MVC  "
-          f"(std = {np.mean(dynv_noy_std):6.2f})   MaxAE = {np.mean(dynv_noy_max):6.2f}% MVC\n")
+    def process_iso_trials(trials, block_title, avg_label, align=16, plot_points=True):
+        mae_list, maxae_list, std_list = [], [], []
+        r2_list = []
+        tau_rise_err_list, tau_decay_err_list, rfd_err_list = [], [], []
 
-    summarize_trials(iso_mae,  iso_max,  label="— slow_M_sub summary: ISO (all trials) —", unit="% MVC")
-    all_mae_dyn = list(dync_mae)  + list(dynv_mae)
-    all_max_dyn = list(dync_max) + list(dynv_max)
-    summarize_trials(all_mae_dyn, all_max_dyn, label="— slow_M_sub summary: DYN (all trials) —", unit="% MVC")
+        print(block_title)
+        for name, exp, sim, mvc, time_dt_local in trials:
+            iso_metrics = compute_isometric_metrics(
+                exp=exp,
+                sim=sim,
+                time=time_dt_local,
+                MVC=mvc,
+                n_onset_samples=3,
+                force_threshold=0.0,
+                use_abs_times=True,
+            )
 
-    all_mae_noy_dyn = list(dync_noy_mae)  + list(dynv_noy_mae)
-    all_max_noy_dyn = list(dync_noy_max) + list(dynv_noy_max)
-    summarize_trials(all_mae_noy_dyn, all_max_noy_dyn, label="— slow_M_sub summary: DYN NO YIELDING (all trials) —", unit="% MVC")
+            mae = iso_metrics["mae"]
+            maxae = iso_metrics["maxae"]
+            stde = iso_metrics["stde"]
+            r2 = iso_metrics["R2"]
 
-    # ---------------------------
-    # helper per i plot
-    # ---------------------------
+            metrics_exp = iso_metrics["metrics_exp"]
+            metrics_sim = iso_metrics["metrics_sim"]
+
+            tau_rise_err = iso_metrics["tau_rise_err"]
+            tau_decay_err = iso_metrics["tau_decay_err"]
+            rfd_err = iso_metrics["rfd_err"]
+
+            mae_list.append(mae)
+            maxae_list.append(maxae)
+            std_list.append(stde)
+            r2_list.append(r2)
+            tau_rise_err_list.append(tau_rise_err)
+            tau_decay_err_list.append(tau_decay_err)
+            rfd_err_list.append(rfd_err)
+
+            print(
+                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   "
+                f"MaxAE = {maxae:6.2f}% MVC   R² = {r2:.3f}"
+            )
+            print_first_order_metric_summary(
+                label="",
+                metric_dict={
+                    "tau_rise_err": tau_rise_err,
+                    "tau_decay_err": tau_decay_err,
+                    "rfd_err": rfd_err,
+                },
+                align=align
+            )
+
+            if plot_points:
+                plot_first_order_points(
+                    time=time_dt_local,
+                    force_exp=exp,
+                    force_sim=sim,
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    title=name
+                )
+
+        print(
+            f"{avg_label:>{align}}:  "
+            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
+            f"(std = {np.mean(std_list):6.2f})   "
+            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+        )
+
+        return {
+            "mae": mae_list,
+            "maxae": maxae_list,
+            "std": std_list,
+            "r2": r2_list,
+            "tau_rise_err": tau_rise_err_list,
+            "tau_decay_err": tau_decay_err_list,
+            "rfd_err": rfd_err_list,
+        }
+
+    def process_dynamic_trials(trials, block_title, avg_label, align=24):
+        mae_list, maxae_list, std_list = [], [], []
+
+        print(block_title)
+        for name, exp, sim in trials:
+            mae, maxae, stde = pct_errors(exp, sim, MVC)
+            mae_list.append(mae)
+            maxae_list.append(maxae)
+            std_list.append(stde)
+
+            print(
+                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  "
+                f"(std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC"
+            )
+
+        print(
+            f"{avg_label:>{align}}:  "
+            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
+            f"(std = {np.mean(std_list):6.2f})   "
+            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+        )
+
+        return {
+            "mae": mae_list,
+            "maxae": maxae_list,
+            "std": std_list,
+        }
+
+    # -------------------------------------------------------------------------
+    # ISO
+    # -------------------------------------------------------------------------
+    iso_res = process_iso_trials(
+        iso_trials,
+        block_title="— ISO trials —",
+        avg_label="ISO Average",
+        align=16,
+        plot_points=True
+    )
+
+    summarize_metric_list(iso_res["r2"], "ISO R²", "")
+    summarize_metric_list(iso_res["tau_rise_err"], "ISO τ_rise relative error", "%")
+    summarize_metric_list(iso_res["tau_decay_err"], "ISO τ_decay relative error", "%")
+    summarize_metric_list(iso_res["rfd_err"], "ISO initial RFD relative error", "%")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Dynamic constant
+    # -------------------------------------------------------------------------
+    dync_res = process_dynamic_trials(
+        dyn_c_trials,
+        block_title="— Dynamic (constant) trials —",
+        avg_label="DYN Const Average",
+        align=24
+    )
+
+    # -------------------------------------------------------------------------
+    # Dynamic random
+    # -------------------------------------------------------------------------
+    dynv_res = process_dynamic_trials(
+        dyn_v_trials,
+        block_title="— Dynamic (random) trials —",
+        avg_label="DYN Rand Average",
+        align=23
+    )
+
+    # -------------------------------------------------------------------------
+    # Dynamic constant - no yielding
+    # -------------------------------------------------------------------------
+    dync_noy_res = process_dynamic_trials(
+        dyn_c_trials_noy,
+        block_title="— Dynamic (constant) trials — NO YIELDING —",
+        avg_label="DYN Const Average (NOY)",
+        align=34
+    )
+
+    # -------------------------------------------------------------------------
+    # Dynamic random - no yielding
+    # -------------------------------------------------------------------------
+    dynv_noy_res = process_dynamic_trials(
+        dyn_v_trials_noy,
+        block_title="— Dynamic (random) trials — NO YIELDING —",
+        avg_label="DYN Rand Average (NOY)",
+        align=33
+    )
+
+    # -------------------------------------------------------------------------
+    # Summaries
+    # -------------------------------------------------------------------------
+    summarize_trials(
+        iso_res["mae"],
+        iso_res["maxae"],
+        label="— slow_M_sub summary: ISO (all trials) —",
+        unit="% MVC"
+    )
+
+    summarize_trials(
+        list(dync_res["mae"]) + list(dynv_res["mae"]),
+        list(dync_res["maxae"]) + list(dynv_res["maxae"]),
+        label="— slow_M_sub summary: DYN (all trials) —",
+        unit="% MVC"
+    )
+
+    summarize_trials(
+        list(dync_noy_res["mae"]) + list(dynv_noy_res["mae"]),
+        list(dync_noy_res["maxae"]) + list(dynv_noy_res["maxae"]),
+        label="— slow_M_sub summary: DYN NO YIELDING (all trials) —",
+        unit="% MVC"
+    )
+
+    # -------------------------------------------------------------------------
+    # Error plots (unchanged)
+    # -------------------------------------------------------------------------
     def build_err(trials, MVC):
         mean_list, max_list, std_list = [], [], []
         for _, exp, sim in trials:
-            # filtro anche qui
-            mask = (exp != 0) | (sim != 0)
-            if np.any(mask):
-                abs_err = np.abs((sim[mask] / MVC) - (exp[mask] / MVC)) * 100.0
-                mean_list.append(np.mean(abs_err))
-                max_list.append(np.max(abs_err))
-                std_list.append(np.std(abs_err))
-            else:
-                mean_list.append(0.0)
-                max_list.append(0.0)
-                std_list.append(0.0)
+            mae, maxae, stde = pct_errors(exp, sim, MVC)
+            mean_list.append(mae)
+            max_list.append(maxae)
+            std_list.append(stde)
         return np.array(mean_list), np.array(max_list), np.array(std_list)
-
 
     iso_trials_plot = [
         ("Const 10 Hz", exp_iso_c_10, sim_iso_c_10),
@@ -584,7 +1411,7 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
         ("Rand 10 Hz",  exp_iso_v_10, sim_iso_v_10),
         ("Rand 20 Hz",  exp_iso_v_20, sim_iso_v_20),
         ("Rand 30 Hz",  exp_iso_v_30, sim_iso_v_30),
-    ]  
+    ]
     mean_iso, max_iso, std_iso = build_err(iso_trials_plot, MVC)
 
     dyn_1mm_trials = [
@@ -622,14 +1449,13 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
 
         ax.set_xticks(x)
         ax.set_xticklabels(x_labels)
-        ax.set_xticks(x)
         ax.set_xticklabels(x_labels, rotation=30, ha='right', rotation_mode='anchor')
         ax.set_title(title, fontweight='bold')
         ax.set_ylim([0, 45])
 
-    #plot_panel(axes[0], x, mean_iso,  max_iso,  std_iso,  "Isometric")
-    plot_panel(axes[0], x, mean_1mm,  max_1mm,  std_1mm,  "Dynamic ±1 mm")
-    plot_panel(axes[1], x, mean_8mm,  max_8mm,  std_8mm,  "Dynamic ±8 mm")
+    # plot_panel(axes[0], x, mean_iso, max_iso, std_iso, "Isometric")
+    plot_panel(axes[0], x, mean_1mm, max_1mm, std_1mm, "Dynamic ±1 mm")
+    plot_panel(axes[1], x, mean_8mm, max_8mm, std_8mm, "Dynamic ±8 mm")
 
     axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     for ax in axes:
@@ -640,47 +1466,50 @@ elif benchmark == 'slow_M_sub': # Perreault 2003 experiments
     plt.show()
 
 
-elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiments
+elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experiments
 
-    sim_path = base_path / 'slow_M' / 'sim' # experimental path
-    exp_path = base_path / 'slow_M' / 'exp' # simulations path
+    sim_path = base_path / 'slow_M' / 'sim'
+    exp_path = base_path / 'slow_M' / 'exp'
 
-    exp_twitch_0 = np.load(exp_path / 'len_iso_twitch_0.npy') # load experimental forces
+    exp_twitch_0 = np.load(exp_path / 'len_iso_twitch_0.npy')
     exp_iso_0_10 = np.load(exp_path / 'len_iso_10_0.npy')
     exp_iso_0_20 = np.load(exp_path / 'len_iso_20_0.npy')
     exp_iso_0_40 = np.load(exp_path / 'len_iso_40_0.npy')
     exp_twitch_8 = np.load(exp_path / 'len_iso_twitch_8.npy')
     exp_iso_8_10 = np.load(exp_path / 'len_iso_10_8.npy')
-    exp_iso_8_20 = np.load(exp_path / 'len_iso_20_8.npy') 
+    exp_iso_8_20 = np.load(exp_path / 'len_iso_20_8.npy')
     exp_iso_8_40 = np.load(exp_path / 'len_iso_40_8.npy')
     exp_twitch_16 = np.load(exp_path / 'len_iso_twitch_16.npy')
     exp_iso_16_10 = np.load(exp_path / 'len_iso_10_16.npy')
     exp_iso_16_20 = np.load(exp_path / 'len_iso_20_16.npy')
     exp_iso_16_40 = np.load(exp_path / 'len_iso_40_16.npy')
 
-    sim_twitch_0 = np.load(sim_path / 'len_iso_twitch_0.npy') # load experimental forces
+    sim_twitch_0 = np.load(sim_path / 'len_iso_twitch_0.npy')
     sim_iso_0_10 = np.load(sim_path / 'len_iso_10_0.npy')
     sim_iso_0_20 = np.load(sim_path / 'len_iso_20_0.npy')
     sim_iso_0_40 = np.load(sim_path / 'len_iso_40_0.npy')
     sim_twitch_8 = np.load(sim_path / 'len_iso_twitch_8.npy')
     sim_iso_8_10 = np.load(sim_path / 'len_iso_10_8.npy')
-    sim_iso_8_20 = np.load(sim_path / 'len_iso_20_8.npy') 
+    sim_iso_8_20 = np.load(sim_path / 'len_iso_20_8.npy')
     sim_iso_8_40 = np.load(sim_path / 'len_iso_40_8.npy')
     sim_twitch_16 = np.load(sim_path / 'len_iso_twitch_16.npy')
     sim_iso_16_10 = np.load(sim_path / 'len_iso_10_16.npy')
     sim_iso_16_20 = np.load(sim_path / 'len_iso_20_16.npy')
     sim_iso_16_40 = np.load(sim_path / 'len_iso_40_16.npy')
 
-    t_end = 1.4 # total seconds
-    time_dt = np.arange(0, t_end, dt) # time for BB
+    t_end = 1.4
+    time_dt = np.arange(0, t_end, dt)
     MVC = 30.25
 
+    # -------------------------------------------------------------------------
+    # Plots (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(9, 8))
 
     plt.subplot(4, 3, 1)
     plt.plot(time_dt, exp_twitch_0, 'k')
     plt.plot(time_dt, sim_twitch_0, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
@@ -695,14 +1524,14 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 3)
     plt.plot(time_dt, exp_twitch_16, 'k')
     plt.plot(time_dt, sim_twitch_16, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
     plt.subplot(4, 3, 4)
     plt.plot(time_dt, exp_iso_0_10, 'k')
     plt.plot(time_dt, sim_iso_0_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
@@ -716,14 +1545,14 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 6)
     plt.plot(time_dt, exp_iso_16_10, 'k')
     plt.plot(time_dt, sim_iso_16_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 7)
     plt.plot(time_dt, exp_iso_0_20, 'k')
     plt.plot(time_dt, sim_iso_0_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
@@ -737,14 +1566,14 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 9)
     plt.plot(time_dt, exp_iso_16_20, 'k')
     plt.plot(time_dt, sim_iso_16_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 10)
     plt.plot(time_dt, exp_iso_0_40, 'k')
     plt.plot(time_dt, sim_iso_0_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",  x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 35))
 
     plt.subplot(4, 3, 11)
@@ -757,118 +1586,169 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.subplot(4, 3, 12)
     plt.plot(time_dt, exp_iso_16_40, 'k')
     plt.plot(time_dt, sim_iso_16_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm",x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 35))
 
-    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical', 
-         weight='bold', fontsize=14)
+    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical',
+             weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
 
-    # Error
-    def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
-        # considera solo i punti dove almeno uno è diverso da zero
-        mask = (exp != 0) | (sim != 0)
-        if not np.any(mask):
-            return 0.0, 0.0, 0.0
-
-        exp_nz = exp[mask]
-        sim_nz = sim[mask]
-
-        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
-        mae   = float(np.mean(abs_err_pct))
-        maxae = float(np.max(abs_err_pct))
-        stde  = float(np.std(abs_err_pct))
-        return mae, maxae, stde
-
     print("\n=== Benchmark: slow_M_len (Perreault/Kim) ===")
     print(f"MVC = {MVC:.2f} N\n")
 
-    # Trials list
+    # -------------------------------------------------------------------------
+    # Trial definitions
+    # -------------------------------------------------------------------------
     trials = [
-        ("Twitch 1 Hz, 0 mm",    exp_twitch_0,   sim_twitch_0),
-        ("Twitch 1 Hz, -8 mm",   exp_twitch_8,   sim_twitch_8),
-        ("Twitch 1 Hz, -16 mm",  exp_twitch_16,  sim_twitch_16),
+        ("Twitch 1 Hz, 0 mm",   exp_twitch_0,   sim_twitch_0,   MVC, time_dt),
+        ("Twitch 1 Hz, -8 mm",  exp_twitch_8,   sim_twitch_8,   MVC, time_dt),
+        ("Twitch 1 Hz, -16 mm", exp_twitch_16,  sim_twitch_16,  MVC, time_dt),
 
-        ("10 Hz,  -0 mm",        exp_iso_0_10,   sim_iso_0_10),
-        ("10 Hz,  -8 mm",        exp_iso_8_10,   sim_iso_8_10),
-        ("10 Hz,  -16 mm",       exp_iso_16_10,  sim_iso_16_10),
+        ("10 Hz,  -0 mm",       exp_iso_0_10,   sim_iso_0_10,   MVC, time_dt),
+        ("10 Hz,  -8 mm",       exp_iso_8_10,   sim_iso_8_10,   MVC, time_dt),
+        ("10 Hz,  -16 mm",      exp_iso_16_10,  sim_iso_16_10,  MVC, time_dt),
 
-        ("20 Hz,  -0 mm",        exp_iso_0_20,   sim_iso_0_20),
-        ("20 Hz,  -8 mm",        exp_iso_8_20,   sim_iso_8_20),
-        ("20 Hz,  -16 mm",       exp_iso_16_20,  sim_iso_16_20),
+        ("20 Hz,  -0 mm",       exp_iso_0_20,   sim_iso_0_20,   MVC, time_dt),
+        ("20 Hz,  -8 mm",       exp_iso_8_20,   sim_iso_8_20,   MVC, time_dt),
+        ("20 Hz,  -16 mm",      exp_iso_16_20,  sim_iso_16_20,  MVC, time_dt),
 
-        ("40 Hz,  -0 mm",        exp_iso_0_40,   sim_iso_0_40),
-        ("40 Hz,  -8 mm",        exp_iso_8_40,   sim_iso_8_40),
-        ("40 Hz,  -16 mm",       exp_iso_16_40,  sim_iso_16_40),
+        ("40 Hz,  -0 mm",       exp_iso_0_40,   sim_iso_0_40,   MVC, time_dt),
+        ("40 Hz,  -8 mm",       exp_iso_8_40,   sim_iso_8_40,   MVC, time_dt),
+        ("40 Hz,  -16 mm",      exp_iso_16_40,  sim_iso_16_40,  MVC, time_dt),
     ]
 
-    all_mae, all_maxae, all_stde = [], [], []
-    print("— Errori per trial —")
-    for name, exp, sim in trials:
-        mae, maxae, stde = pct_errors(exp, sim, MVC)
-        all_mae.append(mae)
-        all_maxae.append(maxae)
-        all_stde.append(stde)
-        print(f"{name:>18}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    def process_len_trials(trials, block_title, avg_label, align=18, plot_points=True):
+        mae_list, maxae_list, std_list = [], [], []
+        r2_list = []
+        tau_rise_err_list, tau_decay_err_list, rfd_err_list = [], [], []
 
-    print(
-        f"\n{'Overall Average':>18}:  "
-        f"MAE = {np.mean(all_mae):6.2f}% MVC  "
-        f"(std = {np.mean(all_stde):6.2f})   "
-        f"MaxAE = {np.mean(all_maxae):6.2f}% MVC\n"
+        print(block_title)
+        for name, exp, sim, mvc, time_dt_local in trials:
+            iso_metrics = compute_isometric_metrics(
+                exp=exp,
+                sim=sim,
+                time=time_dt_local,
+                MVC=mvc,
+                n_onset_samples=3,
+                force_threshold=0.0,
+                use_abs_times=True,
+            )
+
+            mae = iso_metrics["mae"]
+            maxae = iso_metrics["maxae"]
+            stde = iso_metrics["stde"]
+            r2 = iso_metrics["R2"]
+
+            metrics_exp = iso_metrics["metrics_exp"]
+            metrics_sim = iso_metrics["metrics_sim"]
+
+            tau_rise_err = iso_metrics["tau_rise_err"]
+            tau_decay_err = iso_metrics["tau_decay_err"]
+            rfd_err = iso_metrics["rfd_err"]
+
+            mae_list.append(mae)
+            maxae_list.append(maxae)
+            std_list.append(stde)
+            r2_list.append(r2)
+            tau_rise_err_list.append(tau_rise_err)
+            tau_decay_err_list.append(tau_decay_err)
+            rfd_err_list.append(rfd_err)
+
+            print(
+                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   "
+                f"MaxAE = {maxae:6.2f}% MVC   R² = {r2:.3f}"
+            )
+            print_first_order_metric_summary(
+                label="",
+                metric_dict={
+                    "tau_rise_err": tau_rise_err,
+                    "tau_decay_err": tau_decay_err,
+                    "rfd_err": rfd_err,
+                },
+                align=align
+            )
+
+            if plot_points:
+                plot_first_order_points(
+                    time=time_dt_local,
+                    force_exp=exp,
+                    force_sim=sim,
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    title=name
+                )
+
+        print(
+            f"{avg_label:>{align}}:  "
+            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
+            f"(std = {np.mean(std_list):6.2f})   "
+            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+        )
+
+        return {
+            "mae": mae_list,
+            "maxae": maxae_list,
+            "std": std_list,
+            "r2": r2_list,
+            "tau_rise_err": tau_rise_err_list,
+            "tau_decay_err": tau_decay_err_list,
+            "rfd_err": rfd_err_list,
+        }
+
+    all_res = process_len_trials(
+        trials,
+        block_title="— Errori per trial —",
+        avg_label="Overall Average",
+        align=18,
+        plot_points=True
     )
 
-    summarize_trials(all_mae, all_maxae,
-                 label="— slow_M_len summary (all trials) —",
-                 unit="% MVC")
+    summarize_trials(
+        all_res["mae"],
+        all_res["maxae"],
+        label="— slow_M_len summary (all trials) —",
+        unit="% MVC"
+    )
 
-    # ------------------------------------------------
-    # funzione per i 3 pannelli (0, -8, -16 mm)
-    # ------------------------------------------------
+    summarize_metric_list(all_res["r2"], "Overall R²", "")
+    summarize_metric_list(all_res["tau_rise_err"], "Overall τ_rise relative error", "%")
+    summarize_metric_list(all_res["tau_decay_err"], "Overall τ_decay relative error", "%")
+    summarize_metric_list(all_res["rfd_err"], "Overall initial RFD relative error", "%")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Error panels (unchanged)
+    # -------------------------------------------------------------------------
     def build_len_err(exp_list, sim_list, MVC):
         mean_list, max_list, std_list = [], [], []
         for exp, sim in zip(exp_list, sim_list):
-            # maschera non-zero
-            mask = (exp != 0) | (sim != 0)
-            if np.any(mask):
-                exp_nz = exp[mask]
-                sim_nz = sim[mask]
-                abs_err = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
-                mean_list.append(np.mean(abs_err))
-                max_list.append(np.max(abs_err))
-                std_list.append(np.std(abs_err))
-            else:
-                mean_list.append(0.0)
-                max_list.append(0.0)
-                std_list.append(0.0)
-        return (
-            np.array(mean_list),
-            np.array(max_list),
-            np.array(std_list),
-        )
+            mae, maxae, stde = pct_errors(exp, sim, MVC)
+            mean_list.append(mae)
+            max_list.append(maxae)
+            std_list.append(stde)
+        return np.array(mean_list), np.array(max_list), np.array(std_list)
 
-    # 0 mm
     mean_0, max_0, std_0 = build_len_err(
         [exp_twitch_0, exp_iso_0_10, exp_iso_0_20, exp_iso_0_40],
         [sim_twitch_0, sim_iso_0_10, sim_iso_0_20, sim_iso_0_40],
         MVC
     )
-    # -8 mm
+
     mean_8, max_8, std_8 = build_len_err(
         [exp_twitch_8, exp_iso_8_10, exp_iso_8_20, exp_iso_8_40],
         [sim_twitch_8, sim_iso_8_10, sim_iso_8_20, sim_iso_8_40],
         MVC
-    ) 
-    # -16 mm
+    )
+
     mean_16, max_16, std_16 = build_len_err(
         [exp_twitch_16, exp_iso_16_10, exp_iso_16_20, exp_iso_16_40],
         [sim_twitch_16, sim_iso_16_10, sim_iso_16_20, sim_iso_16_40],
         MVC
     )
 
-    x = np.arange(1, 4 + 1)
+    x = np.arange(1, 5)
     x_labels = ["1 Hz", "10 Hz", "20 Hz", "40 Hz"]
 
     fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharey=True)
@@ -888,7 +1768,7 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
 
     plot_panel(axes[0], x, mean_0,  max_0,  std_0,  r"$\boldsymbol{\Delta}\mathbf{L}$ = 0 mm")
     plot_panel(axes[1], x, mean_8,  max_8,  std_8,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm")
-    plot_panel(axes[2], x, mean_16,  max_16,  std_16,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm")
+    plot_panel(axes[2], x, mean_16, max_16, std_16, r"$\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm")
 
     axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     for ax in axes:
@@ -899,34 +1779,37 @@ elif benchmark == 'slow_M_len': # Kim et al. 2015 from Perreault 2003 experiment
     plt.show()
 
     
-elif benchmark == 'MU': # Burke 1974 experiments
+elif benchmark == 'MU':  # Burke 1974 experiments
 
-    sim_path = base_path / 'MU' / 'sim' # experimental path
-    exp_path = base_path / 'MU' / 'exp' # simulations path
+    sim_path = base_path / 'MU' / 'sim'
+    exp_path = base_path / 'MU' / 'exp'
 
-    exp_S_twitch = np.load(exp_path / 'slow_twitch.npy') # load experimental forces
+    exp_S_twitch = np.load(exp_path / 'slow_twitch.npy')
     exp_S_unfused = np.load(exp_path / 'slow_unfused.npy')
     exp_S_fused = np.load(exp_path / 'slow_fused.npy')
     exp_F_twitch = np.load(exp_path / 'fast_twitch.npy')
     exp_F_unfused = np.load(exp_path / 'fast_unfused.npy')
     exp_F_fused = np.load(exp_path / 'fast_fused.npy')
 
-    sim_S_twitch = np.load(sim_path / 'slow_twitch.npy') # load simulated forces
+    sim_S_twitch = np.load(sim_path / 'slow_twitch.npy')
     sim_S_unfused = np.load(sim_path / 'slow_unfused.npy')
     sim_S_fused = np.load(sim_path / 'slow_fused.npy')
-    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy') # sag is not actiove as tp is not detected during a twitch
+    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy')  # sag is not active as tp is not detected during a twitch
     sim_F_twitch_nosag = np.load(sim_path / 'fast_twitch_nosag.npy')
     sim_F_unfused = np.load(sim_path / 'fast_unfused.npy')
     sim_F_unfused_nosag = np.load(sim_path / 'fast_unfused_nosag.npy')
     sim_F_fused = np.load(sim_path / 'fast_fused.npy')
 
-    t_end_S = 1.8 # total seconds
+    t_end_S = 1.8
     t_end_F = 1.2
-    time_dt_S = np.arange(0, t_end_S, dt) # time for BB
+    time_dt_S = np.arange(0, t_end_S, dt)
     time_dt_F = np.arange(0, t_end_F, dt)
     MVC_S = 0.04
     MVC_F = 0.37
 
+    # -------------------------------------------------------------------------
+    # Force traces (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(12, 7))
 
     plt.subplot(2, 3, 1)
@@ -934,12 +1817,11 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.plot(time_dt_S, sim_S_twitch, 'r')
     plt.title(r"1 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, MVC_S+0.01))
+    plt.ylim((0, MVC_S + 0.01))
 
     plt.subplot(2, 3, 4)
     plt.plot(time_dt_F, exp_F_twitch, 'k')
     plt.plot(time_dt_F, sim_F_twitch, 'r')
-    #plt.plot(time_dt_F, sim_F_twitch_nosag, 'r--')
     plt.title(r"1 Hz at $\mathbf{L^{CE}_{0}}$ (F MU)", x=0.3, y=0.99, weight='bold')
     plt.ylabel('Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, MVC_F))
@@ -949,7 +1831,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.plot(time_dt_S, sim_S_unfused, 'r')
     plt.title(r"12.5 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_S+0.01))
+    plt.ylim((0, MVC_S + 0.01))
 
     plt.subplot(2, 3, 5)
     plt.plot(time_dt_F, exp_F_unfused, 'k')
@@ -967,7 +1849,7 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.title(r"40 Hz at $\mathbf{L^{CE}_{0}}$ (S MU)", x=0.3, y=0.99, weight='bold')
     plt.legend(loc='upper right', fontsize=12)
     plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_S+0.01))
+    plt.ylim((0, MVC_S + 0.01))
 
     plt.subplot(2, 3, 6)
     plt.plot(time_dt_F, exp_F_fused, 'k')
@@ -979,94 +1861,252 @@ elif benchmark == 'MU': # Burke 1974 experiments
     plt.tight_layout()
     plt.show()
 
-    def pct_errors(exp: np.ndarray, sim: np.ndarray, MVC: float):
-        mask = (exp != 0) | (sim != 0)
-        if not np.any(mask):
-            return 0.0, 0.0, 0.0
-
-        exp_nz = exp[mask]
-        sim_nz = sim[mask]
-
-        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
-        mae   = float(np.mean(abs_err_pct))
-        maxae = float(np.max(abs_err_pct))
-        stde  = float(np.std(abs_err_pct))
-        return mae, maxae, stde
-
     print("\n=== Benchmark: MU (Burke 1974) ===")
     print(f"MVC_S (slow) = {MVC_S:.4f} N   |   MVC_F (fast) = {MVC_F:.4f} N\n")
 
-    # --------- Slow MU trials ---------
+    # -------------------------------------------------------------------------
+    # Trial definitions
+    # -------------------------------------------------------------------------
     slow_trials = [
-        ("Slow Twitch   (1 Hz)",   exp_S_twitch,   sim_S_twitch,   MVC_S),
-        ("Slow Unfused (12.5 Hz)", exp_S_unfused,  sim_S_unfused,  MVC_S),
-        ("Slow Fused   (40 Hz)",   exp_S_fused,    sim_S_fused,    MVC_S),
+        ("Slow Twitch   (1 Hz)",   "twitch",    exp_S_twitch,   sim_S_twitch,   MVC_S, time_dt_S),
+        ("Slow Unfused (12.5 Hz)", "nontwitch", exp_S_unfused,  sim_S_unfused,  MVC_S, time_dt_S),
+        ("Slow Fused   (40 Hz)",   "nontwitch", exp_S_fused,    sim_S_fused,    MVC_S, time_dt_S),
     ]
 
-    mae_s, maxae_s, std_s = [], [], []
-    print("— Slow MU trials —")
-    for name, exp, sim, mvc in slow_trials:
-        mae, maxae, stde = pct_errors(exp, sim, mvc)
-        mae_s.append(mae)
-        maxae_s.append(maxae)
-        std_s.append(stde)
-        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-
-    print(
-        f"{'Slow Average':>22}:  "
-        f"MAE = {np.mean(mae_s):6.2f}% MVC  "
-        f"(std = {np.mean(std_s):6.2f})   "
-        f"MaxAE = {np.mean(maxae_s):6.2f}% MVC\n"
-    )
-
-    # --------- Fast MU trials ---------
     fast_trials = [
-        ("Fast Twitch  (1 Hz)",   exp_F_twitch,   sim_F_twitch,   MVC_F),
-        ("Fast Unfused (25 Hz)",  exp_F_unfused,  sim_F_unfused,  MVC_F),
-        ("Fast Fused   (40 Hz)",  exp_F_fused,    sim_F_fused,    MVC_F),
+        ("Fast Twitch  (1 Hz)",    "twitch",    exp_F_twitch,   sim_F_twitch,   MVC_F, time_dt_F),
+        ("Fast Unfused (25 Hz)",   "nontwitch", exp_F_unfused,  sim_F_unfused,  MVC_F, time_dt_F),
+        ("Fast Fused   (40 Hz)",   "nontwitch", exp_F_fused,    sim_F_fused,    MVC_F, time_dt_F),
     ]
 
-    mae_f, maxae_f, std_f = [], [], []
-    print("— Fast MU trials —")
-    for name, exp, sim, mvc in fast_trials:
-        mae, maxae, stde = pct_errors(exp, sim, mvc)
-        mae_f.append(mae)
-        maxae_f.append(maxae)
-        std_f.append(stde)
-        print(f"{name:>22}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
-
-    print(
-        f"{'Fast Average':>22}:  "
-        f"MAE = {np.mean(mae_f):6.2f}% MVC  "
-        f"(std = {np.mean(std_f):6.2f})   "
-        f"MaxAE = {np.mean(maxae_f):6.2f}% MVC\n"
-    )
-
-        # --------- Fast MU trials — NO SAG ---------
     fast_trials_nosag = [
-        ("Fast Twitch  (1 Hz, no sag)",   exp_F_twitch,  sim_F_twitch_nosag,   MVC_F),
-        ("Fast Unfused (25 Hz, no sag)",  exp_F_unfused, sim_F_unfused_nosag,  MVC_F),
+        ("Fast Twitch  (1 Hz, no sag)",   "twitch",    exp_F_twitch,  sim_F_twitch_nosag,   MVC_F, time_dt_F),
+        ("Fast Unfused (25 Hz, no sag)",  "nontwitch", exp_F_unfused, sim_F_unfused_nosag,  MVC_F, time_dt_F),
     ]
 
-    mae_f_nosag, maxae_f_nosag, std_f_nosag = [], [], []
-    print("— Fast MU trials — NO SAG —")
-    for name, exp, sim_nosag, mvc in fast_trials_nosag:
-        mae, maxae, stde = pct_errors(exp, sim_nosag, mvc)
-        mae_f_nosag.append(mae)
-        maxae_f_nosag.append(maxae)
-        std_f_nosag.append(stde)
-        print(f"{name:>30}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    # -------------------------------------------------------------------------
+    # Helper to process one MU group
+    # -------------------------------------------------------------------------
+    def process_mu_trials(trials, block_title, avg_label, align=22, plot_points=True, peak_window_s=0.05):
+        mae_list, maxae_list, std_list = [], [], []
+        r2_list = []
 
-    print(
-        f"{'Fast Average (no sag)':>30}:  "
-        f"MAE = {np.mean(mae_f_nosag):6.2f}% MVC  "
-        f"(std = {np.mean(std_f_nosag):6.2f})   "
-        f"MaxAE = {np.mean(maxae_f_nosag):6.2f}% MVC\n"
+        peak_err_list = []
+        peak_twitch_ratio_err_list = []
+
+        rise_time_twitch_err_list = []
+        half_decay_time_twitch_err_list = []
+
+        tau_rise_1st_err_list = []
+        tau_decay_1st_err_list = []
+        fusion_index_ratio_err_list = []
+
+        print(block_title)
+
+        # reference twitch peaks for peak/twitch ratios
+        twitch_trial = None
+        for trial in trials:
+            if trial[1] == "twitch":
+                twitch_trial = trial
+                break
+
+        if twitch_trial is None:
+            raise ValueError("A twitch reference trial is required to compute peak/twitch ratios.")
+
+        _, _, twitch_exp, twitch_sim, twitch_F0, twitch_time = twitch_trial
+        twitch_metrics_exp = compute_isometric_trial_metrics(
+            force=twitch_exp, time=twitch_time, F0=twitch_F0, trial_type="twitch"
+        )
+        twitch_metrics_sim = compute_isometric_trial_metrics(
+            force=twitch_sim, time=twitch_time, F0=twitch_F0, trial_type="twitch"
+        )
+        twitch_peak_exp = twitch_metrics_exp["peak_force"]
+        twitch_peak_sim = twitch_metrics_sim["peak_force"]
+
+        for name, trial_type, exp, sim, F0, time_dt_local in trials:
+            eval_out = compute_full_isometric_evaluation(
+                exp=exp,
+                sim=sim,
+                time=time_dt_local,
+                F0=F0,
+                trial_type=trial_type,
+                twitch_peak_exp=twitch_peak_exp,
+                twitch_peak_sim=twitch_peak_sim,
+                peak_window_s=peak_window_s,
+                force_threshold=0.0,
+            )
+
+            mae = eval_out["mae"]
+            maxae = eval_out["maxae"]
+            stde = eval_out["stde"]
+            r2 = eval_out["R2"]
+
+            metrics_exp = eval_out["metrics_exp"]
+            metrics_sim = eval_out["metrics_sim"]
+            metric_errors = eval_out["metric_errors"]
+
+            mae_list.append(mae)
+            maxae_list.append(maxae)
+            std_list.append(stde)
+            r2_list.append(r2)
+
+            peak_err_list.append(metric_errors["peak_force_err_pctF0"])
+            peak_twitch_ratio_err_list.append(metric_errors["peak_twitch_ratio_err"])
+
+            rise_time_twitch_err_list.append(metric_errors["rise_time_twitch_err_s"])
+            half_decay_time_twitch_err_list.append(metric_errors["half_decay_time_twitch_err_s"])
+
+            tau_rise_1st_err_list.append(metric_errors["tau_rise_1st_err_s"])
+            tau_decay_1st_err_list.append(metric_errors["tau_decay_1st_err_s"])
+            fusion_index_ratio_err_list.append(metric_errors["fusion_index_ratio_err"])
+
+            print(
+                f"{name:>{align}}:  mAE = {mae:6.2f}% F0  (std = {stde:6.2f})   "
+                f"MAE = {maxae:6.2f}% F0   R² = {r2:.3f}"
+            )
+
+            if trial_type == "twitch":
+                print_twitch_metric_summary(
+                    label="",
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    metric_errors=metric_errors,
+                    align=align
+                )
+            else:
+                print_nontwitch_metric_summary(
+                    label="",
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    metric_errors=metric_errors,
+                    align=align
+                )
+
+            if plot_points:
+                if trial_type == "twitch":
+                    plot_twitch_metric_points(
+                        time=time_dt_local,
+                        force_exp=exp,
+                        force_sim=sim,
+                        metrics_exp=metrics_exp,
+                        metrics_sim=metrics_sim,
+                        title=name
+                    )
+                else:
+                    plot_nontwitch_metric_points(
+                        time=time_dt_local,
+                        force_exp=exp,
+                        force_sim=sim,
+                        metrics_exp=metrics_exp,
+                        metrics_sim=metrics_sim,
+                        title=name
+                    )
+
+        print(
+            f"{avg_label:>{align}}:  "
+            f"mAE = {np.nanmean(mae_list):6.2f}% F0  "
+            f"(std = {np.nanmean(std_list):6.2f})   "
+            f"MAE = {np.nanmean(maxae_list):6.2f}% F0\n"
+        )
+
+        return {
+            "mae": mae_list,
+            "maxae": maxae_list,
+            "std": std_list,
+            "r2": r2_list,
+            "peak_err_pctF0": peak_err_list,
+            "peak_twitch_ratio_err": peak_twitch_ratio_err_list,
+            "rise_time_twitch_err_s": rise_time_twitch_err_list,
+            "half_decay_time_twitch_err_s": half_decay_time_twitch_err_list,
+            "tau_rise_1st_err_s": tau_rise_1st_err_list,
+            "tau_decay_1st_err_s": tau_decay_1st_err_list,
+            "fusion_index_ratio_err": fusion_index_ratio_err_list,
+        }
+
+    # -------------------------------------------------------------------------
+    # Slow MU
+    # -------------------------------------------------------------------------
+    slow_res = process_mu_trials(
+        slow_trials,
+        block_title="— Slow MU trials —",
+        avg_label="Slow Average",
+        align=22,
+        plot_points=True
     )
 
-    summarize_trials(mae_s, maxae_s, label="— MU summary: S MU (all trials) —", unit="% MVC")
-    summarize_trials(mae_f, maxae_f, label="— MU summary: F MU (all trials) —", unit="% MVC")
-    summarize_trials(mae_f_nosag, maxae_f_nosag, label="— MU summary: F MU NO SAG (all trials) —", unit="% MVC")
+    summarize_metric_list(slow_res["r2"], "Slow MU R²", "")
+    summarize_metric_list(slow_res["peak_err_pctF0"], "Slow MU peak force absolute error", "%F0")
+    summarize_metric_list(slow_res["peak_twitch_ratio_err"], "Slow MU peak/twitch ratio absolute error", "")
+    summarize_metric_list(slow_res["rise_time_twitch_err_s"], "Slow MU twitch rise time absolute error", "s")
+    summarize_metric_list(slow_res["half_decay_time_twitch_err_s"], "Slow MU twitch half-decay time absolute error", "s")
+    summarize_metric_list(slow_res["tau_rise_1st_err_s"], "Slow MU tetanus tau_rise absolute error", "s")
+    summarize_metric_list(slow_res["tau_decay_1st_err_s"], "Slow MU tetanus tau_decay absolute error", "s")
+    summarize_metric_list(slow_res["fusion_index_ratio_err"], "Slow MU fusion index absolute error", "")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Fast MU
+    # -------------------------------------------------------------------------
+    fast_res = process_mu_trials(
+        fast_trials,
+        block_title="— Fast MU trials —",
+        avg_label="Fast Average",
+        align=22,
+        plot_points=True
+    )
+
+    summarize_metric_list(fast_res["r2"], "Fast MU R²", "")
+    summarize_metric_list(fast_res["peak_err_pctF0"], "Fast MU peak force absolute error", "%F0")
+    summarize_metric_list(fast_res["peak_twitch_ratio_err"], "Fast MU peak/twitch ratio absolute error", "")
+    summarize_metric_list(fast_res["rise_time_twitch_err_s"], "Fast MU twitch rise time absolute error", "s")
+    summarize_metric_list(fast_res["half_decay_time_twitch_err_s"], "Fast MU twitch half-decay time absolute error", "s")
+    summarize_metric_list(fast_res["tau_rise_1st_err_s"], "Fast MU tetanus tau_rise absolute error", "s")
+    summarize_metric_list(fast_res["tau_decay_1st_err_s"], "Fast MU tetanus tau_decay absolute error", "s")
+    summarize_metric_list(fast_res["fusion_index_ratio_err"], "Fast MU fusion index absolute error", "")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Fast MU - no sag
+    # -------------------------------------------------------------------------
+    fast_nosag_res = process_mu_trials(
+        fast_trials_nosag,
+        block_title="— Fast MU trials — NO SAG —",
+        avg_label="Fast Average (no sag)",
+        align=30,
+        plot_points=True
+    )
+
+    summarize_metric_list(fast_nosag_res["r2"], "Fast MU NO SAG R²", "")
+    summarize_metric_list(fast_nosag_res["peak_err_pctF0"], "Fast MU NO SAG peak force absolute error", "%F0")
+    summarize_metric_list(fast_nosag_res["peak_twitch_ratio_err"], "Fast MU NO SAG peak/twitch ratio absolute error", "")
+    summarize_metric_list(fast_nosag_res["rise_time_twitch_err_s"], "Fast MU NO SAG twitch rise time absolute error", "s")
+    summarize_metric_list(fast_nosag_res["half_decay_time_twitch_err_s"], "Fast MU NO SAG twitch half-decay time absolute error", "s")
+    summarize_metric_list(fast_nosag_res["tau_rise_1st_err_s"], "Fast MU NO SAG tetanus tau_rise absolute error", "s")
+    summarize_metric_list(fast_nosag_res["tau_decay_1st_err_s"], "Fast MU NO SAG tetanus tau_decay absolute error", "s")
+    summarize_metric_list(fast_nosag_res["fusion_index_ratio_err"], "Fast MU NO SAG fusion index absolute error", "")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Summaries
+    # -------------------------------------------------------------------------
+    summarize_trials(
+        slow_res["mae"],
+        slow_res["maxae"],
+        label="— MU summary: S MU (all trials) —",
+        unit="% F0"
+    )
+    summarize_trials(
+        fast_res["mae"],
+        fast_res["maxae"],
+        label="— MU summary: F MU (all trials) —",
+        unit="% F0"
+    )
+    summarize_trials(
+        fast_nosag_res["mae"],
+        fast_nosag_res["maxae"],
+        label="— MU summary: F MU NO SAG (all trials) —",
+        unit="% F0"
+    )
 
 
 elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
@@ -1074,7 +2114,9 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     sim_path = base_path / 'fast_M' / 'sim'
     exp_path = base_path / 'fast_M' / 'exp'
 
-    # FFR 
+    # -------------------------------------------------------------------------
+    # Load FFR
+    # -------------------------------------------------------------------------
     exp_FFR_30  = np.load(exp_path / 'iso_FFR_30.npy')
     exp_FFR_50  = np.load(exp_path / 'iso_FFR_50.npy')
     exp_FFR_60  = np.load(exp_path / 'iso_FFR_60.npy')
@@ -1103,7 +2145,9 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
         sim_FFR_80, sim_FFR_90, sim_FFR_100, sim_FFR_120
     ]
 
-    # FLR
+    # -------------------------------------------------------------------------
+    # Load FLR
+    # -------------------------------------------------------------------------
     exp_FLR_050 = np.load(exp_path / 'iso_FLR_0.50.npy')
     exp_FLR_100 = np.load(exp_path / 'iso_FLR_1.00.npy')
     exp_FLR_150 = np.load(exp_path / 'iso_FLR_1.50.npy')
@@ -1136,18 +2180,19 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     time_dt = np.arange(0, t_end, dt)
     MVC = 2.49
 
+    # -------------------------------------------------------------------------
+    # Plots (unchanged)
+    # -------------------------------------------------------------------------
     fig, axes = plt.subplots(2, 2, figsize=(8, 7))
     ax_ffr_exp = axes[0, 0]
     ax_ffr_sim = axes[0, 1]
     ax_flr_exp = axes[1, 0]
     ax_flr_sim = axes[1, 1]
 
-    # palette grigi per exp (nero- grigio chiaro)
     n_ffr = len(freqs)
     gray_levels = np.linspace(0.75, 0.15, n_ffr)
-    red_levels = np.linspace(0.4, 1.0, n_ffr)  # per simulazioni
+    red_levels = np.linspace(0.4, 1.0, n_ffr)
 
-    # FFR experimental
     for i, (f, y) in enumerate(zip(freqs, exp_FFR_series)):
         ax_ffr_exp.plot(time_dt, y, color=str(gray_levels[i]), label=f"{f} Hz")
     ax_ffr_exp.set_title("Experimental", weight='bold')
@@ -1156,7 +2201,6 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     ax_ffr_exp.set_xlabel("Time [s]", weight='bold')
     ax_ffr_exp.legend(loc='upper right', fontsize=7)
 
-    # FFR simulated
     for i, (f, y) in enumerate(zip(freqs, sim_FFR_series)):
         ax_ffr_sim.plot(time_dt, y, color=(red_levels[i], 0, 0), label=f"{f} Hz")
     ax_ffr_sim.set_ylim([-0.08, 1.7])
@@ -1164,19 +2208,17 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     ax_ffr_sim.set_xlabel("Time [s]", weight='bold')
     ax_ffr_sim.legend(loc='upper right', fontsize=7)
 
-    # FLR experimental
     n_flr = len(disp_mm)
     gray_levels_flr = np.linspace(0.15, 0.75, n_flr)
     red_levels_flr = np.linspace(0.4, 1.0, n_flr)
 
     for i, (d, y) in enumerate(zip(disp_mm, exp_FLR_series)):
-        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]),  label=f"$\Delta L$ = + {d:.1f} mm")
+        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]), label=f"$\Delta L$ = + {d:.1f} mm")
     ax_flr_exp.set_title("Experimental", weight='bold')
     ax_flr_exp.set_ylabel("Force [N]", weight='bold')
     ax_flr_exp.set_xlabel("Time [s]", weight='bold')
     ax_flr_exp.legend(loc='upper right', fontsize=7)
 
-    # FLR simulated
     for i, (d, y) in enumerate(zip(disp_mm, sim_FLR_series)):
         ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0), label=f"$\Delta L$ = + {d:.1f} mm")
     ax_flr_sim.set_title("Simulated", weight='bold')
@@ -1186,95 +2228,190 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     plt.tight_layout()
     plt.show()
 
-    # =======================
-    # Errors % MVC
-    # =======================
-    def pct_err_all(exp_arr: np.ndarray, sim_arr: np.ndarray, MVC: float):
-        # usa solo i campioni dove almeno uno è diverso da 0
-        mask = (exp_arr != 0) | (sim_arr != 0)
-        if not np.any(mask):
-            return 0.0, 0.0, 0.0
-
-        exp_nz = exp_arr[mask]
-        sim_nz = sim_arr[mask]
-
-        abs_err_pct = np.abs((sim_nz / MVC) - (exp_nz / MVC)) * 100.0
-        mae   = float(np.mean(abs_err_pct))
-        maxae = float(np.max(abs_err_pct))
-        stde  = float(np.std(abs_err_pct))
-        return mae, maxae, stde
-
     print("\n=== Benchmark: fast_M_iso ===")
     print(f"MVC = {MVC:.2f} N\n")
 
-    # FFR errors
-    ffr_mean_list, ffr_max_list, ffr_std_list = [], [], []
-    print("— FFR errors —")
-    for f, e, s in zip(freqs, exp_FFR_series, sim_FFR_series):
-        mae, maxae, stde = pct_err_all(e, s, MVC)
-        ffr_mean_list.append(mae)
-        ffr_max_list.append(maxae)
-        ffr_std_list.append(stde)
-        print(f"{f:>3} Hz:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    # -------------------------------------------------------------------------
+    # Trial definitions
+    # -------------------------------------------------------------------------
+    ffr_trials = [
+        ("30 Hz",  exp_FFR_30,  sim_FFR_30,  MVC, time_dt),
+        ("50 Hz",  exp_FFR_50,  sim_FFR_50,  MVC, time_dt),
+        ("60 Hz",  exp_FFR_60,  sim_FFR_60,  MVC, time_dt),
+        ("70 Hz",  exp_FFR_70,  sim_FFR_70,  MVC, time_dt),
+        ("80 Hz",  exp_FFR_80,  sim_FFR_80,  MVC, time_dt),
+        ("90 Hz",  exp_FFR_90,  sim_FFR_90,  MVC, time_dt),
+        ("100 Hz", exp_FFR_100, sim_FFR_100, MVC, time_dt),
+        ("120 Hz", exp_FFR_120, sim_FFR_120, MVC, time_dt),
+    ]
+
+    flr_trials = [
+        ("+0.5 mm", exp_FLR_050, sim_FLR_050, MVC, time_dt),
+        ("+1.0 mm", exp_FLR_100, sim_FLR_100, MVC, time_dt),
+        ("+1.5 mm", exp_FLR_150, sim_FLR_150, MVC, time_dt),
+        ("+2.0 mm", exp_FLR_200, sim_FLR_200, MVC, time_dt),
+        ("+2.5 mm", exp_FLR_250, sim_FLR_250, MVC, time_dt),
+        ("+3.0 mm", exp_FLR_300, sim_FLR_300, MVC, time_dt),
+        ("+3.5 mm", exp_FLR_350, sim_FLR_350, MVC, time_dt),
+        ("+4.0 mm", exp_FLR_400, sim_FLR_400, MVC, time_dt),
+    ]
+
+    def process_fast_iso_trials(trials, block_title, avg_label, align=10, plot_points=True):
+        mae_list, maxae_list, std_list = [], [], []
+        r2_list = []
+        tau_rise_err_list, tau_decay_err_list, rfd_err_list = [], [], []
+
+        print(block_title)
+        for name, exp, sim, mvc, time_dt_local in trials:
+            iso_metrics = compute_isometric_metrics(
+                exp=exp,
+                sim=sim,
+                time=time_dt_local,
+                MVC=mvc,
+                n_onset_samples=3,
+                force_threshold=0.0,
+                use_abs_times=True,
+            )
+
+            mae = iso_metrics["mae"]
+            maxae = iso_metrics["maxae"]
+            stde = iso_metrics["stde"]
+            r2 = iso_metrics["R2"]
+
+            metrics_exp = iso_metrics["metrics_exp"]
+            metrics_sim = iso_metrics["metrics_sim"]
+
+            tau_rise_err = iso_metrics["tau_rise_err"]
+            tau_decay_err = iso_metrics["tau_decay_err"]
+            rfd_err = iso_metrics["rfd_err"]
+
+            mae_list.append(mae)
+            maxae_list.append(maxae)
+            std_list.append(stde)
+            r2_list.append(r2)
+            tau_rise_err_list.append(tau_rise_err)
+            tau_decay_err_list.append(tau_decay_err)
+            rfd_err_list.append(rfd_err)
+
+            print(
+                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   "
+                f"MaxAE = {maxae:6.2f}% MVC   R² = {r2:.3f}"
+            )
+            print_first_order_metric_summary(
+                label="",
+                metric_dict={
+                    "tau_rise_err": tau_rise_err,
+                    "tau_decay_err": tau_decay_err,
+                    "rfd_err": rfd_err,
+                },
+                align=align
+            )
+
+            if plot_points:
+                plot_first_order_points(
+                    time=time_dt_local,
+                    force_exp=exp,
+                    force_sim=sim,
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    title=name
+                )
+
+        mean_mae = np.mean(mae_list)
+        std_mae = np.std(mae_list)
+        print(f"{avg_label}: {mean_mae:6.2f}% MVC  (std = {std_mae:6.2f})")
+
+        return {
+            "mae": mae_list,
+            "maxae": maxae_list,
+            "std": std_list,
+            "r2": r2_list,
+            "tau_rise_err": tau_rise_err_list,
+            "tau_decay_err": tau_decay_err_list,
+            "rfd_err": rfd_err_list,
+        }
+
+    # -------------------------------------------------------------------------
+    # FFR
+    # -------------------------------------------------------------------------
+    ffr_res = process_fast_iso_trials(
+        ffr_trials,
+        block_title="— FFR errors —",
+        avg_label="average MAE",
+        align=7,
+        plot_points=True
+    )
     print()
 
-    # FLR errors
-    flr_mean_list, flr_max_list, flr_std_list = [], [], []
-    print("— FLR errors —")
-    for d, e, s in zip(disp_mm, exp_FLR_series, sim_FLR_series):
-        mae, maxae, stde = pct_err_all(e, s, MVC)
-        flr_mean_list.append(mae)
-        flr_max_list.append(maxae)
-        flr_std_list.append(stde)
-        print(f"+{d:4.1f} mm:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC")
+    summarize_metric_list(ffr_res["r2"], "FFR R²", "")
+    summarize_metric_list(ffr_res["tau_rise_err"], "FFR τ_rise relative error", "%")
+    summarize_metric_list(ffr_res["tau_decay_err"], "FFR τ_decay relative error", "%")
+    summarize_metric_list(ffr_res["rfd_err"], "FFR initial RFD relative error", "%")
     print()
 
-    ffr_mean_arr = np.array(ffr_mean_list)
-    ffr_max_arr  = np.array(ffr_max_list)
-    ffr_std_arr  = np.array(ffr_std_list)
-    ffr_mmae = np.mean(ffr_mean_arr)
-    ffr_mstd = np.std(ffr_mean_arr)
-    print(f"average MAE = {ffr_mmae:6.2f}% MVC  (std = {ffr_mstd:6.2f})")
+    # -------------------------------------------------------------------------
+    # FLR
+    # -------------------------------------------------------------------------
+    flr_res = process_fast_iso_trials(
+        flr_trials,
+        block_title="— FLR errors —",
+        avg_label="average MAE",
+        align=10,
+        plot_points=True
+    )
+    print()
 
-    flr_mean_arr = np.array(flr_mean_list)
-    flr_max_arr  = np.array(flr_max_list)
-    flr_std_arr  = np.array(flr_std_list)
-    flr_mmae = np.mean(flr_mean_arr)
-    flr_mstd = np.std(flr_mean_arr)
-    print(f"average MAE = {flr_mmae:6.2f}% MVC  (std = {flr_mstd:6.2f})")
+    summarize_metric_list(flr_res["r2"], "FLR R²", "")
+    summarize_metric_list(flr_res["tau_rise_err"], "FLR τ_rise relative error", "%")
+    summarize_metric_list(flr_res["tau_decay_err"], "FLR τ_decay relative error", "%")
+    summarize_metric_list(flr_res["rfd_err"], "FLR initial RFD relative error", "%")
+    print()
 
-    summarize_trials(ffr_mean_list, ffr_max_list,
-                 label="— fast_M_iso summary: FFR (all freqs) —",
-                 unit="% MVC")
+    summarize_trials(
+        ffr_res["mae"],
+        ffr_res["maxae"],
+        label="— fast_M_iso summary: FFR (all freqs) —",
+        unit="% MVC"
+    )
 
-    summarize_trials(flr_mean_list, flr_max_list,
-                 label="— fast_M_iso summary: FLR (all ΔL) —",
-                 unit="% MVC")
+    summarize_trials(
+        flr_res["mae"],
+        flr_res["maxae"],
+        label="— fast_M_iso summary: FLR (all ΔL) —",
+        unit="% MVC"
+    )
+
+    # -------------------------------------------------------------------------
+    # Error plots (unchanged)
+    # -------------------------------------------------------------------------
+    ffr_mean_arr = np.array(ffr_res["mae"])
+    ffr_max_arr = np.array(ffr_res["maxae"])
+    ffr_std_arr = np.array(ffr_res["std"])
+
+    flr_mean_arr = np.array(flr_res["mae"])
+    flr_max_arr = np.array(flr_res["maxae"])
+    flr_std_arr = np.array(flr_res["std"])
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
 
-    # --- FFR ---
     lower = np.maximum(ffr_mean_arr - ffr_std_arr, 0)
     upper = ffr_mean_arr + ffr_std_arr
     ax1.plot(freqs, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
     ax1.fill_between(freqs, lower, upper, color='k', alpha=0.2)
     ax1.plot(freqs, ffr_max_arr, '--*', color='k', label='MAE')
-    ax1.set_ylim([0,60])
+    ax1.set_ylim([0, 60])
     ax1.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
     ax1.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    #ax1.set_title('FFR', fontweight='bold')
     ax1.set_ylim([0, 70])
     ax1.legend(loc='upper left')
 
-    # --- FLR ---
     lower_f = np.maximum(flr_mean_arr - flr_std_arr, 0)
     upper_f = flr_mean_arr + flr_std_arr
     ax2.plot(disp_mm, flr_mean_arr, '-o', color='k', label='mAE ± SD')
     ax2.fill_between(disp_mm, lower_f, upper_f, color='k', alpha=0.2)
     ax2.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
-    ax2.set_ylim([0,60])
+    ax2.set_ylim([0, 60])
     ax2.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
-    #ax2.set_title('FLR', fontweight='bold')
     ax2.set_ylim([0, 70])
 
     plt.tight_layout()
