@@ -108,12 +108,8 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
     t_hi = np.arange(0.0, t_end + 1e-12, dt) # interpolated time
 
     kind = 'cubic' # interp
-    # fs, cutoff, order = 1000, 30, 4  # LPF setup
-    # b, a = signal.butter(order, cutoff, btype='lowpass', fs=fs) # LPF
-
     force = force - force[0] # offset force
 
-    # force_filt = signal.filtfilt(b, a, force) # filt force
     force_hi = sp.interpolate.interp1d(t, force, kind=kind)(t_hi) # interp force
     force_hi[force_hi < 0] = 0 # set inferior limit to 0
 
@@ -265,19 +261,24 @@ if scale == 'M': # muscle benchmarks
         if benchmark == 'FFR': # isometric frequency variation
 
             data_path = path / 'FFR.ddf'
-            fs = simpledialog.askstring("Input", "Stimulation frequency in Hz (30, 50, 60, 70, 80, 90, 100, 120):")
+            fs = simpledialog.askstring("Input", "Stimulation frequency ('twitch', '30', '50', '60', '70', '80', '90', '100', '120'):")
 
-            part = prepare_segment_iso(data_path, 'EDL_FFR', trial=float(fs), f=1000, dt=1e-4) 
-            Distimes = part['spike_times_sec']
-            time_dt = part['t_hi']
-            exp_force = part['force_hi']
-            
+            if fs == 'twitch':
+                exp_force = np.load(path / f"twitch_EDL_L0.npy")
+                
+                MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 6.6, 10*np.pi/180] # MVC and M/T lengths
+            else:
+                part = prepare_segment_iso(data_path, 'EDL_FFR', trial=float(fs), f=1000, dt=1e-4) 
+                Distimes = part['spike_times_sec']
+                time_dt = part['t_hi']
+                exp_force = part['force_hi']
+                MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 4.73, 10*np.pi/180] # MVC and M/T lengths
+
             muscle = 'rat_EDL'
             
             use_yielding = False
             use_sag = False
             
-            MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 4.73, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
             l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
         
