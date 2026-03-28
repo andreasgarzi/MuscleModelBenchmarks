@@ -60,11 +60,14 @@ class Params:  # container for all model parameters and time-series inputs
     k1_s_MU: float = 16.7       # activation kinetics
     k2_s_MU: float = 18.3       # activation kinetics 
     Ca_max_f_M: float = 192770  # activation (fast, muscle scale)
-    Ca_max_f_MU: float = 562875 # activation (fast, MU scale)
+    Ca_max_f_MU_catGM: float = 592607 # activation (fast, MU scale)
+    Ca_max_f_MU_ratGM: float = 627772
     k1_f_M: float = 10          # activation kinetics
     k2_f_M: float = 10.28       # activation kinetics 
-    k1_f_MU: float = 12.0       # activation kinetics
-    k2_f_MU: float = 12.84      # activation kinetics
+    k1_f_MU_catGM: float = 11.02       # activation kinetics
+    k2_f_MU_catGM: float = 12.92      # activation kinetics
+    k1_f_MU_ratGM: float = 10       # activation kinetics
+    k2_f_MU_ratGM: float = 63.82      # activation kinetics
     c1_s: float = 30605         # calcium kinetics (slow)
     c2_s: float = 896181        # calcium kinetics (slow)
     c3_s: float = 2.0           # calcium kinetics (slow)
@@ -73,9 +76,9 @@ class Params:  # container for all model parameters and time-series inputs
     c3_f: float = 0.435         # calcium kinetics (fast)
     af_s: float = 0.419         # FV curvature (slow)
     af_f: float = 0.361         # FV curvature (fast)
-    As_peak: float = 2.0        # sag peak
+    As_peak: float = 1.99        # sag peak
     As_decay: float = 0.9       # sag decay
-    Ts: float = 0.64            # sag time constant
+    Ts: float = 0.829            # sag time constant
 
     def __post_init__(self):  
 
@@ -404,9 +407,12 @@ class Ephys:
         elif fibre_type == "slow" and P.scale == "MU":  # slow MU scale
             Ca_norm = Ca * P.Ca_max_s_MU  
             k1, k2 = P.k1_s_MU, P.k2_s_MU  
-        elif fibre_type == "fast" and P.scale == "MU":  # fast MU scale
-            Ca_norm = Ca * P.Ca_max_f_MU  
-            k1, k2 = P.k1_f_MU, P.k2_f_MU  
+        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "cat_GM":  # fast MU scale
+            Ca_norm = Ca * P.Ca_max_f_MU_catGM  
+            k1, k2 = P.k1_f_MU_catGM, P.k2_f_MU_catGM  
+        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "rat_GM":  # fast MU scale
+            Ca_norm = Ca * P.Ca_max_f_MU_ratGM  
+            k1, k2 = P.k1_f_MU_ratGM, P.k2_f_MU_ratGM      
         else:  
             raise ValueError("No scale-type combination")  
 
@@ -417,7 +423,7 @@ class Ephys:
 
 
     @staticmethod
-    def yield_dot(y_val: float, V_norm: float) -> float:  # yielding ODE (Brown 1999)
+    def yield_dot(y_val: float, V_norm: float, fs: float) -> float:  # yielding ODE (Brown 1999)
         
         """
         Computes yielding state derivative as a function of normalized velocity.
@@ -427,9 +433,11 @@ class Ephys:
         Outputs:
         - dyield: float, yielding derivative.
         """
- 
-        cy, Vy, Ty = 0.35, 0.1, 0.2  # yielding parameters
-        return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty  # ODE
+        if fs < 37: # only under unfused-tetanus conditions
+            cy, Vy, Ty = 0.35, 0.1, 0.2  # yielding parameters
+            return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty  # ODE
+        else:
+            return 1
 
 
     def sag_dot(self, s: float, t: float, fs: float) -> float:  # sag ODE (adapted Brown 2000)
@@ -443,12 +451,14 @@ class Ephys:
         Outputs:
         - dsag: float, sag derivative.
         """
-        
-        if 0 < t < 0.262:  # early phase
-            As = self.P.As_peak  # peak value
-        else:  # later phase
-            As = self.P.As_decay  # decay value
-        return (As - s) / self.P.Ts  # ODE
+        if fs < 100: # only under unfused-tetanus conditions
+            if 0 < t < 0.262:  # early phase
+               As = self.P.As_peak  # peak value
+            else:  # later phase
+               As = self.P.As_decay  # decay value
+            return (As - s) / self.P.Ts  # ODE
+        else:
+            return 1
 
 
 # =============================================================================
@@ -636,7 +646,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         # yielding can be applied even without tendon (depends on velocity)
         if model_config.use_yielding:  # if yielding enabled
             yld = float(y[state_index_local["yielding"]])  # current yielding state
-            dydt[state_index_local["yielding"]] = self.eph.yield_dot(yld, forces["v_M"] / P.vmax)  # yielding derivative
+            dydt[state_index_local["yielding"]] = self.eph.yield_dot(yld, forces["v_M"] / P.vmax, fs=compute_fs(distimes))  # yielding derivative
 
         if model_config.use_tendon:  # tendon system adds l_M dynamics and pennation update
             dydt[state_index_local["l_M"]] = forces["v_M"]  # dl_M/dt = fibre velocity
