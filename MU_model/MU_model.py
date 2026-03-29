@@ -4,26 +4,23 @@ Email: a.sgarzi@ad.unsw.edu.au
 Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
 Description:
-This module implements a physiologically based motor-unit (MU) driven
-muscle model for simulating force production in skeletal muscle.
+This module implements a single-actuator-Hill-type muscle model for simulating force production 
+in skeletal muscles and MUs differentiating between slow and fast fibres.
 
 Key features of the model include:
 - MU-level excitation-activation dynamics driven by discharge times
 - Second-order calcium transient dynamics for slow and fast fibres
 - Hill-type muscle mechanics with configurable components:
-  * Tendon compliance and pennation
-  * Passive elastic element (PE)
-  * Force-length (FL) and force-velocity (FV) relationships
-  * Yielding (slow fibres) and sag (fast fibres)
+  - Tendon compliance and pennation
+  - Passive elastic element (PE)
+  - Force-length (FL) and force-velocity (FV) relationships
+  - Yielding (slow fibres) and sag (fast fibres)
 - Flexible configuration via a ModelConfig object
 
 The model supports simulations at different scales:
 - Muscle scale ("M")
 - Motor-unit scale ("MU")
 - Calcium-transient scale ("Ca")
-
-This file contains the core model definitions and numerical integration
-routines used by the benchmark scripts.
 """
 
 from __future__ import annotations  
@@ -76,9 +73,9 @@ class Params:  # container for all model parameters and time-series inputs
     c3_f: float = 0.435         # calcium kinetics (fast)
     af_s: float = 0.419         # FV curvature (slow)
     af_f: float = 0.361         # FV curvature (fast)
-    As_peak: float = 1.99        # sag peak
-    As_decay: float = 0.9       # sag decay
-    Ts: float = 0.829            # sag time constant
+    As_peak: float = 1.6        # sag peak
+    As_decay: float = 0.87       # sag decay
+    Ts: float = 0.097            # sag time constant
 
     def __post_init__(self):  
 
@@ -451,8 +448,14 @@ class Ephys:
         Outputs:
         - dsag: float, sag derivative.
         """
-        if fs < 100: # only under unfused-tetanus conditions
-            if 0 < t < 0.262:  # early phase
+        P = self.P
+        if P.muscle == "cat_GM":
+            tp = 0.262
+        else:
+            tp = 0.1
+
+        if 5 < fs < 100: # only under unfused-tetanus conditions
+            if 0 < t < tp:  # early phase
                As = self.P.As_peak  # peak value
             else:  # later phase
                As = self.P.As_decay  # decay value

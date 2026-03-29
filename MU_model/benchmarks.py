@@ -356,7 +356,7 @@ if scale == 'M': # muscle benchmarks
 if scale == 'MU': # motor-unit benchmarks
 
     use_FV = False
-    use_PE = True
+    use_PE = False
     scale_path = base_path / 'Motorunit'
     type = simpledialog.askstring("Input", "Select fibre type ('S'- slow, 'FF'- fast fatiguable, 'FR'- fast fatigue resistent):") # fibre type selection
 
@@ -412,7 +412,7 @@ if scale == 'MU': # motor-unit benchmarks
 
         path = scale_path / 'MU_FR'
         use_yielding = False
-        use_sag = True
+        use_sag = False
         
         fs = simpledialog.askstring("Input", "Stimulation ('twitch', 'unfused', 'tetanus') or ('25', '30', '35', '40', '150') Hz:")
         exp_force = np.load(path / f"MU_FR_{fs}.npy")
@@ -717,29 +717,29 @@ model_config = ModelConfig(
 
 """  10) MUisof [As, Ts] on unfused tetanus isometric trial (Burke & exp. data) """
 
-def obj(x, parameters, states, Distimes, exp_force, model_config): 
+#def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
-    parameters['As_peak'] =  x[0]
-    parameters['As_decay'] =  x[1]
-    parameters['Ts'] = x[2]
+#    parameters['As_peak'] =  x[0]
+#    parameters['As_decay'] =  x[1]
+#    parameters['Ts'] = x[2]
 
-    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-    out = model.run(output_force=True)
-    force_sim = out["force"]
+#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#    out = model.run(output_force=True)
+#    force_sim = out["force"]
     
-    residuals = force_sim[0:len(exp_force)] - exp_force  
-    return np.sum(residuals**2)  
+#    residuals = force_sim[0:len(exp_force)] - exp_force  
+#    return np.sum(residuals**2)  
 
-x0 = [1.2, 0.9, 0.1]
-bnds = [(1, 2), (0.1, 0.9), (0.01, 0.9)]
+#x0 = [1.2, 0.9, 0.1]
+#bnds = [(1, 3), (0.1, 1), (0.01, 2)]
 
-res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
-                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
-print("Optimized parameters:")
-print("As_peak =", res.x[0])
-print("As_decay =", res.x[1])
-print("Ts =", res.x[2])
+#print("Optimized parameters:")
+#print("As_peak =", res.x[0])
+#print("As_decay =", res.x[1])
+#print("Ts =", res.x[2])
 
 
 """ 11) Ca transient ODE [c1, c2, c3] parameters estimation """
@@ -858,10 +858,10 @@ elif scale == 'Ca':
 
 
 # Save results
-#os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
+#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\sim')
 
-#np.save('iso_FFR_twitch', force_sim, allow_pickle=True)
+#np.save('iso_FLR_4.00', force_sim, allow_pickle=True)
 
-#os.chdir(r'C:\Users\z5517249\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
+#os.chdir(r'C:\Users\Andrea\Dropbox\UNSW_Andrea_Luca_PhD\Code\Python_Scripts\Results_benchmarks\fast_M\exp')
 
-#np.save('iso_FFR_twitch', exp_force, allow_pickle=True)
+#np.save('iso_FLR_4.00', exp_force, allow_pickle=True)
