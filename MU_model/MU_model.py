@@ -57,8 +57,8 @@ class Params:  # container for all model parameters and time-series inputs
     k1_s_MU: float = 16.7       # activation kinetics
     k2_s_MU: float = 18.3       # activation kinetics 
     Ca_max_f_M: float = 192770  # activation (fast, muscle scale)
-    Ca_max_f_MU_catGM: float = 592607 # activation (fast, MU scale)
-    Ca_max_f_MU_ratGM: float = 627772
+    Ca_max_f_MU_catGM: float = 592607 # activation (fast, MU scale, cat GM)
+    Ca_max_f_MU_ratGM: float = 627772 # activation (fast, MU scale, rat GM)
     k1_f_M: float = 10          # activation kinetics
     k2_f_M: float = 10.28       # activation kinetics 
     k1_f_MU_catGM: float = 11.02       # activation kinetics

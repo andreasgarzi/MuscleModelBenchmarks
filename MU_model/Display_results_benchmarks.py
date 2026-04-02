@@ -16,7 +16,11 @@ import numpy as np
 import pandas as pd
 import scipy as sp
 from scipy import signal
+from sklearn.metrics import r2_score
+from scipy.signal import find_peaks
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
+from scipy.stats import wilcoxon
 
 ####################################################################################
 # Helper functions
@@ -193,7 +197,7 @@ def first_crossing_time(
 
     return np.nan
 
-def first_positive_sample(time: np.ndarray, force: np.ndarray, threshold: float = 0.0):
+def first_positive_sample(time: np.ndarray, force: np.ndarray, threshold: float = 0.01):
     """
     Return time, force, and index of the first sample above threshold.
     """
@@ -237,7 +241,7 @@ def compute_twitch_metrics(
     force: np.ndarray,
     time: np.ndarray,
     F0: float,
-    force_threshold: float = 0.0,
+    force_threshold: float = 0.01,
 ):
     """
     Metrics for twitch trials:
@@ -299,20 +303,24 @@ def compute_first_order_tetanus_metrics(
 ):
     """
     First-order-style metrics for non-twitch trials:
-    - peak force
-    - tau_rise_1st: time at 63.2% of peak before peak
-    - tau_decay_1st: time at 36.8% of peak after peak
+    - peak force = last detected local peak used for fusion index
+    - tau_rise_1st: time at 63.2% of that peak before the peak
+    - tau_decay_1st: time at 36.8% of that peak after the peak
     """
     force = np.asarray(force, dtype=float).ravel()
     time = np.asarray(time, dtype=float).ravel()
 
-    peak = peak_metrics(force, time, F0)
+    fusion = compute_fusion_index(force, time, F0)
+
+    peak_force = fusion["fusion_peak_force"]
+    peak_time = fusion["fusion_peak_time"]
+    peak_idx = fusion["fusion_peak_idx"]
 
     out = {
-        "peak_force": peak["peak_force"],
-        "peak_time": peak["peak_time"],
-        "peak_idx": peak["peak_idx"],
-        "peak_force_pctF0": peak["peak_force_pctF0"],
+        "peak_force": peak_force,
+        "peak_time": peak_time,
+        "peak_idx": peak_idx,
+        "peak_force_pctF0": np.nan if np.isclose(F0, 0.0) else float(peak_force / F0 * 100.0),
         "rise_force_1st": np.nan,
         "rise_time_1st": np.nan,
         "tau_rise_1st": np.nan,
@@ -321,18 +329,20 @@ def compute_first_order_tetanus_metrics(
         "tau_decay_1st": np.nan,
     }
 
-    if np.isnan(peak["peak_idx"]) or peak["peak_force"] <= 0:
+    if np.isnan(peak_idx) or peak_force <= 0:
         return out
 
-    rise_force = 0.632 * peak["peak_force"]
-    decay_force = 0.368 * peak["peak_force"]
+    peak_idx = int(peak_idx)
+
+    rise_force = 0.632 * peak_force
+    decay_force = 0.368 * peak_force
 
     rise_time = first_crossing_time(
         time=time,
         signal=force,
         level=rise_force,
         start_idx=1,
-        end_idx=int(peak["peak_idx"]) + 1,
+        end_idx=peak_idx + 1,
         direction="rising",
     )
 
@@ -340,7 +350,7 @@ def compute_first_order_tetanus_metrics(
         time=time,
         signal=force,
         level=decay_force,
-        start_idx=int(peak["peak_idx"]) + 1,
+        start_idx=peak_idx + 1,
         end_idx=len(force),
         direction="falling",
     )
@@ -359,60 +369,89 @@ def compute_fusion_index(
     force: np.ndarray,
     time: np.ndarray,
     F0: float,
-    peak_window_s: float = 0.4,
+    min_peak_prominence: float | None = None,
+    min_peak_distance_s: float | None = None,
 ):
     """
     Fusion index:
-        FI = local minimum around peak / peak force
+        FI = minimum force between the last two detected peaks / last peak force
 
-    Returned:
-    - fusion_peak_force
-    - fusion_min_force
-    - fusion_min_time
-    - fusion_index_ratio
+    Fallback:
+    If fewer than two peaks are found, the contraction is considered fully fused
+    and the fusion index is set to 1.0.
     """
     force = np.asarray(force, dtype=float).ravel()
     time = np.asarray(time, dtype=float).ravel()
 
-    peak = peak_metrics(force, time, F0)
-    if np.isnan(peak["peak_idx"]):
+    if force.size < 3 or time.size != force.size:
         return {
             "fusion_peak_force": np.nan,
+            "fusion_peak_time": np.nan,
+            "fusion_prev_peak_force": np.nan,
+            "fusion_prev_peak_time": np.nan,
             "fusion_min_force": np.nan,
             "fusion_min_time": np.nan,
             "fusion_index_ratio": np.nan,
+            "fusion_peak_idx": np.nan,
+            "fusion_prev_peak_idx": np.nan,
+            "fusion_min_idx": np.nan,
         }
 
-    t_peak = peak["peak_time"]
-    t0 = t_peak - peak_window_s
-    t1 = t_peak 
+    frange = np.max(force) - np.min(force)
 
-    idx_win = np.where((time >= t0) & (time <= t1))[0]
-    if idx_win.size == 0:
+    if min_peak_prominence is None:
+        min_peak_prominence = 0.01 * frange if frange > 0 else 0.0
+
+    dt = float(np.mean(np.diff(time)))
+    if min_peak_distance_s is None:
+        min_peak_distance_s = 0.005
+
+    min_peak_distance_samples = max(1, int(round(min_peak_distance_s / dt)))
+
+    peak_idx, _ = find_peaks(
+        force,
+        prominence=min_peak_prominence,
+        distance=min_peak_distance_samples
+    )
+
+    if peak_idx.size < 2:
+        last_idx = int(np.argmax(force))
+        last_force = float(force[last_idx])
+        last_time = float(time[last_idx])
         return {
-            "fusion_peak_force": peak["peak_force"],
-            "fusion_min_force": np.nan,
-            "fusion_min_time": np.nan,
-            "fusion_index_ratio": np.nan,
+            "fusion_peak_force": last_force,
+            "fusion_peak_time": last_time,
+            "fusion_prev_peak_force": np.nan,
+            "fusion_prev_peak_time": np.nan,
+            "fusion_min_force": last_force,
+            "fusion_min_time": last_time,
+            "fusion_index_ratio": 1.0,
+            "fusion_peak_idx": last_idx,
+            "fusion_prev_peak_idx": np.nan,
+            "fusion_min_idx": last_idx,
         }
 
-    local_force = force[idx_win]
-    local_time = time[idx_win]
-    min_idx_local = int(np.argmin(local_force))
+    prev_peak_idx = int(peak_idx[-2])
+    last_peak_idx = int(peak_idx[-1])
 
-    fusion_min_force = float(local_force[min_idx_local])
-    fusion_min_time = float(local_time[min_idx_local])
+    seg_force = force[prev_peak_idx:last_peak_idx + 1]
+    min_rel_idx = int(np.argmin(seg_force))
+    min_idx = prev_peak_idx + min_rel_idx
 
-    if np.isclose(peak["peak_force"], 0.0):
-        fusion_index_ratio = np.nan
-    else:
-        fusion_index_ratio = float(fusion_min_force / peak["peak_force"])
+    last_force = float(force[last_peak_idx])
+    fi = np.nan if np.isclose(last_force, 0.0) else float(force[min_idx] / last_force)
 
     return {
-        "fusion_peak_force": peak["peak_force"],
-        "fusion_min_force": fusion_min_force,
-        "fusion_min_time": fusion_min_time,
-        "fusion_index_ratio": fusion_index_ratio,
+        "fusion_peak_force": float(force[last_peak_idx]),
+        "fusion_peak_time": float(time[last_peak_idx]),
+        "fusion_prev_peak_force": float(force[prev_peak_idx]),
+        "fusion_prev_peak_time": float(time[prev_peak_idx]),
+        "fusion_min_force": float(force[min_idx]),
+        "fusion_min_time": float(time[min_idx]),
+        "fusion_index_ratio": fi,
+        "fusion_peak_idx": last_peak_idx,
+        "fusion_prev_peak_idx": prev_peak_idx,
+        "fusion_min_idx": min_idx,
     }
 
 def compute_nontwitch_metrics(
@@ -421,16 +460,19 @@ def compute_nontwitch_metrics(
     F0: float,
     peak_window_s: float = 0.05,
 ):
-    """
-    Metrics for non-twitch isometric trials:
-    - peak force
-    - first-order rise/decay metrics
-    - fusion index
-    """
+    global_peak = peak_metrics(force, time, F0)
     first_order = compute_first_order_tetanus_metrics(force, time, F0)
-    fusion = compute_fusion_index(force, time, F0, peak_window_s=peak_window_s)
+    fusion = compute_fusion_index(force, time, F0)
 
     out = {"trial_type": "nontwitch"}
+
+    # global peak kept separate for peak error
+    out["peak_force_global"] = global_peak["peak_force"]
+    out["peak_time_global"] = global_peak["peak_time"]
+    out["peak_idx_global"] = global_peak["peak_idx"]
+    out["peak_force_global_pctF0"] = global_peak["peak_force_pctF0"]
+
+    # first-order / fusion metrics
     out.update(first_order)
     out.update(fusion)
     return out
@@ -441,7 +483,7 @@ def compute_isometric_trial_metrics(
     F0: float,
     trial_type: str,
     peak_window_s: float = 0.05,
-    force_threshold: float = 0.0,
+    force_threshold: float = 0.001,
 ):
     """
     trial_type:
@@ -489,82 +531,76 @@ def add_peak_ratio_to_twitch(
 
     return out
 
-def abs_error_time(sim_val: float, exp_val: float) -> float:
+def error_time(sim_val: float, exp_val: float) -> float:
     """
-    Absolute error in seconds.
+    Signed error in seconds:
+        simulated - experimental
     """
     if np.isnan(sim_val) or np.isnan(exp_val):
         return np.nan
-    return float(np.abs(sim_val - exp_val))
+    return float(sim_val - exp_val)
 
-def abs_error_force_pctF0(sim_force: float, exp_force: float, F0: float) -> float:
+def error_force_pctF0(sim_force: float, exp_force: float, F0: float) -> float:
     """
-    Absolute force error expressed as %F0.
+    Signed force error expressed as %F0:
+        (simulated - experimental) / F0 * 100
     """
     if np.isnan(sim_force) or np.isnan(exp_force) or np.isclose(F0, 0.0):
         return np.nan
-    return float(np.abs(sim_force - exp_force) / F0 * 100.0)
+    return float((sim_force - exp_force) / F0 * 100.0)
 
-def abs_error_scalar(sim_val: float, exp_val: float) -> float:
+def error_scalar(sim_val: float, exp_val: float) -> float:
     """
-    Absolute error for dimensionless scalar metrics.
+    Signed error for dimensionless scalar metrics:
+        simulated - experimental
     """
     if np.isnan(sim_val) or np.isnan(exp_val):
         return np.nan
-    return float(np.abs(sim_val - exp_val))
+    return float(sim_val - exp_val)
 
 def compute_isometric_metric_errors(
     metrics_exp: dict,
     metrics_sim: dict,
     F0: float,
 ):
-    """
-    Compute errors between experimental and simulated isometric metrics.
-
-    Rules:
-    - force-derived metrics -> absolute error in %F0
-    - time-derived metrics  -> absolute error in s
-    - ratio metrics         -> absolute absolute error on the ratio
-    """
     out = {}
 
-    # Common peak metrics
-    out["peak_force_err_pctF0"] = abs_error_force_pctF0(
-        metrics_sim.get("peak_force", np.nan),
-        metrics_exp.get("peak_force", np.nan),
+    # Peak error: use global peak if available, otherwise fallback
+    exp_peak_for_error = metrics_exp.get("peak_force_global", metrics_exp.get("peak_force", np.nan))
+    sim_peak_for_error = metrics_sim.get("peak_force_global", metrics_sim.get("peak_force", np.nan))
+
+    out["peak_force_err_pctF0"] = error_force_pctF0(
+        sim_peak_for_error,
+        exp_peak_for_error,
         F0
     )
 
-    # Peak/twitch ratio
-    out["peak_twitch_ratio_err"] = abs_error_scalar(
+    out["peak_twitch_ratio_err"] = error_scalar(
         metrics_sim.get("peak_twitch_ratio", np.nan),
         metrics_exp.get("peak_twitch_ratio", np.nan),
     )
 
-    # Twitch-only metrics
-    out["rise_time_twitch_err_s"] = abs_error_time(
+    out["rise_time_twitch_err_s"] = error_time(
         metrics_sim.get("rise_time_twitch", np.nan),
         metrics_exp.get("rise_time_twitch", np.nan),
     )
 
-    out["half_decay_time_twitch_err_s"] = abs_error_time(
+    out["half_decay_time_twitch_err_s"] = error_time(
         metrics_sim.get("half_decay_time_twitch", np.nan),
         metrics_exp.get("half_decay_time_twitch", np.nan),
     )
 
-    # First-order tetanus metrics
-    out["tau_rise_1st_err_s"] = abs_error_time(
+    out["tau_rise_1st_err_s"] = error_time(
         metrics_sim.get("tau_rise_1st", np.nan),
         metrics_exp.get("tau_rise_1st", np.nan),
     )
 
-    out["tau_decay_1st_err_s"] = abs_error_time(
+    out["tau_decay_1st_err_s"] = error_time(
         metrics_sim.get("tau_decay_1st", np.nan),
         metrics_exp.get("tau_decay_1st", np.nan),
     )
 
-    # Fusion index ratio
-    out["fusion_index_ratio_err"] = abs_error_scalar(
+    out["fusion_index_ratio_err"] = error_scalar(
         metrics_sim.get("fusion_index_ratio", np.nan),
         metrics_exp.get("fusion_index_ratio", np.nan),
     )
@@ -580,7 +616,7 @@ def compute_full_isometric_evaluation(
     twitch_peak_exp: float,
     twitch_peak_sim: float,
     peak_window_s: float = 0.05,
-    force_threshold: float = 0.0,
+    force_threshold: float = 0.001,
 ):
     """
     Full evaluation for an isometric trial:
@@ -673,34 +709,51 @@ def plot_nontwitch_metric_points(
     figsize=(7, 4),
 ):
     """
-    Plot non-twitch traces with peak, first-order points, and fusion-index minimum.
+    Plot non-twitch traces with:
+    - peak
+    - first-order points
+    - fusion previous peak
+    - fusion minimum
+    - fusion last peak
     """
     plt.figure(figsize=figsize)
     plt.plot(time, force_exp, 'k', label='Experimental')
     plt.plot(time, force_sim, 'r', label='Simulated')
 
+    # Experimental
     if not np.isnan(metrics_exp.get("peak_time", np.nan)):
         plt.plot(metrics_exp["peak_time"], metrics_exp["peak_force"], 'kD', label='Exp peak')
     if not np.isnan(metrics_exp.get("rise_time_1st", np.nan)):
         plt.plot(metrics_exp["rise_time_1st"], metrics_exp["rise_force_1st"], 'k^', label='Exp 63.2% peak')
     if not np.isnan(metrics_exp.get("decay_time_1st", np.nan)):
         plt.plot(metrics_exp["decay_time_1st"], metrics_exp["decay_force_1st"], 'kP', label='Exp 36.8% peak')
+
+    if not np.isnan(metrics_exp.get("fusion_prev_peak_time", np.nan)):
+        plt.plot(metrics_exp["fusion_prev_peak_time"], metrics_exp["fusion_prev_peak_force"], 'kv', label='Exp prev peak')
     if not np.isnan(metrics_exp.get("fusion_min_time", np.nan)):
         plt.plot(metrics_exp["fusion_min_time"], metrics_exp["fusion_min_force"], 'ks', label='Exp fusion min')
+    if not np.isnan(metrics_exp.get("fusion_peak_time", np.nan)):
+        plt.plot(metrics_exp["fusion_peak_time"], metrics_exp["fusion_peak_force"], 'ko', fillstyle='none', label='Exp last peak')
 
+    # Simulated
     if not np.isnan(metrics_sim.get("peak_time", np.nan)):
         plt.plot(metrics_sim["peak_time"], metrics_sim["peak_force"], 'rD', label='Sim peak')
     if not np.isnan(metrics_sim.get("rise_time_1st", np.nan)):
         plt.plot(metrics_sim["rise_time_1st"], metrics_sim["rise_force_1st"], 'r^', label='Sim 63.2% peak')
     if not np.isnan(metrics_sim.get("decay_time_1st", np.nan)):
         plt.plot(metrics_sim["decay_time_1st"], metrics_sim["decay_force_1st"], 'rP', label='Sim 36.8% peak')
+
+    if not np.isnan(metrics_sim.get("fusion_prev_peak_time", np.nan)):
+        plt.plot(metrics_sim["fusion_prev_peak_time"], metrics_sim["fusion_prev_peak_force"], 'rv', label='Sim prev peak')
     if not np.isnan(metrics_sim.get("fusion_min_time", np.nan)):
         plt.plot(metrics_sim["fusion_min_time"], metrics_sim["fusion_min_force"], 'rs', label='Sim fusion min')
+    if not np.isnan(metrics_sim.get("fusion_peak_time", np.nan)):
+        plt.plot(metrics_sim["fusion_peak_time"], metrics_sim["fusion_peak_force"], 'ro', fillstyle='none', label='Sim last peak')
 
     plt.title(title, weight='bold')
     plt.xlabel('Time [s]', weight='bold')
     plt.ylabel('Force', weight='bold')
-    plt.legend(fontsize=8, ncol=2)
+    plt.legend(fontsize=7, ncol=2)
     plt.tight_layout()
     plt.show()
 
@@ -730,14 +783,16 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
     )
     print(
         f"{'':>{align}}   "
-        f"fusion peak_exp = {metrics_exp.get('fusion_peak_force', np.nan):.4f}   "
-        f"fusion min_exp = {metrics_exp.get('fusion_min_force', np.nan):.4f}   "
+        f"prev_peak_exp = {metrics_exp.get('fusion_prev_peak_force', np.nan):.4f}   "
+        f"min_exp = {metrics_exp.get('fusion_min_force', np.nan):.4f}   "
+        f"last_peak_exp = {metrics_exp.get('fusion_peak_force', np.nan):.4f}   "
         f"FI_exp = {metrics_exp.get('fusion_index_ratio', np.nan):.4f}"
     )
     print(
         f"{'':>{align}}   "
-        f"fusion peak_sim = {metrics_sim.get('fusion_peak_force', np.nan):.4f}   "
-        f"fusion min_sim = {metrics_sim.get('fusion_min_force', np.nan):.4f}   "
+        f"prev_peak_sim = {metrics_sim.get('fusion_prev_peak_force', np.nan):.4f}   "
+        f"min_sim = {metrics_sim.get('fusion_min_force', np.nan):.4f}   "
+        f"last_peak_sim = {metrics_sim.get('fusion_peak_force', np.nan):.4f}   "
         f"FI_sim = {metrics_sim.get('fusion_index_ratio', np.nan):.4f}"
     )
     print(
@@ -754,40 +809,39 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
 "Files were kept separated to avoid confusion in error and statistics computation"
 #############################################################################
 
-benchmark = 'fast_M_iso' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'fast_M_dyn' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
-if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
+if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997 experiments
 
-    sim_path = base_path / 'slow_M' / 'sim' # experimental path
-    exp_path = base_path / 'slow_M' / 'exp' # simulations path
+    sim_path = base_path / 'slow_M' / 'sim'
+    exp_path = base_path / 'slow_M' / 'exp'
 
-    exp1 = np.load(exp_path / 'max_0.npy') # load experimental forces
+    exp1 = np.load(exp_path / 'max_0.npy')
     exp2 = np.load(exp_path / 'max_1.npy')
     exp3 = np.load(exp_path / 'max_2.npy')
     exp4 = np.load(exp_path / 'max_3.npy')
     exp5 = np.load(exp_path / 'max_4.npy')
     exp6 = np.load(exp_path / 'max_5.npy')
 
-    sim1 = np.load(sim_path / 'max_0.npy') # load simulated forces
+    sim1 = np.load(sim_path / 'max_0.npy')
     sim2 = np.load(sim_path / 'max_1.npy')
     sim3 = np.load(sim_path / 'max_2.npy')
     sim4 = np.load(sim_path / 'max_3.npy')
     sim5 = np.load(sim_path / 'max_4.npy')
     sim6 = np.load(sim_path / 'max_5.npy')
 
-    t_end = 2 # total seconds
-    time_dt = np.arange(0, t_end, dt) # time for BB
+    t_end = 2
+    time_dt = np.arange(0, t_end, dt)
     MVC = 1.32
 
     fig = plt.figure(figsize=(7, 8))
 
     plt.subplot(6, 1, 1)
-    plt.plot(time_dt, exp1, 'k', label='Experimental')
-    plt.plot(time_dt, sim1, 'r', label='Simulated')
+    plt.plot(time_dt, exp1, 'k')
+    plt.plot(time_dt, sim1, 'r')
     plt.title(u"\u00B1 0.05 mm", x=0.1, y=0.97, weight='bold')
-    plt.legend(loc=(0.8, 1.1), fontsize=12)
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
@@ -824,7 +878,6 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
 
-
     plt.subplot(6, 1, 6)
     plt.plot(time_dt, exp6, 'k')
     plt.plot(time_dt, sim6, 'r')
@@ -833,13 +886,15 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     plt.xlim((-0.03, 2.03))
     plt.ylim((0, 2))
 
-    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical', 
-         weight='bold', fontsize=14)
+    fig.text(0.01, 0.5, 'Rat Soleus (Slow) Force [N]', va='center', rotation='vertical',
+             weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
 
-    # Errors
+    # -------------------------------------------------------------------------
+    # Errors and R²
+    # -------------------------------------------------------------------------
     exp_all = [exp1, exp2, exp3, exp4, exp5, exp6]
     sim_all = [sim1, sim2, sim3, sim4, sim5, sim6]
     displacements = [0.05, 0.10, 0.25, 0.50, 1.00, 2.00]
@@ -847,49 +902,52 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
     mean_err_list = []
     max_err_list = []
     std_err_list = []
+    r2_list = []
 
     print("\n=== Benchmark: slow_M_max ===")
     print(f"MVC = {MVC:.2f} N\n")
 
     for exp, sim, disp in zip(exp_all, sim_all, displacements):
-
-        # maschera: prendi solo punti dove almeno uno è ≠ 0
-        mask = (exp != 0) | (sim != 0)
-
-        if np.any(mask):  # evita errori se tutti 0
-            abs_err = np.abs((sim[mask] / MVC) - (exp[mask] / MVC)) * 100.0
-
-            mae  = np.mean(abs_err)
-            maxae = np.max(abs_err)
-            stde = np.std(abs_err)
-        else:
-            mae = maxae = stde = 0.0
+        mae, maxae, stde = pct_errors(exp, sim, MVC)
+        r2 = compute_r2(exp, sim)
 
         mean_err_list.append(mae)
         max_err_list.append(maxae)
         std_err_list.append(stde)
+        r2_list.append(r2)
 
         print(f"Displacement ±{disp:.2f} mm:")
-        print(f"  mAE = {mae:.2f}% MVC   (std = {stde:.2f})")
-        print(f"  MAE = {maxae:.2f}% MVC\n")
+        print(f"  mAE = {mae:.2f}% F0   (std = {stde:.2f})")
+        print(f"  MAE = {maxae:.2f}% F0")
+        print(f"  R²  = {r2:.4f}\n")
 
-    mmae  = np.mean(mean_err_list)
+    mmae = np.mean(mean_err_list)
     mstde = np.std(mean_err_list)
-    print(f"  Mean mAE = {mmae:.2f}% MVC   (std = {mstde:.2f})")
+    mr2 = np.nanmean(r2_list)
+    sr2 = np.nanstd(r2_list)
 
-    summarize_trials(mean_err_list, max_err_list,
-                 label="— slow_M_max summary (all displacements) —",
-                 unit="% MVC")
+    print(f"  Mean mAE = {mmae:.2f}% F0   (std = {mstde:.2f})")
+    print(f"  Mean R²  = {mr2:.4f}   (std = {sr2:.4f})\n")
 
+    summarize_trials(
+        mean_err_list,
+        max_err_list,
+        label="— slow_M_max summary (all displacements) —",
+        unit="% F0"
+    )
+    summarize_metric_list(r2_list, "— slow_M_max summary: R² (all displacements) —", "")
+
+    # -------------------------------------------------------------------------
+    # Error plot (unchanged)
+    # -------------------------------------------------------------------------
     x = np.arange(1, len(displacements) + 1)
 
     mean_err_arr = np.array(mean_err_list)
-    max_err_arr  = np.array(max_err_list)
-    std_err_arr  = np.array(std_err_list)
+    max_err_arr = np.array(max_err_list)
+    std_err_arr = np.array(std_err_list)
 
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
-    # mean + std area
     ax.plot(x, mean_err_arr, '-o', color='k', label='mAE ± SD')
     ax.fill_between(
         x,
@@ -899,7 +957,6 @@ if benchmark == 'slow_M_max': # Krylow & Sandercock 1997 experiments
         alpha=0.2
     )
 
-    # max
     ax.plot(x, max_err_arr, '--*', color='k', label='MAE')
 
     ax.set_xticks(x)
@@ -933,10 +990,35 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     exp_iso_v_10 = np.load(exp_path / 'sub_iso_v_10.npy')
     exp_iso_v_20 = np.load(exp_path / 'sub_iso_v_20.npy')
     exp_iso_v_30 = np.load(exp_path / 'sub_iso_v_30.npy')
-
+    
     t_end = 2
     time_dt = np.arange(0, t_end, dt)
     MVC = 26.13
+
+
+    # Legend handles
+    legend_handles = [
+        Line2D([0], [0], color='k', lw=2, label='Experimental'),
+        Line2D([0], [0], color='r', lw=2, label='Simulated (yielding)'),
+        Line2D([0], [0], color='r', lw=2, label='Simulated (no yielding)', linestyle='dashed'),
+    ]
+
+    # Create empty figure
+    fig = plt.figure(figsize=(6, 1.2))  # largo e basso (tipo strip)
+
+    # Add legend
+    fig.legend(handles=legend_handles,
+               loc='center',
+               ncol=3,
+               frameon=True,
+               fancybox=False,
+               edgecolor='black',
+               fontsize=12)
+
+    # Remove axes completely
+    plt.axis('off')
+    plt.show()
+
 
     # -------------------------------------------------------------------------
     # ISO plots (unchanged)
@@ -946,47 +1028,46 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.subplot(3, 2, 1)
     plt.plot(time_dt, exp_iso_c_10, 'k')
     plt.plot(time_dt, sim_iso_c_10, 'r')
-    plt.title(u"Constant 10 Hz", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 10 Hz", x=0.2, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_iso_v_10, 'k', label='Experimental')
-    plt.plot(time_dt, sim_iso_v_10, 'r', label='Simulated')
-    plt.title(u"Random 10 Hz", x=0.16, y=0.99, weight='bold')
-    plt.legend(loc='upper right', fontsize=12)
+    plt.plot(time_dt, exp_iso_v_10, 'k')
+    plt.plot(time_dt, sim_iso_v_10, 'r')
+    plt.title(u"Random 10 Hz", x=0.2, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 3)
     plt.plot(time_dt, exp_iso_c_20, 'k')
     plt.plot(time_dt, sim_iso_c_20, 'r')
-    plt.title(u"Constant 20 Hz", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 20 Hz", x=0.2, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_iso_v_20, 'k')
     plt.plot(time_dt, sim_iso_v_20, 'r')
-    plt.title(u"Random 20 Hz", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Random 20 Hz", x=0.2, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 5)
     plt.plot(time_dt, exp_iso_c_30, 'k')
     plt.plot(time_dt, sim_iso_c_30, 'r')
-    plt.title(u"Constant 30 Hz", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 30 Hz", x=0.2, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 6)
     plt.plot(time_dt, exp_iso_v_30, 'k')
     plt.plot(time_dt, sim_iso_v_30, 'r')
-    plt.title(u"Random 30 Hz", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Random 30 Hz", x=0.2, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
-
+    
     plt.tight_layout()
     plt.show()
 
@@ -1023,16 +1104,15 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, exp_dyn_c_10_1, 'k')
     plt.plot(time_dt, sim_dyn_c_10_1, 'r')
     plt.plot(time_dt, sim_dyn_c_10_1_noy, 'r--')
-    plt.title(u"Constant 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 10 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_c_10_8, 'k', label='Experimental')
-    plt.plot(time_dt, sim_dyn_c_10_8, 'r', label='Simulated (yielding)')
-    plt.plot(time_dt, sim_dyn_c_10_8_noy, 'r--', label='Simulated (no yielding)')
-    plt.legend(loc='upper right', fontsize=12)
-    plt.title(u"Constant 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, exp_dyn_c_10_8, 'k')
+    plt.plot(time_dt, sim_dyn_c_10_8, 'r')
+    plt.plot(time_dt, sim_dyn_c_10_8_noy, 'r--')
+    plt.title(u"Constant 10 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
@@ -1040,16 +1120,16 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, exp_dyn_c_20_1, 'k')
     plt.plot(time_dt, sim_dyn_c_20_1, 'r')
     plt.plot(time_dt, sim_dyn_c_20_1_noy, 'r--')
-    plt.title(u"Constant 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_dyn_c_20_8, 'k')
     plt.plot(time_dt, sim_dyn_c_20_8, 'r')
     plt.plot(time_dt, sim_dyn_c_20_8_noy, 'r--')
-    plt.title(u"Constant 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 20 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
@@ -1057,7 +1137,7 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, exp_dyn_c_30_1, 'k')
     plt.plot(time_dt, sim_dyn_c_30_1, 'r')
     plt.plot(time_dt, sim_dyn_c_30_1_noy, 'r--')
-    plt.title(u"Constant 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 30 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
@@ -1065,7 +1145,7 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, exp_dyn_c_30_8, 'k')
     plt.plot(time_dt, sim_dyn_c_30_8, 'r')
     plt.plot(time_dt, sim_dyn_c_30_8_noy, 'r--')
-    plt.title(u"Constant 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.title(u"Constant 30 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
@@ -1097,57 +1177,56 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     exp_dyn_v_30_8 = np.load(exp_path / 'sub_dyn_v_30_8.npy')
 
     # -------------------------------------------------------------------------
-    # Dynamic random plots (unchanged)
+    # Dynamic random plots 
     # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(10, 9))
 
     plt.subplot(3, 2, 1)
     plt.plot(time_dt, exp_dyn_v_10_1, 'k')
     plt.plot(time_dt, sim_dyn_v_10_1, 'r')
-    # plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
-    plt.title(u"Random 10 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
+    plt.title(u"Random 10 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_v_10_8, 'k', label='Experimental')
-    plt.plot(time_dt, sim_dyn_v_10_8, 'r', label='Simulated')
-    # plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--', label='Simulated (no yielding)')
-    plt.legend(loc='upper right', fontsize=12)
-    plt.title(u"Random 10 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, exp_dyn_v_10_8, 'k')
+    plt.plot(time_dt, sim_dyn_v_10_8, 'r')
+    plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--')
+    plt.title(u"Random 10 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 3)
     plt.plot(time_dt, exp_dyn_v_20_1, 'k')
     plt.plot(time_dt, sim_dyn_v_20_1, 'r')
-    # plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
-    plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
+    plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
     plt.plot(time_dt, exp_dyn_v_20_8, 'k')
     plt.plot(time_dt, sim_dyn_v_20_8, 'r')
-    # plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
-    plt.title(u"Random 20 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
+    plt.title(u"Random 20 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 5)
     plt.plot(time_dt, exp_dyn_v_30_1, 'k')
     plt.plot(time_dt, sim_dyn_v_30_1, 'r')
-    # plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
-    plt.title(u"Random 30 Hz, \u00B1 1 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
+    plt.title(u"Random 30 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 6)
     plt.plot(time_dt, exp_dyn_v_30_8, 'k')
     plt.plot(time_dt, sim_dyn_v_30_8, 'r')
-    # plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
-    plt.title(u"Random 30 Hz, \u00B1 8 mm", x=0.16, y=0.99, weight='bold')
+    plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
+    plt.title(u"Random 30 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
@@ -1161,12 +1240,12 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     print(f"MVC = {MVC:.2f} N\n")
 
     iso_trials = [
-        ("ISO Const 10 Hz", exp_iso_c_10, sim_iso_c_10, MVC, time_dt),
-        ("ISO Rand  10 Hz", exp_iso_v_10, sim_iso_v_10, MVC, time_dt),
-        ("ISO Const 20 Hz", exp_iso_c_20, sim_iso_c_20, MVC, time_dt),
-        ("ISO Rand  20 Hz", exp_iso_v_20, sim_iso_v_20, MVC, time_dt),
-        ("ISO Const 30 Hz", exp_iso_c_30, sim_iso_c_30, MVC, time_dt),
-        ("ISO Rand  30 Hz", exp_iso_v_30, sim_iso_v_30, MVC, time_dt),
+        ("ISO Const 10 Hz", "nontwitch", exp_iso_c_10, sim_iso_c_10, MVC, time_dt),
+        ("ISO Rand  10 Hz", "nontwitch", exp_iso_v_10, sim_iso_v_10, MVC, time_dt),
+        ("ISO Const 20 Hz", "nontwitch", exp_iso_c_20, sim_iso_c_20, MVC, time_dt),
+        ("ISO Rand  20 Hz", "nontwitch", exp_iso_v_20, sim_iso_v_20, MVC, time_dt),
+        ("ISO Const 30 Hz", "nontwitch", exp_iso_c_30, sim_iso_c_30, MVC, time_dt),
+        ("ISO Rand  30 Hz", "nontwitch", exp_iso_v_30, sim_iso_v_30, MVC, time_dt),
     ]
 
     dyn_c_trials = [
@@ -1205,59 +1284,77 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
         ("DYN Rand 30 Hz ±8 mm (NOY)", exp_dyn_v_30_8, sim_dyn_v_30_8_noy),
     ]
 
-    def process_iso_trials(trials, block_title, avg_label, align=16, plot_points=True):
+    # -------------------------------------------------------------------------
+    # Helper for isometric trials
+    # No twitch reference available in this dataset -> peak/twitch ratio = NaN
+    # -------------------------------------------------------------------------
+    def process_iso_trials(
+        trials,
+        block_title,
+        avg_label,
+        align=16,
+        plot_points=True,
+        peak_window_s=0.05
+    ):
         mae_list, maxae_list, std_list = [], [], []
         r2_list = []
-        tau_rise_err_list, tau_decay_err_list, rfd_err_list = [], [], []
+
+        peak_err_list = []
+        peak_twitch_ratio_err_list = []
+        tau_rise_1st_err_list = []
+        tau_decay_1st_err_list = []
+        fusion_index_ratio_err_list = []
 
         print(block_title)
-        for name, exp, sim, mvc, time_dt_local in trials:
-            iso_metrics = compute_isometric_metrics(
+
+        for name, trial_type, exp, sim, F0, time_dt_local in trials:
+            eval_out = compute_full_isometric_evaluation(
                 exp=exp,
                 sim=sim,
                 time=time_dt_local,
-                MVC=mvc,
-                n_onset_samples=3,
+                F0=F0,
+                trial_type=trial_type,
+                twitch_peak_exp=np.nan,
+                twitch_peak_sim=np.nan,
+                peak_window_s=peak_window_s,
                 force_threshold=0.0,
-                use_abs_times=True,
             )
 
-            mae = iso_metrics["mae"]
-            maxae = iso_metrics["maxae"]
-            stde = iso_metrics["stde"]
-            r2 = iso_metrics["R2"]
+            mae = eval_out["mae"]
+            maxae = eval_out["maxae"]
+            stde = eval_out["stde"]
+            r2 = eval_out["R2"]
 
-            metrics_exp = iso_metrics["metrics_exp"]
-            metrics_sim = iso_metrics["metrics_sim"]
-
-            tau_rise_err = iso_metrics["tau_rise_err"]
-            tau_decay_err = iso_metrics["tau_decay_err"]
-            rfd_err = iso_metrics["rfd_err"]
+            metrics_exp = eval_out["metrics_exp"]
+            metrics_sim = eval_out["metrics_sim"]
+            metric_errors = eval_out["metric_errors"]
 
             mae_list.append(mae)
             maxae_list.append(maxae)
             std_list.append(stde)
             r2_list.append(r2)
-            tau_rise_err_list.append(tau_rise_err)
-            tau_decay_err_list.append(tau_decay_err)
-            rfd_err_list.append(rfd_err)
+
+            peak_err_list.append(metric_errors["peak_force_err_pctF0"])
+            peak_twitch_ratio_err_list.append(metric_errors["peak_twitch_ratio_err"])
+            tau_rise_1st_err_list.append(metric_errors["tau_rise_1st_err_s"])
+            tau_decay_1st_err_list.append(metric_errors["tau_decay_1st_err_s"])
+            fusion_index_ratio_err_list.append(metric_errors["fusion_index_ratio_err"])
 
             print(
-                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   "
-                f"MaxAE = {maxae:6.2f}% MVC   R² = {r2:.3f}"
+                f"{name:>{align}}:  mAE = {mae:6.2f}% F0  (std = {stde:6.2f})   "
+                f"MAE = {maxae:6.2f}% F0   R² = {r2:.3f}"
             )
-            print_first_order_metric_summary(
+
+            print_nontwitch_metric_summary(
                 label="",
-                metric_dict={
-                    "tau_rise_err": tau_rise_err,
-                    "tau_decay_err": tau_decay_err,
-                    "rfd_err": rfd_err,
-                },
+                metrics_exp=metrics_exp,
+                metrics_sim=metrics_sim,
+                metric_errors=metric_errors,
                 align=align
             )
 
             if plot_points:
-                plot_first_order_points(
+                plot_nontwitch_metric_points(
                     time=time_dt_local,
                     force_exp=exp,
                     force_sim=sim,
@@ -1268,9 +1365,10 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
 
         print(
             f"{avg_label:>{align}}:  "
-            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
-            f"(std = {np.mean(std_list):6.2f})   "
-            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+            f"mAE = {np.nanmean(mae_list):6.2f}% F0  "
+            f"(std = {np.nanmean(std_list):6.2f})   "
+            f"MAE = {np.nanmean(maxae_list):6.2f}% F0   "
+            f"R² = {np.nanmean(r2_list):.4f}  (std = {np.nanstd(r2_list):.4f})\n"
         )
 
         return {
@@ -1278,38 +1376,86 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
             "maxae": maxae_list,
             "std": std_list,
             "r2": r2_list,
-            "tau_rise_err": tau_rise_err_list,
-            "tau_decay_err": tau_decay_err_list,
-            "rfd_err": rfd_err_list,
+            "peak_err_pctF0": peak_err_list,
+            "peak_twitch_ratio_err": peak_twitch_ratio_err_list,
+            "tau_rise_1st_err_s": tau_rise_1st_err_list,
+            "tau_decay_1st_err_s": tau_decay_1st_err_list,
+            "fusion_index_ratio_err": fusion_index_ratio_err_list,
         }
 
+    # -------------------------------------------------------------------------
+    # Helper for dynamic trials
+    # -------------------------------------------------------------------------
     def process_dynamic_trials(trials, block_title, avg_label, align=24):
         mae_list, maxae_list, std_list = [], [], []
+        r2_list = []
 
         print(block_title)
         for name, exp, sim in trials:
             mae, maxae, stde = pct_errors(exp, sim, MVC)
+            r2 = compute_r2(exp, sim)
+
             mae_list.append(mae)
             maxae_list.append(maxae)
             std_list.append(stde)
+            r2_list.append(r2)
 
             print(
-                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  "
-                f"(std = {stde:6.2f})   MaxAE = {maxae:6.2f}% MVC"
+                f"{name:>{align}}:  mAE = {mae:6.2f}% F0  "
+                f"(std = {stde:6.2f})   MAE = {maxae:6.2f}% F0   R² = {r2:.3f}"
             )
 
         print(
             f"{avg_label:>{align}}:  "
-            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
-            f"(std = {np.mean(std_list):6.2f})   "
-            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+            f"mAE = {np.nanmean(mae_list):6.2f}% F0  "
+            f"(std = {np.nanmean(std_list):6.2f})   "
+            f"MAE = {np.nanmean(maxae_list):6.2f}% F0   "
+            f"R² = {np.nanmean(r2_list):.4f}  (std = {np.nanstd(r2_list):.4f})\n"
         )
 
         return {
             "mae": mae_list,
             "maxae": maxae_list,
             "std": std_list,
+            "r2": r2_list,
         }
+
+    # -------------------------------------------------------------------------
+    # Helper for paired statistics: WITH vs WITHOUT yielding
+    # -------------------------------------------------------------------------
+
+    def compare_paired_metrics(with_vals, without_vals, label, unit=""):
+        x = np.asarray(with_vals, dtype=float)
+        y = np.asarray(without_vals, dtype=float)
+
+        mask = ~np.isnan(x) & ~np.isnan(y)
+        x = x[mask]
+        y = y[mask]
+
+        if len(x) < 2:
+            print(f"{label}: not enough paired data\n")
+            return np.nan
+
+        if np.allclose(x, y):
+            p = 1.0
+        else:
+            try:
+                _, p = wilcoxon(x, y, zero_method='wilcox', alternative='two-sided')
+            except ValueError:
+                p = np.nan
+
+        print(f"{label}:")
+        print(f"  with yielding    = {np.mean(x):.4f} ± {np.std(x, ddof=0):.4f} {unit}")
+        print(f"  without yielding = {np.mean(y):.4f} ± {np.std(y, ddof=0):.4f} {unit}")
+        print(f"  Wilcoxon p       = {p:.4f}\n")
+        return p
+
+    def run_yielding_statistics(with_res, without_res, title):
+        print(f"\n=== {title} ===\n")
+
+        compare_paired_metrics(with_res["mae"], without_res["mae"], "mAE", "%F0")
+        compare_paired_metrics(with_res["maxae"], without_res["maxae"], "MAE", "%F0")
+        compare_paired_metrics(with_res["r2"], without_res["r2"], r"$R^2$", "")
 
     # -------------------------------------------------------------------------
     # ISO
@@ -1323,9 +1469,11 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     )
 
     summarize_metric_list(iso_res["r2"], "ISO R²", "")
-    summarize_metric_list(iso_res["tau_rise_err"], "ISO τ_rise relative error", "%")
-    summarize_metric_list(iso_res["tau_decay_err"], "ISO τ_decay relative error", "%")
-    summarize_metric_list(iso_res["rfd_err"], "ISO initial RFD relative error", "%")
+    summarize_metric_list(iso_res["peak_err_pctF0"], "ISO peak force absolute error", "%F0")
+    summarize_metric_list(iso_res["peak_twitch_ratio_err"], "ISO peak/twitch ratio absolute error", "")
+    summarize_metric_list(iso_res["tau_rise_1st_err_s"], "ISO tau_rise absolute error", "s")
+    summarize_metric_list(iso_res["tau_decay_1st_err_s"], "ISO tau_decay absolute error", "s")
+    summarize_metric_list(iso_res["fusion_index_ratio_err"], "ISO fusion index absolute error", "")
     print()
 
     # -------------------------------------------------------------------------
@@ -1369,27 +1517,62 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     )
 
     # -------------------------------------------------------------------------
+    # Paired statistical tests: WITH yielding vs WITHOUT yielding
+    # Combine all dynamic trials
+    # -------------------------------------------------------------------------
+    dyn_all_with_res = {
+        "mae": dync_res["mae"] + dynv_res["mae"],
+        "maxae": dync_res["maxae"] + dynv_res["maxae"],
+        "std": dync_res["std"] + dynv_res["std"],
+        "r2": dync_res["r2"] + dynv_res["r2"],
+    }
+
+    dyn_all_noy_res = {
+        "mae": dync_noy_res["mae"] + dynv_noy_res["mae"],
+        "maxae": dync_noy_res["maxae"] + dynv_noy_res["maxae"],
+        "std": dync_noy_res["std"] + dynv_noy_res["std"],
+        "r2": dync_noy_res["r2"] + dynv_noy_res["r2"],
+    }
+
+    run_yielding_statistics(
+        dyn_all_with_res,
+        dyn_all_noy_res,
+        title="YIELDING EFFECT STATISTICS — all dynamic trials combined"
+    )
+
+    # -------------------------------------------------------------------------
     # Summaries
     # -------------------------------------------------------------------------
     summarize_trials(
         iso_res["mae"],
         iso_res["maxae"],
         label="— slow_M_sub summary: ISO (all trials) —",
-        unit="% MVC"
+        unit="% F0"
     )
+    summarize_metric_list(iso_res["r2"], "— slow_M_sub summary: ISO R² (all trials) —", "")
 
     summarize_trials(
         list(dync_res["mae"]) + list(dynv_res["mae"]),
         list(dync_res["maxae"]) + list(dynv_res["maxae"]),
         label="— slow_M_sub summary: DYN (all trials) —",
-        unit="% MVC"
+        unit="% F0"
+    )
+    summarize_metric_list(
+        list(dync_res["r2"]) + list(dynv_res["r2"]),
+        "— slow_M_sub summary: DYN R² (all trials) —",
+        ""
     )
 
     summarize_trials(
         list(dync_noy_res["mae"]) + list(dynv_noy_res["mae"]),
         list(dync_noy_res["maxae"]) + list(dynv_noy_res["maxae"]),
         label="— slow_M_sub summary: DYN NO YIELDING (all trials) —",
-        unit="% MVC"
+        unit="% F0"
+    )
+    summarize_metric_list(
+        list(dync_noy_res["r2"]) + list(dynv_noy_res["r2"]),
+        "— slow_M_sub summary: DYN NO YIELDING R² (all trials) —",
+        ""
     )
 
     # -------------------------------------------------------------------------
@@ -1502,94 +1685,93 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     MVC = 30.25
 
     # -------------------------------------------------------------------------
-    # Plots (unchanged)
+    # Plots 
     # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(9, 8))
 
     plt.subplot(4, 3, 1)
     plt.plot(time_dt, exp_twitch_0, 'k')
     plt.plot(time_dt, sim_twitch_0, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
     plt.subplot(4, 3, 2)
-    plt.plot(time_dt, exp_twitch_8, 'k', label='Experimental')
-    plt.plot(time_dt, sim_twitch_8, 'r', label='Simulated')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
-    plt.legend(loc=(0.2, 0.6), fontsize=12)
+    plt.plot(time_dt, exp_twitch_8, 'k')
+    plt.plot(time_dt, sim_twitch_8, 'r')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
     plt.subplot(4, 3, 3)
     plt.plot(time_dt, exp_twitch_16, 'k')
     plt.plot(time_dt, sim_twitch_16, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 10))
 
     plt.subplot(4, 3, 4)
     plt.plot(time_dt, exp_iso_0_10, 'k')
     plt.plot(time_dt, sim_iso_0_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 5)
     plt.plot(time_dt, exp_iso_8_10, 'k')
     plt.plot(time_dt, sim_iso_8_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 6)
     plt.plot(time_dt, exp_iso_16_10, 'k')
     plt.plot(time_dt, sim_iso_16_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 7)
     plt.plot(time_dt, exp_iso_0_20, 'k')
     plt.plot(time_dt, sim_iso_0_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 8)
     plt.plot(time_dt, exp_iso_8_20, 'k')
     plt.plot(time_dt, sim_iso_8_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 9)
     plt.plot(time_dt, exp_iso_16_20, 'k')
     plt.plot(time_dt, sim_iso_16_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
     plt.ylim((0, 30))
 
     plt.subplot(4, 3, 10)
     plt.plot(time_dt, exp_iso_0_40, 'k')
     plt.plot(time_dt, sim_iso_0_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
     plt.ylim((0, 35))
 
     plt.subplot(4, 3, 11)
     plt.plot(time_dt, exp_iso_8_40, 'k')
     plt.plot(time_dt, sim_iso_8_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
     plt.ylim((0, 35))
     plt.xlabel('Time [s]', weight='bold', fontsize=14)
 
     plt.subplot(4, 3, 12)
     plt.plot(time_dt, exp_iso_16_40, 'k')
     plt.plot(time_dt, sim_iso_16_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
     plt.ylim((0, 35))
 
-    fig.text(0.01, 0.5, 'Force [N]', va='center', rotation='vertical',
+    fig.text(0.01, 0.5, 'Rat Soleus (Slow) Force [N]', va='center', rotation='vertical',
              weight='bold', fontsize=14)
 
     plt.tight_layout()
@@ -1599,92 +1781,162 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     print(f"MVC = {MVC:.2f} N\n")
 
     # -------------------------------------------------------------------------
-    # Trial definitions
+    # Trial definitions grouped by length condition
     # -------------------------------------------------------------------------
-    trials = [
-        ("Twitch 1 Hz, 0 mm",   exp_twitch_0,   sim_twitch_0,   MVC, time_dt),
-        ("Twitch 1 Hz, -8 mm",  exp_twitch_8,   sim_twitch_8,   MVC, time_dt),
-        ("Twitch 1 Hz, -16 mm", exp_twitch_16,  sim_twitch_16,  MVC, time_dt),
-
-        ("10 Hz,  -0 mm",       exp_iso_0_10,   sim_iso_0_10,   MVC, time_dt),
-        ("10 Hz,  -8 mm",       exp_iso_8_10,   sim_iso_8_10,   MVC, time_dt),
-        ("10 Hz,  -16 mm",      exp_iso_16_10,  sim_iso_16_10,  MVC, time_dt),
-
-        ("20 Hz,  -0 mm",       exp_iso_0_20,   sim_iso_0_20,   MVC, time_dt),
-        ("20 Hz,  -8 mm",       exp_iso_8_20,   sim_iso_8_20,   MVC, time_dt),
-        ("20 Hz,  -16 mm",      exp_iso_16_20,  sim_iso_16_20,  MVC, time_dt),
-
-        ("40 Hz,  -0 mm",       exp_iso_0_40,   sim_iso_0_40,   MVC, time_dt),
-        ("40 Hz,  -8 mm",       exp_iso_8_40,   sim_iso_8_40,   MVC, time_dt),
-        ("40 Hz,  -16 mm",      exp_iso_16_40,  sim_iso_16_40,  MVC, time_dt),
+    trials_0 = [
+        ("Twitch 1 Hz, 0 mm",  "twitch",    exp_twitch_0,  sim_twitch_0,  MVC, time_dt),
+        ("10 Hz,  -0 mm",      "nontwitch", exp_iso_0_10,  sim_iso_0_10,  MVC, time_dt),
+        ("20 Hz,  -0 mm",      "nontwitch", exp_iso_0_20,  sim_iso_0_20,  MVC, time_dt),
+        ("40 Hz,  -0 mm",      "nontwitch", exp_iso_0_40,  sim_iso_0_40,  MVC, time_dt),
     ]
 
-    def process_len_trials(trials, block_title, avg_label, align=18, plot_points=True):
+    trials_8 = [
+        ("Twitch 1 Hz, -8 mm", "twitch",    exp_twitch_8,  sim_twitch_8,  MVC, time_dt),
+        ("10 Hz,  -8 mm",      "nontwitch", exp_iso_8_10,  sim_iso_8_10,  MVC, time_dt),
+        ("20 Hz,  -8 mm",      "nontwitch", exp_iso_8_20,  sim_iso_8_20,  MVC, time_dt),
+        ("40 Hz,  -8 mm",      "nontwitch", exp_iso_8_40,  sim_iso_8_40,  MVC, time_dt),
+    ]
+
+    trials_16 = [
+        ("Twitch 1 Hz, -16 mm", "twitch",    exp_twitch_16, sim_twitch_16, MVC, time_dt),
+        ("10 Hz,  -16 mm",      "nontwitch", exp_iso_16_10, sim_iso_16_10, MVC, time_dt),
+        ("20 Hz,  -16 mm",      "nontwitch", exp_iso_16_20, sim_iso_16_20, MVC, time_dt),
+        ("40 Hz,  -16 mm",      "nontwitch", exp_iso_16_40, sim_iso_16_40, MVC, time_dt),
+    ]
+
+    all_trials = trials_0 + trials_8 + trials_16
+
+    # -------------------------------------------------------------------------
+    # Helper
+    # -------------------------------------------------------------------------
+    def process_len_trials(
+        trials,
+        block_title,
+        avg_label,
+        align=18,
+        plot_points=True,
+        peak_window_s=0.05,
+        twitch_ref=None,   # tuple: (twitch_exp, twitch_sim, F0, time)
+    ):
         mae_list, maxae_list, std_list = [], [], []
         r2_list = []
-        tau_rise_err_list, tau_decay_err_list, rfd_err_list = [], [], []
+
+        peak_err_list = []
+        peak_twitch_ratio_err_list = []
+
+        rise_time_twitch_err_list = []
+        half_decay_time_twitch_err_list = []
+
+        tau_rise_1st_err_list = []
+        tau_decay_1st_err_list = []
+        fusion_index_ratio_err_list = []
 
         print(block_title)
-        for name, exp, sim, mvc, time_dt_local in trials:
-            iso_metrics = compute_isometric_metrics(
+
+        # -----------------------------
+        # reference twitch peaks
+        # -----------------------------
+        twitch_peak_exp = np.nan
+        twitch_peak_sim = np.nan
+
+        if twitch_ref is not None:
+            twitch_exp, twitch_sim, twitch_F0, twitch_time = twitch_ref
+            twitch_metrics_exp = compute_isometric_trial_metrics(
+                force=twitch_exp, time=twitch_time, F0=twitch_F0, trial_type="twitch"
+            )
+            twitch_metrics_sim = compute_isometric_trial_metrics(
+                force=twitch_sim, time=twitch_time, F0=twitch_F0, trial_type="twitch"
+            )
+            twitch_peak_exp = twitch_metrics_exp["peak_force"]
+            twitch_peak_sim = twitch_metrics_sim["peak_force"]
+        else:
+            raise ValueError("A twitch reference trial is required for this block.")
+
+        for name, trial_type, exp, sim, F0, time_dt_local in trials:
+            eval_out = compute_full_isometric_evaluation(
                 exp=exp,
                 sim=sim,
                 time=time_dt_local,
-                MVC=mvc,
-                n_onset_samples=3,
-                force_threshold=0.0,
-                use_abs_times=True,
+                F0=F0,
+                trial_type=trial_type,
+                twitch_peak_exp=twitch_peak_exp,
+                twitch_peak_sim=twitch_peak_sim,
+                peak_window_s=peak_window_s,
+                force_threshold=0.01,
             )
 
-            mae = iso_metrics["mae"]
-            maxae = iso_metrics["maxae"]
-            stde = iso_metrics["stde"]
-            r2 = iso_metrics["R2"]
+            mae = eval_out["mae"]
+            maxae = eval_out["maxae"]
+            stde = eval_out["stde"]
+            r2 = eval_out["R2"]
 
-            metrics_exp = iso_metrics["metrics_exp"]
-            metrics_sim = iso_metrics["metrics_sim"]
-
-            tau_rise_err = iso_metrics["tau_rise_err"]
-            tau_decay_err = iso_metrics["tau_decay_err"]
-            rfd_err = iso_metrics["rfd_err"]
+            metrics_exp = eval_out["metrics_exp"]
+            metrics_sim = eval_out["metrics_sim"]
+            metric_errors = eval_out["metric_errors"]
 
             mae_list.append(mae)
             maxae_list.append(maxae)
             std_list.append(stde)
             r2_list.append(r2)
-            tau_rise_err_list.append(tau_rise_err)
-            tau_decay_err_list.append(tau_decay_err)
-            rfd_err_list.append(rfd_err)
+
+            peak_err_list.append(metric_errors["peak_force_err_pctF0"])
+            peak_twitch_ratio_err_list.append(metric_errors["peak_twitch_ratio_err"])
+
+            rise_time_twitch_err_list.append(metric_errors["rise_time_twitch_err_s"])
+            half_decay_time_twitch_err_list.append(metric_errors["half_decay_time_twitch_err_s"])
+
+            tau_rise_1st_err_list.append(metric_errors["tau_rise_1st_err_s"])
+            tau_decay_1st_err_list.append(metric_errors["tau_decay_1st_err_s"])
+            fusion_index_ratio_err_list.append(metric_errors["fusion_index_ratio_err"])
 
             print(
-                f"{name:>{align}}:  MAE = {mae:6.2f}% MVC  (std = {stde:6.2f})   "
-                f"MaxAE = {maxae:6.2f}% MVC   R² = {r2:.3f}"
-            )
-            print_first_order_metric_summary(
-                label="",
-                metric_dict={
-                    "tau_rise_err": tau_rise_err,
-                    "tau_decay_err": tau_decay_err,
-                    "rfd_err": rfd_err,
-                },
-                align=align
+                f"{name:>{align}}:  mAE = {mae:6.2f}% F0  (std = {stde:6.2f})   "
+                f"MAE = {maxae:6.2f}% F0   R² = {r2:.3f}"
             )
 
-            if plot_points:
-                plot_first_order_points(
-                    time=time_dt_local,
-                    force_exp=exp,
-                    force_sim=sim,
+            if trial_type == "twitch":
+                print_twitch_metric_summary(
+                    label="",
                     metrics_exp=metrics_exp,
                     metrics_sim=metrics_sim,
-                    title=name
+                    metric_errors=metric_errors,
+                    align=align
                 )
+            else:
+                print_nontwitch_metric_summary(
+                    label="",
+                    metrics_exp=metrics_exp,
+                    metrics_sim=metrics_sim,
+                    metric_errors=metric_errors,
+                    align=align
+                )
+
+            if plot_points:
+                if trial_type == "twitch":
+                    plot_twitch_metric_points(
+                        time=time_dt_local,
+                        force_exp=exp,
+                        force_sim=sim,
+                        metrics_exp=metrics_exp,
+                        metrics_sim=metrics_sim,
+                        title=name
+                    )
+                else:
+                    plot_nontwitch_metric_points(
+                        time=time_dt_local,
+                        force_exp=exp,
+                        force_sim=sim,
+                        metrics_exp=metrics_exp,
+                        metrics_sim=metrics_sim,
+                        title=name
+                    )
 
         print(
             f"{avg_label:>{align}}:  "
-            f"MAE = {np.mean(mae_list):6.2f}% MVC  "
-            f"(std = {np.mean(std_list):6.2f})   "
-            f"MaxAE = {np.mean(maxae_list):6.2f}% MVC\n"
+            f"mAE = {np.nanmean(mae_list):6.2f}% F0  "
+            f"(std = {np.nanmean(std_list):6.2f})   "
+            f"MAE = {np.nanmean(maxae_list):6.2f}% F0   "
+            f"R² = {np.nanmean(r2_list):.4f}  (std = {np.nanstd(r2_list):.4f})\n"
         )
 
         return {
@@ -1692,30 +1944,77 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
             "maxae": maxae_list,
             "std": std_list,
             "r2": r2_list,
-            "tau_rise_err": tau_rise_err_list,
-            "tau_decay_err": tau_decay_err_list,
-            "rfd_err": rfd_err_list,
+            "peak_err_pctF0": peak_err_list,
+            "peak_twitch_ratio_err": peak_twitch_ratio_err_list,
+            "rise_time_twitch_err_s": rise_time_twitch_err_list,
+            "half_decay_time_twitch_err_s": half_decay_time_twitch_err_list,
+            "tau_rise_1st_err_s": tau_rise_1st_err_list,
+            "tau_decay_1st_err_s": tau_decay_1st_err_list,
+            "fusion_index_ratio_err": fusion_index_ratio_err_list,
         }
 
-    all_res = process_len_trials(
-        trials,
-        block_title="— Errori per trial —",
-        avg_label="Overall Average",
+    # -------------------------------------------------------------------------
+    # Process each ΔL group with its own twitch reference
+    # -------------------------------------------------------------------------
+    res_0 = process_len_trials(
+        trials_0,
+        block_title="— ΔL = 0 mm trials —",
+        avg_label="Average ΔL = 0 mm",
         align=18,
-        plot_points=True
+        plot_points=True,
+        twitch_ref=(exp_twitch_0, sim_twitch_0, MVC, time_dt)
     )
+
+    res_8 = process_len_trials(
+        trials_8,
+        block_title="— ΔL = -8 mm trials —",
+        avg_label="Average ΔL = -8 mm",
+        align=18,
+        plot_points=True,
+        twitch_ref=(exp_twitch_8, sim_twitch_8, MVC, time_dt)
+    )
+
+    res_16 = process_len_trials(
+        trials_16,
+        block_title="— ΔL = -16 mm trials —",
+        avg_label="Average ΔL = -16 mm",
+        align=18,
+        plot_points=True,
+        twitch_ref=(exp_twitch_16, sim_twitch_16, MVC, time_dt)
+    )
+
+    # -------------------------------------------------------------------------
+    # Overall summaries
+    # -------------------------------------------------------------------------
+    all_res = {
+        "mae": res_0["mae"] + res_8["mae"] + res_16["mae"],
+        "maxae": res_0["maxae"] + res_8["maxae"] + res_16["maxae"],
+        "std": res_0["std"] + res_8["std"] + res_16["std"],
+        "r2": res_0["r2"] + res_8["r2"] + res_16["r2"],
+        "peak_err_pctF0": res_0["peak_err_pctF0"] + res_8["peak_err_pctF0"] + res_16["peak_err_pctF0"],
+        "peak_twitch_ratio_err": res_0["peak_twitch_ratio_err"] + res_8["peak_twitch_ratio_err"] + res_16["peak_twitch_ratio_err"],
+        "rise_time_twitch_err_s": res_0["rise_time_twitch_err_s"] + res_8["rise_time_twitch_err_s"] + res_16["rise_time_twitch_err_s"],
+        "half_decay_time_twitch_err_s": res_0["half_decay_time_twitch_err_s"] + res_8["half_decay_time_twitch_err_s"] + res_16["half_decay_time_twitch_err_s"],
+        "tau_rise_1st_err_s": res_0["tau_rise_1st_err_s"] + res_8["tau_rise_1st_err_s"] + res_16["tau_rise_1st_err_s"],
+        "tau_decay_1st_err_s": res_0["tau_decay_1st_err_s"] + res_8["tau_decay_1st_err_s"] + res_16["tau_decay_1st_err_s"],
+        "fusion_index_ratio_err": res_0["fusion_index_ratio_err"] + res_8["fusion_index_ratio_err"] + res_16["fusion_index_ratio_err"],
+    }
 
     summarize_trials(
         all_res["mae"],
         all_res["maxae"],
         label="— slow_M_len summary (all trials) —",
-        unit="% MVC"
+        unit="% F0"
     )
 
     summarize_metric_list(all_res["r2"], "Overall R²", "")
-    summarize_metric_list(all_res["tau_rise_err"], "Overall τ_rise relative error", "%")
-    summarize_metric_list(all_res["tau_decay_err"], "Overall τ_decay relative error", "%")
-    summarize_metric_list(all_res["rfd_err"], "Overall initial RFD relative error", "%")
+    summarize_metric_list(all_res["peak_err_pctF0"], "Overall peak force absolute error", "%F0")
+    summarize_metric_list(all_res["peak_twitch_ratio_err"], "Overall peak/twitch ratio absolute error", "")
+    summarize_metric_list(all_res["rise_time_twitch_err_s"], "Overall twitch rise time absolute error", "s")
+    summarize_metric_list(all_res["half_decay_time_twitch_err_s"], "Overall twitch half-decay time absolute error", "s")
+    summarize_metric_list(all_res["tau_rise_1st_err_s"], "Overall tau_rise absolute error", "s")
+    summarize_metric_list(all_res["tau_decay_1st_err_s"], "Overall tau_decay absolute error", "s")
+    summarize_metric_list(all_res["fusion_index_ratio_err"], "Overall fusion index absolute error", "")
     print()
 
     # -------------------------------------------------------------------------
@@ -1778,7 +2077,7 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     plt.tight_layout()
     plt.show()
 
-    
+
 elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
 
     sim_path = base_path / 'MU' / 'sim'
@@ -1808,7 +2107,7 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     sim_S_unfused = np.load(sim_path / 'slow_unfused.npy')
     sim_S_fused = np.load(sim_path / 'slow_fused.npy')
 
-    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy')  # sag is not active as tp is not detected during a twitch
+    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy')  # sag not active for twitch
     sim_F_twitch_nosag = np.load(sim_path / 'fast_twitch_nosag.npy')
     sim_F_unfused = np.load(sim_path / 'fast_unfused.npy')
     sim_F_unfused_nosag = np.load(sim_path / 'fast_unfused_nosag.npy')
@@ -1841,102 +2140,117 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     MVC_F2 = 0.073
 
     # -------------------------------------------------------------------------
-    # Force traces (unchanged)
+    # Force traces
     # -------------------------------------------------------------------------
-    fig = plt.figure(figsize=(12, 5))
+    # Common legend handles
+    legend_handles = [
+        Line2D([0], [0], color='k', lw=2, label='Experimental'),
+        Line2D([0], [0], color='r', lw=2, label='Simulated (sag)'),
+        Line2D([0], [0], color='r', lw=2, ls='--', label='Simulated (no sag)')
+    ]
+    fig, axs = plt.subplots(2, 3, figsize=(12, 5))
 
-    plt.subplot(2, 3, 1)
-    plt.plot(time_dt_S, exp_S_twitch, 'k')
-    plt.plot(time_dt_S, sim_S_twitch, 'r')
-    plt.title(r"1 Hz (S MU, cat LG)", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, MVC_S + 0.01))
+    # --- Row 1: Cat LG (S) ---
+    axs[0, 0].plot(time_dt_S, exp_S_twitch, 'k')
+    axs[0, 0].plot(time_dt_S, sim_S_twitch, 'r')
+    axs[0, 0].text(0.8, 0.95, '1 Hz', transform=axs[0, 0].transAxes,
+                   ha='left', va='top', weight='bold')
+    axs[0, 0].set_ylabel('Cat LG (S) \nMU Force [N]', weight='bold', fontsize=14)
+    axs[0, 0].set_ylim((0, MVC_S + 0.01))
 
-    plt.subplot(2, 3, 4)
-    plt.plot(time_dt_F1, exp_F_twitch, 'k')
-    plt.plot(time_dt_F1, sim_F_twitch, 'r')
-    plt.title(r"1 Hz (F MU, cat MG)", x=0.3, y=0.99, weight='bold')
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, MVC_F1))
+    axs[0, 1].plot(time_dt_S, exp_S_unfused, 'k')
+    axs[0, 1].plot(time_dt_S, sim_S_unfused, 'r')
+    axs[0, 1].text(0.8, 0.95, '12.5 Hz', transform=axs[0, 1].transAxes,
+                   ha='left', va='top', weight='bold')
+    axs[0, 1].tick_params(axis='y', which='both', labelleft=False)
+    axs[0, 1].set_ylim((0, MVC_S + 0.01))
 
-    plt.subplot(2, 3, 2)
-    plt.plot(time_dt_S, exp_S_unfused, 'k')
-    plt.plot(time_dt_S, sim_S_unfused, 'r')
-    plt.title(r"12.5 Hz (S MU, cat LG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_S + 0.01))
+    axs[0, 2].plot(time_dt_S, exp_S_fused, 'k')
+    axs[0, 2].plot(time_dt_S, sim_S_fused, 'r')
+    axs[0, 2].plot(time_dt_S, sim_S_fused, 'r--')
+    axs[0, 2].text(0.8, 0.95, '40 Hz', transform=axs[0, 2].transAxes,
+                   ha='left', va='top', weight='bold')
+    axs[0, 2].tick_params(axis='y', which='both', labelleft=False)
+    axs[0, 2].set_ylim((0, MVC_S + 0.01))
 
-    plt.subplot(2, 3, 5)
-    plt.plot(time_dt_F1, exp_F_unfused, 'k')
-    plt.plot(time_dt_F1, sim_F_unfused, 'r')
-    plt.plot(time_dt_F1, sim_F_unfused_nosag, 'r--')
-    plt.title(r"25 Hz (F MU, cat MG)", x=0.3, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F1))
+    # --- Row 2: Cat MG (F) ---
+    axs[1, 0].plot(time_dt_F1, exp_F_twitch, 'k')
+    axs[1, 0].plot(time_dt_F1, sim_F_twitch, 'r')
+    axs[1, 0].text(0.8, 0.95, '1 Hz', transform=axs[1, 0].transAxes,
+                   ha='left', va='top', weight='bold')
+    axs[1, 0].set_ylabel('Cat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+    axs[1, 0].set_ylim((0, MVC_F1))
 
-    plt.subplot(2, 3, 3)
-    plt.plot(time_dt_S, exp_S_fused, 'k', label='Experimental')
-    plt.plot(time_dt_S, sim_S_fused, 'r', label='Simulated (sag)')
-    plt.plot(time_dt_S, sim_S_fused, 'r--', label='Simulated (no sag)')
-    plt.title(r"40 Hz (S MU, cat LG)", x=0.3, y=0.99, weight='bold')
-    plt.legend(loc='upper right', fontsize=12)
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_S + 0.01))
+    axs[1, 1].plot(time_dt_F1, exp_F_unfused, 'k')
+    axs[1, 1].plot(time_dt_F1, sim_F_unfused, 'r')
+    axs[1, 1].plot(time_dt_F1, sim_F_unfused_nosag, 'r--')
+    axs[1, 1].text(0.8, 0.95, '25 Hz', transform=axs[1, 1].transAxes,
+                   ha='left', va='top', weight='bold')
+    axs[1, 1].set_xlabel('Time [s]', weight='bold', fontsize=14)
+    axs[1, 1].tick_params(axis='y', which='both', labelleft=False)
+    axs[1, 1].set_ylim((0, MVC_F1))
 
-    plt.subplot(2, 3, 6)
-    plt.plot(time_dt_F1, exp_F_fused, 'k')
-    plt.plot(time_dt_F1, sim_F_fused, 'r')
-    plt.title(r"40 Hz (F MU, cat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F1))
+    axs[1, 2].plot(time_dt_F1, exp_F_fused, 'k')
+    axs[1, 2].plot(time_dt_F1, sim_F_fused, 'r')
+    axs[1, 2].text(0.8, 0.95, '40 Hz', transform=axs[1, 2].transAxes,
+               ha='left', va='top', weight='bold')
+    axs[1, 2].tick_params(axis='y', which='both', labelleft=False)
+    axs[1, 2].set_ylim((0, MVC_F1))
 
-    plt.tight_layout()
+    fig.legend(handles=legend_handles,
+              loc='upper center',
+              ncol=3,
+              frameon=True,
+              fancybox=False,      
+              edgecolor='black',  
+              fontsize=12,
+              bbox_to_anchor=(0.5, 1.0))
+
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
     plt.show()
 
-    fig = plt.figure(figsize=(14, 5))
+    fig, axs = plt.subplots(1, 5, figsize=(14, 5))
 
-    plt.subplot(1, 5, 1)
-    plt.plot(time_dt_F2, exp_F_25, 'k')
-    plt.plot(time_dt_F2, sim_F_25, 'r')
-    plt.plot(time_dt_F2, sim_F_25_nosag, 'r--')
-    plt.title(r"25 Hz (F MU, rat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F2 + 0.006))
-    plt.ylabel('Force [N]', weight='bold', fontsize=14)
+    axs[0].plot(time_dt_F2, exp_F_25, 'k')
+    axs[0].plot(time_dt_F2, sim_F_25, 'r')
+    axs[0].plot(time_dt_F2, sim_F_25_nosag, 'r--')
+    axs[0].text(0.76, 0.95, '25 Hz', transform=axs[0].transAxes,
+            ha='left', va='top', weight='bold')
+    axs[0].set_ylim((0, MVC_F2 + 0.006))
+    axs[0].set_ylabel('Rat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
 
-    plt.subplot(1, 5, 2)
-    plt.plot(time_dt_F2, exp_F_30, 'k')
-    plt.plot(time_dt_F2, sim_F_30, 'r')
-    plt.plot(time_dt_F2, sim_F_30_nosag, 'r--')
-    plt.title(r"30 Hz (F MU, rat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F2 + 0.006))
+    axs[1].plot(time_dt_F2, exp_F_30, 'k')
+    axs[1].plot(time_dt_F2, sim_F_30, 'r')
+    axs[1].plot(time_dt_F2, sim_F_30_nosag, 'r--')
+    axs[1].text(0.76, 0.95, '30 Hz', transform=axs[1].transAxes,
+            ha='left', va='top', weight='bold')
+    axs[1].tick_params(axis='y', which='both', labelleft=False)
+    axs[1].set_ylim((0, MVC_F2 + 0.006))
 
-    plt.subplot(1, 5, 3)
-    plt.plot(time_dt_F2, exp_F_35, 'k')
-    plt.plot(time_dt_F2, sim_F_35, 'r')
-    plt.plot(time_dt_F2, sim_F_35_nosag, 'r--')
-    plt.title(r"35 Hz (F MU, rat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F2 + 0.006))
+    axs[2].plot(time_dt_F2, exp_F_35, 'k')
+    axs[2].plot(time_dt_F2, sim_F_35, 'r')
+    axs[2].plot(time_dt_F2, sim_F_35_nosag, 'r--')
+    axs[2].text(0.76, 0.95, '35 Hz', transform=axs[2].transAxes,
+            ha='left', va='top', weight='bold')
+    axs[2].tick_params(axis='y', which='both', labelleft=False)
+    axs[2].set_ylim((0, MVC_F2 + 0.006))
 
-    plt.subplot(1, 5, 4)
-    plt.plot(time_dt_F2, exp_F_40, 'k')
-    plt.plot(time_dt_F2, sim_F_40, 'r')
-    plt.plot(time_dt_F2, sim_F_40_nosag, 'r--')
-    plt.title(r"40 Hz (F MU, rat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F2 + 0.006))
+    axs[3].plot(time_dt_F2, exp_F_40, 'k')
+    axs[3].plot(time_dt_F2, sim_F_40, 'r')
+    axs[3].plot(time_dt_F2, sim_F_40_nosag, 'r--')
+    axs[3].text(0.76, 0.95, '40 Hz', transform=axs[3].transAxes,
+            ha='left', va='top', weight='bold')
+    axs[3].tick_params(axis='y', which='both', labelleft=False)
+    axs[3].set_ylim((0, MVC_F2 + 0.006))
 
-    plt.subplot(1, 5, 5)
-    plt.plot(time_dt_F2, exp_F_150, 'k')
-    plt.plot(time_dt_F2, sim_F_150, 'r')
-    plt.title(r"150 Hz (F MU, rat MG)", x=0.3, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='y', which='both', labelbottom=False)
-    plt.ylim((0, MVC_F2 + 0.006))
+    axs[4].plot(time_dt_F2, exp_F_150, 'k')
+    axs[4].plot(time_dt_F2, sim_F_150, 'r')
+    axs[4].text(0.76, 0.95, '150 Hz', transform=axs[4].transAxes,
+            ha='left', va='top', weight='bold')
+    axs[4].tick_params(axis='y', which='both', labelleft=False)
+    axs[4].set_ylim((0, MVC_F2 + 0.006))
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
     plt.show()
 
     print("\n=== Benchmark: MU (Burke 1974 & Celichowski 1999) ===")
@@ -1987,7 +2301,7 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
         align=22,
         plot_points=True,
         peak_window_s=0.05,
-        twitch_ref=None,   # tuple: (twitch_exp, twitch_sim, F0, time)
+        twitch_ref=None,
     ):
         mae_list, maxae_list, std_list = [], [], []
         r2_list = []
@@ -2004,9 +2318,6 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
 
         print(block_title)
 
-        # -----------------------------
-        # reference twitch peaks
-        # -----------------------------
         twitch_peak_exp = np.nan
         twitch_peak_sim = np.nan
 
@@ -2135,6 +2446,50 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
         }
 
     # -------------------------------------------------------------------------
+    # Statistical comparison helper: WITH vs WITHOUT sag (paired Wilcoxon)
+    # -------------------------------------------------------------------------
+    def compare_paired_metrics(with_vals, without_vals, label, unit=""):
+        x = np.asarray(with_vals, dtype=float)
+        y = np.asarray(without_vals, dtype=float)
+
+        mask = ~np.isnan(x) & ~np.isnan(y)
+        x = x[mask]
+        y = y[mask]
+
+        if len(x) < 2:
+            print(f"{label}: not enough paired data\n")
+            return np.nan
+
+        if np.allclose(x, y):
+            p = 1.0
+            stat = 0.0
+        else:
+            try:
+                stat, p = wilcoxon(x, y, zero_method='wilcox', alternative='two-sided')
+            except ValueError:
+                stat, p = np.nan, np.nan
+
+        print(f"{label}:")
+        print(f"  with sag    = {np.mean(x):.4f} ± {np.std(x, ddof=0):.4f} {unit}")
+        print(f"  without sag = {np.mean(y):.4f} ± {np.std(y, ddof=0):.4f} {unit}")
+        print(f"  Wilcoxon p  = {p:.4f}\n")
+        return p
+
+    def run_sag_statistics(with_res, without_res, title):
+        print(f"\n=== {title} ===\n")
+
+        compare_paired_metrics(with_res["mae"], without_res["mae"], "mAE", "%F0")
+        compare_paired_metrics(with_res["maxae"], without_res["maxae"], "MAE", "%F0")
+        compare_paired_metrics(with_res["r2"], without_res["r2"], r"$R^2$", "")
+        compare_paired_metrics(with_res["peak_err_pctF0"], without_res["peak_err_pctF0"], "Peak force error", "%F0")
+        compare_paired_metrics(with_res["peak_twitch_ratio_err"], without_res["peak_twitch_ratio_err"], "Peak/twitch ratio error", "")
+        compare_paired_metrics(with_res["rise_time_twitch_err_s"], without_res["rise_time_twitch_err_s"], "Twitch rise time error", "s")
+        compare_paired_metrics(with_res["half_decay_time_twitch_err_s"], without_res["half_decay_time_twitch_err_s"], "Twitch half-decay time error", "s")
+        compare_paired_metrics(with_res["tau_rise_1st_err_s"], without_res["tau_rise_1st_err_s"], "Tetanus tau_rise error", "s")
+        compare_paired_metrics(with_res["tau_decay_1st_err_s"], without_res["tau_decay_1st_err_s"], "Tetanus tau_decay error", "s")
+        compare_paired_metrics(with_res["fusion_index_ratio_err"], without_res["fusion_index_ratio_err"], "Fusion index error", "")
+
+    # -------------------------------------------------------------------------
     # Slow MU
     # -------------------------------------------------------------------------
     slow_res = process_mu_trials(
@@ -2199,7 +2554,6 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
 
     # -------------------------------------------------------------------------
     # Fast MU - rat MG
-    # No twitch available in this dataset: peak/twitch ratio is left as NaN
     # -------------------------------------------------------------------------
     fast_rat_res = process_mu_trials(
         fast_rat_trials,
@@ -2237,6 +2591,74 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     summarize_metric_list(fast_rat_nosag_res["tau_decay_1st_err_s"], "Fast MU rat MG NO SAG tetanus tau_decay absolute error", "s")
     summarize_metric_list(fast_rat_nosag_res["fusion_index_ratio_err"], "Fast MU rat MG NO SAG fusion index absolute error", "")
     print()
+
+     # -------------------------------------------------------------------------
+    # Paired statistical tests: WITH sag vs WITHOUT sag
+    # Combined cat MG + rat MG matched trials
+    # -------------------------------------------------------------------------
+    fast_cat_match_trials = [
+        ("Fast Twitch  (1 Hz)",    "twitch",    exp_F_twitch,   sim_F_twitch,   MVC_F1, time_dt_F1),
+        ("Fast Unfused (25 Hz)",   "nontwitch", exp_F_unfused,  sim_F_unfused,  MVC_F1, time_dt_F1),
+    ]
+    fast_rat_match_trials = [
+        ("Fast 25 Hz  (rat MG)",   "nontwitch", exp_F_25, sim_F_25, MVC_F2, time_dt_F2),
+        ("Fast 30 Hz  (rat MG)",   "nontwitch", exp_F_30, sim_F_30, MVC_F2, time_dt_F2),
+        ("Fast 35 Hz  (rat MG)",   "nontwitch", exp_F_35, sim_F_35, MVC_F2, time_dt_F2),
+        ("Fast 40 Hz  (rat MG)",   "nontwitch", exp_F_40, sim_F_40, MVC_F2, time_dt_F2),
+    ]
+
+    fast_cat_match_res = process_mu_trials(
+        fast_cat_match_trials,
+        block_title="— Fast MU matched trials for sag statistics (cat MG) —",
+        avg_label="Fast matched average (cat MG)",
+        align=22,
+        plot_points=False
+    )
+
+    fast_rat_match_res = process_mu_trials(
+        fast_rat_match_trials,
+        block_title="— Fast MU matched trials for sag statistics (rat MG) —",
+        avg_label="Fast matched average (rat MG)",
+        align=24,
+        plot_points=False,
+        twitch_ref=None
+    )
+
+    # combine matched WITH-sag results
+    fast_all_match_res = {
+        "mae": fast_cat_match_res["mae"] + fast_rat_match_res["mae"],
+        "maxae": fast_cat_match_res["maxae"] + fast_rat_match_res["maxae"],
+        "std": fast_cat_match_res["std"] + fast_rat_match_res["std"],
+        "r2": fast_cat_match_res["r2"] + fast_rat_match_res["r2"],
+        "peak_err_pctF0": fast_cat_match_res["peak_err_pctF0"] + fast_rat_match_res["peak_err_pctF0"],
+        "peak_twitch_ratio_err": fast_cat_match_res["peak_twitch_ratio_err"] + fast_rat_match_res["peak_twitch_ratio_err"],
+        "rise_time_twitch_err_s": fast_cat_match_res["rise_time_twitch_err_s"] + fast_rat_match_res["rise_time_twitch_err_s"],
+        "half_decay_time_twitch_err_s": fast_cat_match_res["half_decay_time_twitch_err_s"] + fast_rat_match_res["half_decay_time_twitch_err_s"],
+        "tau_rise_1st_err_s": fast_cat_match_res["tau_rise_1st_err_s"] + fast_rat_match_res["tau_rise_1st_err_s"],
+        "tau_decay_1st_err_s": fast_cat_match_res["tau_decay_1st_err_s"] + fast_rat_match_res["tau_decay_1st_err_s"],
+        "fusion_index_ratio_err": fast_cat_match_res["fusion_index_ratio_err"] + fast_rat_match_res["fusion_index_ratio_err"],
+    }
+
+    # combine matched WITHOUT-sag results
+    fast_all_nosag_res = {
+        "mae": fast_cat_nosag_res["mae"] + fast_rat_nosag_res["mae"],
+        "maxae": fast_cat_nosag_res["maxae"] + fast_rat_nosag_res["maxae"],
+        "std": fast_cat_nosag_res["std"] + fast_rat_nosag_res["std"],
+        "r2": fast_cat_nosag_res["r2"] + fast_rat_nosag_res["r2"],
+        "peak_err_pctF0": fast_cat_nosag_res["peak_err_pctF0"] + fast_rat_nosag_res["peak_err_pctF0"],
+        "peak_twitch_ratio_err": fast_cat_nosag_res["peak_twitch_ratio_err"] + fast_rat_nosag_res["peak_twitch_ratio_err"],
+        "rise_time_twitch_err_s": fast_cat_nosag_res["rise_time_twitch_err_s"] + fast_rat_nosag_res["rise_time_twitch_err_s"],
+        "half_decay_time_twitch_err_s": fast_cat_nosag_res["half_decay_time_twitch_err_s"] + fast_rat_nosag_res["half_decay_time_twitch_err_s"],
+        "tau_rise_1st_err_s": fast_cat_nosag_res["tau_rise_1st_err_s"] + fast_rat_nosag_res["tau_rise_1st_err_s"],
+        "tau_decay_1st_err_s": fast_cat_nosag_res["tau_decay_1st_err_s"] + fast_rat_nosag_res["tau_decay_1st_err_s"],
+        "fusion_index_ratio_err": fast_cat_nosag_res["fusion_index_ratio_err"] + fast_rat_nosag_res["fusion_index_ratio_err"],
+    }
+
+    run_sag_statistics(
+        fast_all_match_res,
+        fast_all_nosag_res,
+        title="SAG EFFECT STATISTICS — combined cat MG + rat MG"
+    )
 
     # -------------------------------------------------------------------------
     # Summaries
@@ -2371,8 +2793,8 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     # Twitch subplot
     ax_twitch_exp.plot(time_dt_twitch, exp_FFR_1, 'k', label='Experimental')
     ax_twitch_exp.plot(time_dt_twitch, sim_FFR_1, 'r', label='Simulated')
-    ax_twitch_exp.set_title("FFR Twitch", weight='bold')
-    ax_twitch_exp.set_ylabel("Force [N]", weight='bold')
+    ax_twitch_exp.set_title("Twitch (1 Hz)", weight='bold')
+    ax_twitch_exp.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
     ax_twitch_exp.set_xlabel("Time [s]", weight='bold')
     ax_twitch_exp.legend(loc='upper right', fontsize=7)
 
@@ -2383,7 +2805,7 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
 
     for i, (f, y) in enumerate(zip(freqs, exp_FFR_series)):
         ax_ffr_exp.plot(time_dt, y, color=str(gray_levels[i]), label=f"{f} Hz")
-    ax_ffr_exp.set_title("FFR Experimental", weight='bold')
+    ax_ffr_exp.set_title("Experimental Tetani", weight='bold')
     ax_ffr_exp.set_ylim([-0.08, 1.7])
     ax_ffr_exp.set_xlabel("Time [s]", weight='bold')
     ax_ffr_exp.legend(loc='upper right', fontsize=7)
@@ -2391,7 +2813,7 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     for i, (f, y) in enumerate(zip(freqs, sim_FFR_series)):
         ax_ffr_sim.plot(time_dt, y, color=(red_levels[i], 0, 0), label=f"{f} Hz")
     ax_ffr_sim.set_ylim([-0.08, 1.7])
-    ax_ffr_sim.set_title("FFR Simulated", weight='bold')
+    ax_ffr_sim.set_title("Simulated Tetani", weight='bold')
     ax_ffr_sim.set_xlabel("Time [s]", weight='bold')
     ax_ffr_sim.legend(loc='upper right', fontsize=7)
 
@@ -2404,14 +2826,14 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
 
     for i, (d, y) in enumerate(zip(disp_mm, exp_FLR_series)):
         ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]), label=f"$\Delta L$ = + {d:.1f} mm")
-    ax_flr_exp.set_title("FLR Experimental", weight='bold')
-    ax_flr_exp.set_ylabel("Force [N]", weight='bold')
+    ax_flr_exp.set_title("Experimental Tetani (80 Hz)", weight='bold')
+    ax_flr_exp.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
     ax_flr_exp.set_xlabel("Time [s]", weight='bold')
     ax_flr_exp.legend(loc='upper right', fontsize=7)
 
     for i, (d, y) in enumerate(zip(disp_mm, sim_FLR_series)):
         ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0), label=f"$\Delta L$ = + {d:.1f} mm")
-    ax_flr_sim.set_title("FLR Simulated", weight='bold')
+    ax_flr_sim.set_title("Simulated Tetani (80 Hz)", weight='bold')
     ax_flr_sim.set_xlabel("Time [s]", weight='bold')
     ax_flr_sim.legend(loc='upper right', fontsize=7)
 
@@ -2671,67 +3093,72 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     )
 
     # -------------------------------------------------------------------------
-    # Error plots (updated: FFR only tetani, twitch separate)
+    # Error plots (updated: include twitch in FFR panel)
     # -------------------------------------------------------------------------
-    ffr_mean_arr = np.array(ffr_res["mae"])
-    ffr_max_arr = np.array(ffr_res["maxae"])
-    ffr_std_arr = np.array(ffr_res["std"])
+    ffr_x = [1] + freqs
+    ffr_labels = ['1'] + [str(f) for f in freqs]
+
+    ffr_mean_arr = np.array([twitch_eval["mae"]] + ffr_res["mae"])
+    ffr_max_arr  = np.array([twitch_eval["maxae"]] + ffr_res["maxae"])
+    ffr_std_arr  = np.array([twitch_eval["stde"]] + ffr_res["std"])
 
     flr_mean_arr = np.array(flr_res["mae"])
-    flr_max_arr = np.array(flr_res["maxae"])
-    flr_std_arr = np.array(flr_res["std"])
+    flr_max_arr  = np.array(flr_res["maxae"])
+    flr_std_arr  = np.array(flr_res["std"])
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
 
+    # --- FFR: twitch + tetani ---
     lower = np.maximum(ffr_mean_arr - ffr_std_arr, 0)
     upper = ffr_mean_arr + ffr_std_arr
-    ax1.plot(freqs, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
-    ax1.fill_between(freqs, lower, upper, color='k', alpha=0.2)
-    ax1.plot(freqs, ffr_max_arr, '--*', color='k', label='MAE')
-    ax1.set_ylim([0, 60])
+    ax1.plot(ffr_x, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
+    ax1.fill_between(ffr_x, lower, upper, color='k', alpha=0.2)
+    ax1.plot(ffr_x, ffr_max_arr, '--*', color='k', label='MAE')
+    ax1.set_xticks(ffr_x)
+    ax1.set_xticklabels(ffr_labels)
     ax1.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
     ax1.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    ax1.set_ylim([0, 70])
+    ax1.set_ylim([0, 50])
     ax1.legend(loc='upper left')
 
+    # --- FLR ---
     lower_f = np.maximum(flr_mean_arr - flr_std_arr, 0)
     upper_f = flr_mean_arr + flr_std_arr
     ax2.plot(disp_mm, flr_mean_arr, '-o', color='k', label='mAE ± SD')
     ax2.fill_between(disp_mm, lower_f, upper_f, color='k', alpha=0.2)
     ax2.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
-    ax2.set_ylim([0, 60])
     ax2.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
-    ax2.set_ylim([0, 70])
+    ax2.set_ylim([0, 40])
 
     plt.tight_layout()
     plt.show()
 
 
-elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
+elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
 
-    sim_path = base_path / 'fast_M' / 'sim' # experimental path
-    exp_path = base_path / 'fast_M' / 'exp' # simulations path
+    sim_path = base_path / 'fast_M' / 'sim'
+    exp_path = base_path / 'fast_M' / 'exp'
 
-    exp_dyn_120_095_s = np.load(exp_path / 'dyn_120_0.95_length.npy') # load experimental forces
+    exp_dyn_120_095_s = np.load(exp_path / 'dyn_120_0.95_length.npy')
     exp_dyn_120_095_l = np.load(exp_path / 'dyn_120_0.95_short.npy')
     exp_dyn_20_095_s = np.load(exp_path / 'dyn_20_0.95_length.npy')
     exp_dyn_20_095_l = np.load(exp_path / 'dyn_20_0.95_short.npy')
     exp_dyn_40_08_s = np.load(exp_path / 'dyn_40_0.8_length.npy')
     exp_dyn_40_08_l = np.load(exp_path / 'dyn_40_0.8_short.npy')
-    exp_dyn_40_11_s = np.load(exp_path / 'dyn_40_1.1_length.npy') 
+    exp_dyn_40_11_s = np.load(exp_path / 'dyn_40_1.1_length.npy')
     exp_dyn_40_11_l = np.load(exp_path / 'dyn_40_1.1_short.npy')
-    exp_dyn_60_095_s = np.load(exp_path / 'dyn_60_0.95_length.npy') 
+    exp_dyn_60_095_s = np.load(exp_path / 'dyn_60_0.95_length.npy')
     exp_dyn_60_095_l = np.load(exp_path / 'dyn_60_0.95_short.npy')
 
-    sim_dyn_120_095_s = np.load(sim_path / 'dyn_120_0.95_length.npy') # load simulated forces
+    sim_dyn_120_095_s = np.load(sim_path / 'dyn_120_0.95_length.npy')
     sim_dyn_120_095_l = np.load(sim_path / 'dyn_120_0.95_short.npy')
     sim_dyn_20_095_s = np.load(sim_path / 'dyn_20_0.95_length.npy')
     sim_dyn_20_095_l = np.load(sim_path / 'dyn_20_0.95_short.npy')
     sim_dyn_40_08_s = np.load(sim_path / 'dyn_40_0.8_length.npy')
     sim_dyn_40_08_l = np.load(sim_path / 'dyn_40_0.8_short.npy')
-    sim_dyn_40_11_s = np.load(sim_path / 'dyn_40_1.1_length.npy') 
+    sim_dyn_40_11_s = np.load(sim_path / 'dyn_40_1.1_length.npy')
     sim_dyn_40_11_l = np.load(sim_path / 'dyn_40_1.1_short.npy')
-    sim_dyn_60_095_s = np.load(sim_path / 'dyn_60_0.95_length.npy') 
+    sim_dyn_60_095_s = np.load(sim_path / 'dyn_60_0.95_length.npy')
     sim_dyn_60_095_l = np.load(sim_path / 'dyn_60_0.95_short.npy')
 
     disp_sub_s = np.load(exp_path / 'disp_max_length_interp.npy')
@@ -2745,6 +3172,9 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     time_dt_sub = np.arange(0, t_end_sub, dt)
     MVC = 2.49
 
+    # -------------------------------------------------------------------------
+    # Plots (unchanged)
+    # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(12, 7))
 
     plt.subplot(3, 3, 1)
@@ -2753,7 +3183,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_l[0:len(disp_sub_l)], 'red')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_20_095_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"20 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"20 Hz, at 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 2)
@@ -2762,7 +3192,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_l[0:len(disp_sub_l)], 'red')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_08_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"40 Hz, 0.8$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, at 0.8$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 3)
@@ -2771,7 +3201,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.plot(time_dt_max, sim_dyn_120_095_l, 'r', label='Simulated-Shortening')
     plt.plot(time_dt_max, sim_dyn_120_095_s, 'orange', label='Simulated-Lengthening')
     plt.axvline(time_dt_sub[1100], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"120 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"120 Hz, at 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.legend(loc=(0.2, 1.3), fontsize=12)
     plt.ylim((0, 1.7))
     plt.xlim((0.08, 0.16))
@@ -2782,7 +3212,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_60_095_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"60 Hz, 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"60 Hz, at 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 5)
@@ -2791,10 +3221,9 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_l[0:len(disp_sub_l)], 'r')
     plt.plot(time_dt_sub[0:len(disp_sub_l)], sim_dyn_40_11_s[0:len(disp_sub_l)], 'orange')
     plt.axvline(time_dt_sub[1122], color='gray', linestyle='--', linewidth=1)
-    plt.title(r"40 Hz, 1.1$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
+    plt.title(r"40 Hz, at 1.1$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
     plt.ylim((0, 1.9))
 
-    # Displacement
     plt.subplot(3, 3, 7)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], disp_sub_l, 'k')
     plt.plot(time_dt_sub[0:len(disp_sub_s)], disp_sub_s, 'gray')
@@ -2822,15 +3251,16 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     plt.ylim((-0.1, 0.12))
     plt.xlim((0.08, 0.16))
 
-    fig.text(0.03, 0.67, 'Normalized force', va='center', rotation='vertical', 
-        weight='bold', fontsize=14)
+    fig.text(0.03, 0.67, 'Cat CF (Fast)\nNormalized force', va='center', rotation='vertical',
+             weight='bold', fontsize=14)
 
     plt.tight_layout()
     plt.show()
 
-    # ==========================
-    # ERRORs fast_M_dyn
-    # ==========================
+    # -------------------------------------------------------------------------
+    # Errors + R²
+    # -------------------------------------------------------------------------
+    print("\n=== Benchmark: fast_M_dyn (errors) ===\n")
 
     cond_labels = [
         "20 Hz (0.95 L0)",
@@ -2840,7 +3270,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
         "120 Hz (0.95 L0)",
     ]
 
-    # SHORTENING (l)
+    # SHORTENING
     short_exp = [
         exp_dyn_20_095_l,
         exp_dyn_40_08_l,
@@ -2856,7 +3286,7 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
         sim_dyn_120_095_l,
     ]
 
-    # LENGTHENING (s)
+    # LENGTHENING
     length_exp = [
         exp_dyn_20_095_s,
         exp_dyn_40_08_s,
@@ -2872,60 +3302,82 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
         sim_dyn_120_095_s,
     ]
 
-    # start samples
     idx_sub = 1119
     idx_120_short = 1083
-    idx_120_len   = 1090
+    idx_120_len = 1090
 
-    def compute_err_list(exp_list, sim_list, is_short=True):
-        mean_list, max_list, std_list = [], [], []
+    def compute_err_r2_list(exp_list, sim_list, is_short=True):
+        mean_list, max_list, std_list, r2_list = [], [], [], []
+
         for i, (e, s) in enumerate(zip(exp_list, sim_list)):
-            if i < 4:  # submaximal conditions (< 120Hz)
+            if i < 4:
                 start = idx_sub
-            else:      # maximal frequency (120 hz)
+            else:
                 start = idx_120_short if is_short else idx_120_len
 
-            # % errors (normalized data)
-            abs_err = np.abs(s[start:] - e[start:]) * 100.0
+            e_seg = np.asarray(e[start:], dtype=float)
+            s_seg = np.asarray(s[start:], dtype=float)
+
+            abs_err = np.abs(s_seg - e_seg) * 100.0
             mean_list.append(np.mean(abs_err))
             max_list.append(np.max(abs_err))
             std_list.append(np.std(abs_err))
+            r2_list.append(compute_r2(e_seg, s_seg))
+
         return (
             np.array(mean_list),
             np.array(max_list),
             np.array(std_list),
+            np.array(r2_list),
         )
 
-    short_mean, short_max, short_std = compute_err_list(short_exp, short_sim, is_short=True)
-    length_mean, length_max, length_std = compute_err_list(length_exp, length_sim, is_short=False)
-
-        # sprint
-    print("\n=== Benchmark: fast_M_dyn (errors) ===\n")
+    short_mean, short_max, short_std, short_r2 = compute_err_r2_list(short_exp, short_sim, is_short=True)
+    length_mean, length_max, length_std, length_r2 = compute_err_r2_list(length_exp, length_sim, is_short=False)
 
     print("Shortening:")
-    for lab, mae, mxe, stde in zip(cond_labels, short_mean, short_max, short_std):
-        print(f"  {lab:18s}  MAE = {mae:6.2f}%  (std = {stde:6.2f})   MaxAE = {mxe:6.2f}%")
+    for lab, mae, mxe, stde, r2 in zip(cond_labels, short_mean, short_max, short_std, short_r2):
+        print(f"  {lab:18s}  mAE = {mae:6.2f}%  (std = {stde:6.2f})   MAE = {mxe:6.2f}%   R² = {r2:.4f}")
+
+    print(
+        f"{'Shortening mean':>20s}  "
+        f"mAE = {np.nanmean(short_mean):6.2f}%  "
+        f"(std = {np.nanstd(short_mean):6.2f})   "
+        f"MAE = {np.nanmean(short_max):6.2f}%   "
+        f"R² = {np.nanmean(short_r2):.4f}  (std = {np.nanstd(short_r2):.4f})"
+    )
 
     print("\nLengthening:")
-    for lab, mae, mxe, stde in zip(cond_labels, length_mean, length_max, length_std):
-        print(f"  {lab:18s}  MAE = {mae:6.2f}%  (std = {stde:6.2f})   MaxAE = {mxe:6.2f}%")
+    for lab, mae, mxe, stde, r2 in zip(cond_labels, length_mean, length_max, length_std, length_r2):
+        print(f"  {lab:18s}  mAE = {mae:6.2f}%  (std = {stde:6.2f})   MAE = {mxe:6.2f}%   R² = {r2:.4f}")
+
+    print(
+        f"{'Lengthening mean':>20s}  "
+        f"mAE = {np.nanmean(length_mean):6.2f}%  "
+        f"(std = {np.nanstd(length_mean):6.2f})   "
+        f"MAE = {np.nanmean(length_max):6.2f}%   "
+        f"R² = {np.nanmean(length_r2):.4f}  (std = {np.nanstd(length_r2):.4f})"
+    )
     print()
 
-    all_mae  = list(short_mean)  + list(length_mean)  
-    all_maxe = list(short_max)   + list(length_max)
+    all_mae = list(short_mean) + list(length_mean)
+    all_maxe = list(short_max) + list(length_max)
+    all_r2 = list(short_r2) + list(length_r2)
 
-    summarize_trials(all_mae, all_maxe,
-                 label="— fast_M_dyn summary: (all conditions) —",
-                 unit="%")
+    summarize_trials(
+        all_mae,
+        all_maxe,
+        label="— fast_M_dyn summary: (all conditions) —",
+        unit="%"
+    )
+    summarize_metric_list(all_r2, "— fast_M_dyn summary: R² (all conditions) —", "")
 
-    # ==========================
-    # PLOT errors (2 subplot)
-    # ==========================
+    # -------------------------------------------------------------------------
+    # PLOT errors (unchanged)
+    # -------------------------------------------------------------------------
     x = np.arange(1, 5 + 1)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
 
-    # --- SHORTENING ---
     lower_s = np.maximum(short_mean - short_std, 0)
     upper_s = short_mean + short_std
     ax1.plot(x, short_mean, '-o', color='k', label='mAE ± SD')
@@ -2939,7 +3391,6 @@ elif benchmark == 'fast_M_dyn': # Brown 1999 experiments
     ax1.set_ylim(0, 100)
     ax1.legend(loc='upper left')
 
-    # --- LENGTHENING ---
     lower_l = np.maximum(length_mean - length_std, 0)
     upper_l = length_mean + length_std
     ax2.plot(x, length_mean, '-o', color='k', label='mAE ± SD')
