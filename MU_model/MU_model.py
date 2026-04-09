@@ -153,10 +153,10 @@ class Mechanics:
            - f_PE: float, normalized passive force (dimensionless) 
         """
         
-        k1, k2 = 5.0, 0.6  # shape parameters
+        kPE, eps0 = 5.0, 0.6  # shape parameters
         if l_M_norm < 1.0:  # below optimal length
             return 0.0  # no passive force
-        return (np.exp((k1 * (l_M_norm - 1)) / k2) - 1) / (np.exp(k1) - 1)  
+        return (np.exp((kPE * (l_M_norm - 1)) / eps0) - 1) / (np.exp(kPE) - 1)  
     
 
     @staticmethod
@@ -420,7 +420,7 @@ class Ephys:
 
 
     @staticmethod
-    def yield_dot(y_val: float, V_norm: float, fs: float) -> float:  # yielding ODE (Brown 1999)
+    def yield_dot(y_val: float, V_norm: float) -> float:  # yielding ODE (Brown 1999)
         
         """
         Computes yielding state derivative as a function of normalized velocity.
@@ -430,21 +430,19 @@ class Ephys:
         Outputs:
         - dyield: float, yielding derivative.
         """
-        if fs < 37: # only under unfused-tetanus conditions
-            cy, Vy, Ty = 0.35, 0.1, 0.2  # yielding parameters
-            return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty  # ODE
-        else:
-            return 1
+
+        cy, Vy, Ty = 0.35, 0.1, 0.2  # yielding parameters
+        return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty  # ODE
+        
 
 
-    def sag_dot(self, s: float, t: float, fs: float) -> float:  # sag ODE (adapted Brown 2000)
+    def sag_dot(self, s: float, t: float) -> float:  # sag ODE (adapted Brown 2000)
 
         """
         Computes sag state derivative, with a time-dependent target value As(t).
         Inputs:
         - s: float, sag state.
         - t: float, current time.
-        - fs: float, discharge frequency (currently unused in this exact formula, but kept for extensibility).
         Outputs:
         - dsag: float, sag derivative.
         """
@@ -454,14 +452,12 @@ class Ephys:
         else:
             tp = 0.1
 
-        if 5 < fs < 100: # only under unfused-tetanus conditions
-            if 0 < t < tp:  # early phase
-               As = self.P.As_peak  # peak value
-            else:  # later phase
-               As = self.P.As_decay  # decay value
-            return (As - s) / self.P.Ts  # ODE
-        else:
-            return 1
+        if 0 < t < tp:  # early phase
+            As = self.P.As_peak  # peak value
+        else:  # later phase
+            As = self.P.As_decay  # decay value
+        return (As - s) / self.P.Ts  # ODE
+
 
 
 # =============================================================================
@@ -579,7 +575,7 @@ class ODESystem:  # ODE assembly and consistent force computations
                 FV = float(self.mech.fv_force(act, v_M / P.vmax, FL, lM_norm, fibre_type))  # FV factor
             else:  # no tendon: v_M from imposed MT kinematics
                 v_M = float(self._v_lMT[time_index])  # imposed fibre velocity
-                v_norm = float((v_M / P.l_M_opt) / P.vmax)  # normalized velocity
+                v_norm = float(v_M / P.vmax)  # normalized velocity
                 FV = float(self.mech.fv_force(act, v_norm, FL, lM_norm, fibre_type))  # FV factor
         else:  # FV disabled
             # still compute v_M in the no-tendon case so yielding has access to velocity
@@ -641,7 +637,7 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         if model_config.use_sag:  # if sag is enabled
             sag_val = float(y[state_index_local["sag"]])  # current sag state
-            dydt[state_index_local["sag"]] = self.eph.sag_dot(sag_val, t, fs=compute_fs(distimes))  # sag derivative
+            dydt[state_index_local["sag"]] = self.eph.sag_dot(sag_val, t)  # sag derivative
 
         # compute forces/velocity consistently (needed for tendon dynamics AND yielding even without tendon)
         forces = self.compute_forces(time_index, y, alpha_track, fibre_type)  # compute consistent forces
@@ -649,7 +645,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         # yielding can be applied even without tendon (depends on velocity)
         if model_config.use_yielding:  # if yielding enabled
             yld = float(y[state_index_local["yielding"]])  # current yielding state
-            dydt[state_index_local["yielding"]] = self.eph.yield_dot(yld, forces["v_M"] / P.vmax, fs=compute_fs(distimes))  # yielding derivative
+            dydt[state_index_local["yielding"]] = self.eph.yield_dot(yld, forces["v_M"] / P.vmax)  # yielding derivative
 
         if model_config.use_tendon:  # tendon system adds l_M dynamics and pennation update
             dydt[state_index_local["l_M"]] = forces["v_M"]  # dl_M/dt = fibre velocity
@@ -673,6 +669,7 @@ class MuscleModel:  # main model object
         self.S = S  # store states
         self.model_config = model_config  # store configuration
         self.distimes = np.atleast_1d(np.asarray(distimes, dtype=float)).ravel()  # ensure 1D float distimes
+        self.fs = compute_fs(self.distimes)
 
         self.P.l_MT = np.asarray(self.P.l_MT, dtype=float).ravel()  # standardize l_MT to 1D float
         if len(self.P.l_MT) == len(self.P.time) + 1:  # allow len(time)+1 input (common from earlier scripts)
@@ -815,9 +812,9 @@ class MuscleModel:  # main model object
         if output_force:  # if force output requested
             time_factor = np.ones(T, dtype=float)  # default no time modulation
 
-            if self.model_config.use_yielding and fibre_type == "slow":  # apply yielding only to slow fibres if enabled
+            if self.model_config.use_yielding and fibre_type == "slow" and self.fs < 37:  # apply yielding only to slow fibres if enabled and at submax.freqs.
                 time_factor = out.get("yielding", time_factor)  # use yielding array if present
-            elif self.model_config.use_sag and fibre_type == "fast":  # apply sag only to fast fibres if enabled
+            elif self.model_config.use_sag and fibre_type == "fast" and  5 < self.fs < 100:  # apply sag only to fast fibres if enabled and at submax.freqs.
                 time_factor = out.get("sag", time_factor)  # use sag array if present
 
             out["force"] = self.P.MVC * (time_factor * out["act"] * out["FL"] * out["FV"] + out["f_PE"])

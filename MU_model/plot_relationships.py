@@ -1,4 +1,3 @@
-
 """
 Author: Andrea Sgarzi
 a.sgarzi@ad.unsw.edu.au
@@ -8,224 +7,278 @@ ___________________________________
 
 Plot all the element relationships of the MU-model model
 """
-#%%
-import os
+
 from pathlib import Path
-import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
+import numpy as np
 import matplotlib.pyplot as plt
 
-#%% Class for muscle-tendon relationships
+# =============================================================================
+# Relationships present in the model
+# =============================================================================
 class Relationships:
-    def __init__(self, MU_type='slow'):
+    def __init__(self, fibre_type='slow'):
         self.fmax = 1.4
-        self.af = 0.17
-        self.set_MU_type(MU_type)
+        self.af_s = 0.419
+        self.af_f = 0.361
+        self.set_fibre_type(fibre_type)
 
-    def set_MU_type(self, MU_type):
-        self.MU_type = MU_type
-        self.kMU = 0.5 if MU_type == 'slow' else 1
+    def set_fibre_type(self, fibre_type):
+        self.fibre_type = fibre_type
+        if fibre_type == 'slow':
+            self.kMU = 0.2
+            self.af = self.af_s
+        elif fibre_type == 'fast':
+            self.kMU = 1.0
+            self.af = self.af_f
+        else:
+            raise ValueError("fibre_type must be 'slow' or 'fast'")
 
-    def T_force(self, eps, eps_0, k_toe):
-        eps_toe = 0.609 * eps_0
+    @staticmethod
+    def tendon_force(eps, eps_0):
         klin = 1.712 / eps_0
-        F_toe = 0.333
+        eps_toe = 0.609 * eps_0
+        F_toe = 0.33
+        k_toe = 3.0
+
         if eps > eps_toe:
-            return 0.001*(1+eps) + (klin*(eps-eps_toe)+F_toe)
+            return 0.001 * (1 + eps) + (klin * (eps - eps_toe) + F_toe)
         elif eps > 0:
-            return 0.001*(1+eps) + (F_toe*((np.exp(k_toe*eps/eps_toe)-1)/(np.exp(k_toe)-1)))
+            return 0.001 * (1 + eps) + (
+                F_toe * ((np.exp(k_toe * eps / eps_toe) - 1) / (np.exp(k_toe) - 1))
+            )
         else:
-            return 0.001*(1+eps)
+            return 0.001 * (1 + eps)
 
-    def velo_fFV(self, CE_force, FL_force, act, l_M):
-        fv = 0.9 + 0.1 * act
-        g = FL_force if l_M < 1 else 1
-        b = (self.fmax - 1) / (2 + 2 / self.af)
-        K = self.kMU * fv * g
-        if CE_force >= 1:
-            return b * ((CE_force - 1) / (self.fmax - CE_force)) * K
-        else:
-            return (CE_force - 1) / (CE_force / (self.af * K))
+    @staticmethod
+    def passive_pe(l_M_norm):
+        kPE = 5.0
+        eps0 = 0.6
 
-    def f_fFV(self, v_M, FL_force, act, l_M):
-        fv = 0.9 + 0.1 * act
-        g = FL_force if l_M < 1 else 1
-        b = (self.fmax - 1) / (2 + 2 / self.af)
-        K = self.kMU * fv * g
-        if v_M < 0:
-            return 1 / (1 - (v_M / (self.af * K)))
-        else:
-            return (1 + self.fmax * (v_M / (K * b))) / (1 + v_M / (K * b))
+        if l_M_norm < 1.0:
+            return 0.0
+        return (np.exp((kPE * (l_M_norm - 1.0)) / eps0) - 1.0) / (np.exp(kPE) - 1.0)
 
-    def Force_Length_func(self, X, active_state):
+    @staticmethod
+    def force_length(act, l_M_norm):
         a = 0.45
-        b = (0.15 * (1 - active_state)) + 1
-        return np.exp(-((X - b) / a) ** 2)
+        b = (0.15 * (1.0 - act)) + 1.0
+        return np.exp(-((l_M_norm - b) / a) ** 2)
 
-    def PEE_force(self, l_M, k1, k2):
-        if l_M < 1:
-            return 0
-        else:
-            return (np.exp((k1 * (l_M - 1)) / k2) - 1) / (np.exp(k1) - 1)
+    def fv_force(self, act, v_norm, FL, l_M_norm):
+        fv = 0.25 + 0.75 * act
+        g = FL if l_M_norm < 1.0 else 1.0
+        af = max(float(self.af), 1e-8)
+        b = (self.fmax - 1.0) / (2.0 + 2.0 / af)
+        K = max(float(self.kMU * g * fv), 1e-12)
 
-# Utility: Color gradients 
-def hex_to_RGB(hex_str):
+        if v_norm < 0:  # shortening
+            return 1.0 / (1.0 - (v_norm / (af * K)))
+        else:  # lengthening
+            return (1.0 + self.fmax * (v_norm / (K * b))) / (1.0 + v_norm / (K * b))
+
+
+# =============================================================================
+# Color gradients
+# =============================================================================
+def hex_to_rgb(hex_str):
     return [int(hex_str[i:i+2], 16) for i in range(1, 6, 2)]
 
+
 def get_color_gradient(c1, c2, n):
-    c1_rgb = np.array(hex_to_RGB(c1)) / 255
-    c2_rgb = np.array(hex_to_RGB(c2)) / 255
-    mix_pcts = np.linspace(0, 1, n)
-    rgb_colors = [(1-m)*c1_rgb + m*c2_rgb for m in mix_pcts]
-    return ["#" + "".join(f"{int(round(val*255)):02x}" for val in color) for color in rgb_colors]
+    c1_rgb = np.array(hex_to_rgb(c1)) / 255
+    c2_rgb = np.array(hex_to_rgb(c2)) / 255
+    mix = np.linspace(0, 1, n)
+    rgb = [(1 - m) * c1_rgb + m * c2_rgb for m in mix]
+    return [
+        "#" + "".join(f"{int(round(val * 255)):02x}" for val in color)
+        for color in rgb
+    ]
 
-# Parameters 
-points = 2000
+
+# =============================================================================
+# Parameters for plotting
+# =============================================================================
+points = 1000
 n_a = 5
-fibre_type = 2
-l_T_slack = 24
 
-f_T_eps_0 = [0.013, 0.023, 0.033, 0.06, 0.055]
-f_T_k_toe = [2, 2, 2, 3, 3]
-f_PE_k1 = [5, 5, 5, 4, 3]
-f_PE_k2 = [0.8, 1.0, 1.2, 0.6, 0.6]
+act_vals = np.linspace(0.2, 1.0, n_a)
+eps0_vals = [0.04, 0.05, 0.06, 0.07, 0.08]
 
-a_vals = np.linspace(0.2, 1, n_a)
-MU_types = ['fast', 'slow']
 l_M = np.linspace(0.7, 1.8, points)
 l_M_PE = np.linspace(0.8, 2.2, points)
-v_M = np.linspace(-1.2, 1.2, points)
-f_M_v = np.linspace(1e-9, 1.4, points)
-eps_T = np.linspace(1e-9, 0.07, points)
+v_norm = np.linspace(-1.2, 1.2, points)
+eps_T = np.linspace(-0.005, 0.10, points)
 
-# Output arrays 
-f_T = np.zeros((points, n_a))
-f_PE = np.zeros((points, n_a))
-fl = np.zeros((n_a, points, fibre_type))
-fv = np.zeros((n_a, points, fibre_type))
-vf = np.zeros((n_a, points, fibre_type))
+cg_blue = get_color_gradient("#0b165e", "#00eeff", n_a)
+cg_green = get_color_gradient("#0c520b", "#18e314", len(eps0_vals))
+cg_red = get_color_gradient("#8c0000", "#ffb000", n_a)
 
-# Simulation 
-for l in range(n_a):
-    rel = Relationships()
+# =============================================================================
+# Preallocate arrays
+# =============================================================================
+f_T = np.zeros((points, len(eps0_vals)))
+f_PE = np.zeros(points)
+FL_scaled = np.zeros((n_a, points))
+FV_slow = np.zeros((n_a, points))
+FV_fast = np.zeros((n_a, points))
+
+rel_slow = Relationships('slow')
+rel_fast = Relationships('fast')
+
+# =============================================================================
+# Compute curves
+# =============================================================================
+for j, eps0 in enumerate(eps0_vals):
     for i in range(points):
-        fl[l, i, :] = [rel.Force_Length_func(l_M[i], a_vals[l])* a_vals[l]] 
-        f_T[i, l] = rel.T_force(eps_T[i], f_T_eps_0[l], f_T_k_toe[l])
-        f_PE[i, l] = rel.PEE_force(l_M_PE[i], f_PE_k1[l], f_PE_k2[l])
+        f_T[i, j] = Relationships.tendon_force(eps_T[i], eps0)
 
-        for t, mu in enumerate(MU_types):
-            rel.set_MU_type(mu)
-            fv[l, i, t] = rel.f_fFV(v_M[i], fl[l, i, t], 1, a_vals[l])
-            vf[l, i, t] = rel.velo_fFV(f_M_v[i], fl[l, i, t], 1, a_vals[l])
+for i in range(points):
+    f_PE[i] = Relationships.passive_pe(l_M_PE[i])
 
-# Color maps 
-cg_s = get_color_gradient("#0b165e", "#00eeff", n_a)
-cg_T = get_color_gradient("#0c520b", "#18e314", n_a)
-cg_PE1 = get_color_gradient('#eb7adc', '#440a66', 3)
-cg_PE2 = get_color_gradient('#0c520b', '#18e314', 2)
-cg_f = get_color_gradient('#e31010', '#fffe00', 3)
+for a_idx, act in enumerate(act_vals):
+    FL_ref = Relationships.force_length(act, 1.0)
 
-# Plotting 
-fig, axs = plt.subplots(2, 2, figsize=(11, 5))
-fig.suptitle('MN-driven model sensitivity (contractile part)', weight='bold', y=0.94)
+    for i in range(points):
+        # Force-length scaled by active state
+        FL_scaled[a_idx, i] = act * Relationships.force_length(act, l_M[i])
 
-# Tendon force
-ax = axs[0, 0]
-for i in range(n_a):
-    ax.plot(eps_T*100, f_T[:, i], color=cg_T[i], label=f'$\epsilon^T_0$ = {f_T_eps_0[i]*100:.1f}%')
-ax.annotate(r'$\epsilon^Ttoe$ = 0.609($\epsilon^T_0$)', xy=(0.1,1))
-ax.set(xlabel=r'$\epsilon^T$ [%]', ylabel=r'$\overline {F^T}$')
-ax.set_title('SE (Tendon)')
-ax.grid(True)
-ax.legend(fontsize=10)
+        # Force-velocity at normalized length = 1
+        FV_slow[a_idx, i] = rel_slow.fv_force(act, v_norm[i], FL_ref, 1.0)
+        FV_fast[a_idx, i] = rel_fast.fv_force(act, v_norm[i], FL_ref, 1.0)
 
-# Passive force
+# =============================================================================
+# Plotting
+# =============================================================================
+fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+# -------------------------------------------------------------------------
+# Tendon force-strain
+# -------------------------------------------------------------------------
 ax = axs[0, 1]
-for i in range(n_a):
-    style = '-' if i < 3 else '--'
-    color = cg_PE1[1] if i < 3 else cg_PE2[0]
-    ax.plot(l_M_PE, f_PE[:, i], color=color, linestyle=style, label=f'k1={f_PE_k1[i]}, k2={f_PE_k2[i]}')
-ax.set(xlabel=r'$\overline {L^M}$', ylabel=r'$\overline {F^M}$', xlim=(0.8, 2.2), ylim=(-0.4, 0.9))
+for j, eps0 in enumerate(eps0_vals):
+    ax.plot(
+        eps_T * 100,
+        f_T[:, j],
+        color=cg_green[j],
+        label=rf'$\epsilon_0^T$ = {eps0*100:.1f}%'
+    )
+ax.set_xlabel(r'$\epsilon^T$ [%]')
+ax.set_ylabel(r'$\overline{F}^{T}$')
+ax.set_title('SE')
+ax.grid(True)
+ax.legend(fontsize=9)
+
+# -------------------------------------------------------------------------
+# Passive PE
+# -------------------------------------------------------------------------
+ax = axs[0, 0]
+ax.plot(l_M_PE, f_PE, color='#7a1fa2', linewidth=2)
+ax.set_xlabel(r'$\overline{L}^{M}$')
+ax.set_ylabel(r'$\overline{F}_{PE}$')
 ax.set_title('PE')
+ax.set_xlim(0.8, 1.8)
+ax.set_ylim(-0.1, 2.2)
 ax.grid(True)
-ax.legend()
 
-# Force-length
-ax = axs[1, 0]
-for i in range(n_a):
-    ax.plot(l_M, fl[i, :, 0], color=cg_s[i], label=f'a = {a_vals[i]:.1f}')
-ax.set(xlabel=r'$\overline {L^M}$', ylabel=r'$\overline {F^M_l}$')
-ax.set_title('F-L relationship')
-ax.grid(True)
-ax.legend(fontsize=10)
-
-# Force-velocity
+# -------------------------------------------------------------------------
+# Force-velocity: slow + fast overlapped
+# -------------------------------------------------------------------------
 ax = axs[1, 1]
-for i in [0, 2, 4]:
-    ax.plot(v_M, fv[i, :, 0], color=cg_s[i], label=f'a = {a_vals[i]:.1f}, slow')
-    ax.plot(v_M, fv[i, :, 1], color=cg_f[i//2], label=f'a = {a_vals[i]:.1f}, fast')
-ax.set(xlabel=r'$\overline {V^M}$', ylabel=r'$\overline {F^M_v}$', xlim=(-1.2, 1.2))
-ax.set_title('F-V relationship ($\overline {L^M}$ = 1)')
+for a_idx, act in enumerate(act_vals):
+    ax.plot(
+        v_norm, FV_slow[a_idx, :],
+        color=cg_blue[a_idx],
+        label=f'act = {act:.1f}, slow'
+    )
+    ax.plot(
+        v_norm, FV_fast[a_idx, :],
+        color=cg_red[a_idx],
+        label=f'act = {act:.1f}, fast'
+    )
+ax.set_xlabel(r'$\overline{V}^{M}$')
+ax.set_ylabel(r'$\overline{f}_{FV}$')
+ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', )
+ax.set_xlim(-1.2, 1.2)
 ax.grid(True)
-ax.legend(fontsize=10, loc='lower right')
+ax.legend(fontsize=8, loc='lower right')
+
+# -------------------------------------------------------------------------
+# Force-length scaled by active state
+# -------------------------------------------------------------------------
+ax = axs[1, 0]
+for a_idx, act in enumerate(act_vals):
+    ax.plot(
+        l_M,
+        FL_scaled[a_idx, :],
+        color=cg_blue[a_idx],
+        label=f'act = {act:.1f}'
+    )
+ax.set_xlabel(r'$\overline{L}^{M}$')
+ax.set_ylabel(r'$\overline{f}_{FL}$')
+ax.set_title('CE - FL')
+ax.grid(True)
+ax.legend(fontsize=9)
 
 plt.tight_layout()
 plt.show()
 
-#%%
-""" Extract experimental digitized data from Blinks, Konishi """
+#####################################################################################################
+# Ca2+ experimental digitized data from Blinks and Konishi
+#####################################################################################################
 
-cwd = Path.cwd()
-data_path = Path.home() / 'Dropbox' / 'UNSW_Andrea_Luca_PhD' / 'Data' / 'Digitized_Blinks_Konishi'
+base_path = Path('..') / 'benchmarkData' / 'Ca_transients'
 
-# Load experimental data 
-os.chdir(data_path)
+# Load digitized datasets
+konishi_peak = pd.read_csv(base_path / "Konishi_l_Capeak.csv", delimiter=' ').to_numpy()
+konishi_ttp = pd.read_csv(base_path / "Konishi_l_Catimetopeak.csv", delimiter=' ').to_numpy()
+blinks_peak = pd.read_csv(base_path / "Blinks_l_Capeak.csv", delimiter=' ').to_numpy()
 
-konishi = pd.read_csv("Konishi_l_Capeak.csv", delimiter=' ').to_numpy()
-konishi2 = pd.read_csv("Konishi_l_Catimetopeak.csv", delimiter=' ').to_numpy()
-blinks = pd.read_csv("Blinks_l_Capeak.csv", delimiter=' ').to_numpy()
-blinks[:, 1] /= 100  # Scale
+# Normalize data
+# Peak amplitude from Blinks was digitized in percentage
+blinks_peak[:, 1] /= 100.0
 
-blinks[:,0] /= 2.1  # Normalise frog sarcomere length
-konishi[:,0] /= 2.1
-konishi2[:,0] /= 2.1
-blinks[:,1] = np.minimum(blinks[:, 1], 1) # correct values greater than 1 from digitalization
-konishi[:,1] = np.minimum(konishi[:, 1], 1)
+# Normalize frog sarcomere length by optimal sarcomere length = 2.1 um
+for arr in (blinks_peak, konishi_peak, konishi_ttp):
+    arr[:, 0] /= 2.1
 
-os.chdir(cwd)
+# Correct digitized peak values slightly above 1
+blinks_peak[:, 1] = np.minimum(blinks_peak[:, 1], 1.0)
+konishi_peak[:, 1] = np.minimum(konishi_peak[:, 1], 1.0)
 
-# Concatenate and sort data 
-l_Ca = np.concatenate((blinks, konishi), axis=0)
-l_Ca = l_Ca[np.argsort(l_Ca[:, 0])] # length sorted
 
-# Plateau definition
+# Fit f1: Ca2+ peak amplitude vs normalized sarcomere length
+peak_data = np.concatenate((blinks_peak, konishi_peak), axis=0)
+peak_data = peak_data[np.argsort(peak_data[:, 0])]  # sort by length
+
 plateau_start = 1.1379
 plateau_end = 1.239
-plateau_value = 1
+plateau_value = 1.0
 
-# Left & right from plateau
-left_mask = l_Ca[:, 0] < plateau_start
-right_mask = l_Ca[:, 0] > plateau_end
+left_mask = peak_data[:, 0] < plateau_start
+right_mask = peak_data[:, 0] > plateau_end
 
-x_left = l_Ca[left_mask, 0]
-y_left = l_Ca[left_mask, 1]
-x_right = l_Ca[right_mask, 0]
-y_right = l_Ca[right_mask, 1]
+x_left = peak_data[left_mask, 0]
+y_left = peak_data[left_mask, 1]
+x_right = peak_data[right_mask, 0]
+y_right = peak_data[right_mask, 1]
 
-# Left extreme
+# Linear segment on the left, constrained to reach the plateau
 x_first_left = x_left[0]
 y_first_left = y_left[0]
 
 slope_left = (plateau_value - y_first_left) / (plateau_start - x_first_left)
 intercept_left = y_first_left - slope_left * x_first_left
 
-def linear_model_right(x, a):
-    return plateau_value + a * (x - plateau_end)
+# Linear segment on the right, constrained to start from plateau_value at plateau_end
+def linear_model_right(x, slope):
+    return plateau_value + slope * (x - plateau_end)
 
 popt_right, _ = curve_fit(linear_model_right, x_right, y_right)
 slope_right = popt_right[0]
 
+# Smooth piecewise representation of f1
 l_sm = np.linspace(0.4, 2.3, 500)
 Ca_sm = np.zeros_like(l_sm)
 
@@ -239,49 +292,50 @@ for i, x in enumerate(l_sm):
     else:
         Ca_sm[i] = plateau_value + slope_right * (x - plateau_end)
 
-print("1) y_left = ", y_first_left)
-print("1) x_left = ", x_first_left)
-print("2) Left intercept = ", intercept_left)
-print("2) Left slope = ", slope_left)
-print("3) Slope right = ", slope_right)
+print("1) y_left =", y_first_left)
+print("1) x_left =", x_first_left)
+print("2) Left intercept =", intercept_left)
+print("2) Left slope =", slope_left)
+print("3) Slope right =", slope_right)
 
-# Fit time-to-peak Ca2+ data 
-l_Cattp = konishi2[np.argsort(konishi2[:, 0])]
-l_Cattp[:, 0] /= 2.1
+# Fit f2: time-to-peak Ca2+ vs normalized sarcomere length
+ttp_data = konishi_ttp[np.argsort(konishi_ttp[:, 0])]  # sort by length
 
-# Fit time-to-peak Ca2+ data 
-l_Cattp = konishi2[np.argsort(konishi2[:, 0])] # length sorted
-
-p2 = np.polyfit(l_Cattp[:, 0], l_Cattp[:, 1], deg=2)
+p2 = np.polyfit(ttp_data[:, 0], ttp_data[:, 1], deg=2)
 fit2 = np.poly1d(p2)
-l_smttp = np.linspace(l_Cattp[:, 0].min(), l_Cattp[:, 0].max(), 500)
+
+l_smttp = np.linspace(ttp_data[:, 0].min(), ttp_data[:, 0].max(), 500)
 Ca_smttp = fit2(l_smttp)
-l_left = np.linspace(0.6, l_Cattp[:, 0].min(), 100) # before min. sarc. length
+
+# Constant extrapolation outside the experimental range
+l_left = np.linspace(0.6, ttp_data[:, 0].min(), 100)
 left_smttp = np.ones(len(l_left)) * 0.73823954
-l_right = np.linspace(l_Cattp[:, 0].max(), 2.4, 100) # after max. sarc. length
+
+l_right = np.linspace(ttp_data[:, 0].max(), 2.4, 100)
 right_smttp = np.ones(len(l_right)) * 1.072
 
-# Plot Ca_peak 
+# Plot
 fig, axes = plt.subplots(2, 1, figsize=(6, 6), dpi=200)
 
-axes[0].plot(blinks[:, 0], blinks[:, 1], 'rx', label='Blinks 1978')
-axes[0].plot(konishi[:, 0], konishi[:, 1], 'gx', label='Konishi 1991')
+# f1
+axes[0].plot(blinks_peak[:, 0], blinks_peak[:, 1], 'rx', label='Blinks 1978')
+axes[0].plot(konishi_peak[:, 0], konishi_peak[:, 1], 'gx', label='Konishi 1991')
 axes[0].plot(l_sm, Ca_sm, 'k', label='Fit')
-axes[0].set_ylim([0,1.2])
-axes[0].set_xlim([0.8,2.1])
+axes[0].set_xlim([0.8, 2.1])
+axes[0].set_ylim([0, 1.2])
 axes[0].set_ylabel('Normalized f1')
 axes[0].grid()
 axes[0].set_xticklabels([])
 
-axes[1].plot(l_Cattp[:, 0], l_Cattp[:, 1], 'gx', label='Konishi 1991')
+# f2
+axes[1].plot(ttp_data[:, 0], ttp_data[:, 1], 'gx', label='Konishi 1991')
 axes[1].plot(l_smttp, Ca_smttp, 'k', label='Fit')
 axes[1].plot(l_left, left_smttp, 'k')
 axes[1].plot(l_right, right_smttp, 'k')
+axes[1].set_xlim([0.8, 2.1])
 axes[1].set_xlabel('Normalized sarcomere length')
 axes[1].set_ylabel('Normalized f2')
-axes[1].set_xlim([0.8,2.1])
 axes[1].grid()
 
 plt.tight_layout()
 plt.show()
-
