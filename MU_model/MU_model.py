@@ -35,7 +35,7 @@ from scipy.integrate import solve_ivp
 # =============================================================================
 
 @dataclass  
-class Params:  # container for all model parameters and time-series inputs
+class Params:  
 
     # Required
     time: np.ndarray            # time vector
@@ -90,7 +90,7 @@ class Params:  # container for all model parameters and time-series inputs
 
 
 @dataclass  
-class States:  # initial states of the ODE system
+class States:  
     MUAP_0: float  # MUAP amplitude (beta)
     Ca_0: float    # Ca concentration
     act_0: float   # activation 
@@ -118,10 +118,10 @@ class Mechanics:
     def __init__(self, P: Params):  
         self.P = P  # keep params for tendon/FV constants
 
-    def tendon_force(self, eps: float) -> float:  # Thelen 2003/John 2013 tendon force-strain relationship
+    def tendon_force(self, eps: float) -> float:  
 
         """
-        Computes normalized tendon force as a function of tendon strain
+        Computes normalized tendon force as a function of tendon strain (from John et al. 2013).
         Inputs:
         - eps: float, tendon strain (dimensionless), eps = (l_T - l_T_slack)/l_T_slack
         Outputs:
@@ -143,10 +143,10 @@ class Mechanics:
         
 
     @staticmethod
-    def passive_pe(l_M_norm: float) -> float:  # Thelen 2003 passive force-length
+    def passive_pe(l_M_norm: float) -> float:  
 
         """
-        Computes normalized passive force-length contribution (PE) from normalized fibre length
+        Computes normalized passive force-length contribution (PE) from normalized fibre length (from Thelen 2003).
         Inputs:
         - l_M_norm: float, normalized fibre length (l_M / l_M_opt)
         Outputs:
@@ -160,32 +160,29 @@ class Mechanics:
     
 
     @staticmethod
-    def pennation(l_MT: float, l_T: float, l_M_0: float, alpha0: float) -> float:  # update pennation angle
+    def pennation(l_M: float, l_M_0: float, alpha0: float) -> float:
 
         """
         Computes the pennation angle alpha given MT length, tendon length and initial geometry.
         Inputs:
-        - l_MT: float, total muscle-tendon length at current time.
-        - l_T:  float, tendon length at current time.
+        - l_M: fibre length
         - l_M_0: float, initial fibre length used to compute constant width term.
         - alpha0: float, initial pennation angle.
         Outputs:
         - alpha: float, updated pennation angle (radians), clipped to avoid singularities.
         """
         
-        w = l_M_0 * np.sin(alpha0)  # constant muscle width term
-        den = max(1e-9, (l_MT - l_T))  # denominator never equal to 0
-        cosalpha = 1.0 / np.sqrt(1.0 + (w / den) ** 2)  # compute cos(alpha) from geometry
-        cosalpha = float(np.clip(cosalpha, 1e-6, 1.0))  # clamp to valid range
-        alpha = float(np.arccos(cosalpha))  # compute alpha
-        return min(alpha, 1.4706289)  # clipped at ~84.3 deg to avoid singularities
+        w = l_M_0 * np.sin(alpha0) # constant muscle width term
+        sin_alpha = w / max(l_M, 1e-9) # compute sin(alpha) from geometry
+        sin_alpha = float(np.clip(sin_alpha, 0.0, np.sin(1.4706289))) # clipped at ~84.3 deg to avoid singularities
+        return float(np.arcsin(sin_alpha)) # compute alpha
 
 
     @staticmethod
-    def force_length(act: float, l_M_norm: float) -> float:  # Lloyd & Besier FL relationship
+    def force_length(act: float, l_M_norm: float) -> float:  
 
         """
-        Computes the active force-length scaling factor FL(act, l_M_norm).
+        Computes the active force-length scaling factor FL(act, l_M_norm) (from Lloyd Besier 2003).
         Inputs:
         - act: float, activation state (0..1).
         - l_M_norm: float, normalized fibre length (l_M / l_M_opt).
@@ -198,10 +195,10 @@ class Mechanics:
         return float(np.exp(-((l_M_norm - b) / a) ** 2))  
 
 
-    def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, fibre_type, vmax) -> float:  # FV (velocity) 
+    def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, fibre_type, vmax) -> float:  
 
         """
-        Inverts the FV relationship to obtain fibre velocity given normalized CE force ratio.
+        Inverts the FV relationship to obtain fibre velocity given normalized CE force ratio (modified from Caillet 2023 PhD thesis).
         Inputs:
         - act: float, activation state (0..1).
         - l_M_norm: float, normalized fibre length.
@@ -240,10 +237,10 @@ class Mechanics:
         return float(vel * vmax)  
 
 
-    def fv_force(self, act: float, v_norm: float, FL: float, l_M_norm: float, fibre_type: str) -> float:  # FV (force)
+    def fv_force(self, act: float, v_norm: float, FL: float, l_M_norm: float, fibre_type: str) -> float:  
 
         """
-        Computes the FV scaling factor given normalized velocity and other context.
+        Computes the FV scaling factor given normalized velocity and other context (modified from Caillet 2023 PhD thesis).
         Inputs:
         - act: float, activation state (0..1).
         - v_norm: float, normalized velocity (unitless; consistent with your conventions).
@@ -285,10 +282,10 @@ class Ephys:
         self.P = P  # keep params for calcium/activation constants
 
     @staticmethod
-    def _is_firing(t_round: float, AP_times: np.ndarray, prec: float) -> int:  # checks whether time corresponds to a discharge
+    def _is_firing(t_round: float, AP_times: np.ndarray, prec: float) -> int:  
 
         """
-        Checks whether a rounded time instant corresponds to a discharge time.
+        Checks whether a rounded time instant corresponds to a discharge time (Caillet et al. 2023).
         Inputs:
         - t_round: float, rounded time in seconds.
         - AP_times: np.ndarray, spike times in seconds.
@@ -301,10 +298,10 @@ class Ephys:
         return int(t_int in (AP_times / prec).astype(int))  
     
 
-    def MN_AP(self, t: float, AP_times: np.ndarray, V_N: float = 90.0) -> float:  # motoneuron AP waveform
+    def MN_AP(self, t: float, AP_times: np.ndarray, V_N: float = 90.0) -> float:  
 
         """
-        Produces a simplified motoneuron action potential waveform (half-sine) at firing times.
+        Produces a simplified motoneuron action potential waveform (half-sine) at firing times (Caillet et al. 2023).
         Inputs:
         - t: float, current time in seconds.
         - AP_times: np.ndarray, spike times in seconds.
@@ -325,10 +322,10 @@ class Ephys:
         return 0.0  # after AP
 
 
-    def MU_AP_2nd(self, t: float, AP_times: np.ndarray, beta: float, dbeta: float) -> float:  # MUAP second-order ODE
+    def MU_AP_2nd(self, t: float, AP_times: np.ndarray, beta: float, dbeta: float) -> float:  
 
         """
-        Computes the second derivative of MUAP state beta using a linear 2nd order ODE.
+        Computes the second derivative of MUAP state beta using a linear 2nd order ODE (Caillet et al. 2023).
         Inputs:
         - t: float, current time.
         - AP_times: np.ndarray, spike times.
@@ -342,10 +339,11 @@ class Ephys:
         return b3 * self.MN_AP(t, AP_times) - b2 * beta - b1 * dbeta + 1e-50  # ODE
 
 
-    def Ca_2nd(self, l_norm: float, fibre_type: str, beta: float, Ca: float, dCa: float) -> float:  # Ca second-order ODE
+    def Ca_2nd(self, l_norm: float, fibre_type: str, beta: float, Ca: float, dCa: float) -> float:  
 
         """
-        Computes second derivative of Ca state using length-dependent amplitude/width and fibre-type coefficients.
+        Computes second derivative of Ca state using length-dependent amplitude/width 
+        and fibre-type coefficients (modified from Hatze 1977 and Caillet et al. 2023).
         Inputs:
         - l_norm: float, normalized fibre length.
         - fibre_type: str, "slow" or "fast".
@@ -381,10 +379,11 @@ class Ephys:
         return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca  # ODE
 
 
-    def activation_dot_from(self, Ca: float, act: float, fibre_type: str) -> float:  # activation ODE
+    def activation_dot_from(self, Ca: float, act: float, fibre_type: str) -> float: 
 
         """
-        Computes d(act)/dt given Ca_norm, current act, and fibre_type, with scale-dependent parameters.
+        Computes d(act)/dt given Ca_norm, current act, and fibre_type, with 
+        scale-dependent parameters (modified from Hussein et al. 2022).
         Inputs:
         - Ca_norm: float, normalized Ca state.
         - act: float, activation state.
@@ -420,10 +419,10 @@ class Ephys:
 
 
     @staticmethod
-    def yield_dot(y_val: float, V_norm: float) -> float:  # yielding ODE (Brown 1999)
+    def yield_dot(y_val: float, V_norm: float) -> float:  
         
         """
-        Computes yielding state derivative as a function of normalized velocity.
+        Computes yielding state derivative as a function of normalized velocity (from Brown et al. 1999).
         Inputs:
         - y_val: float, yielding state (dimensionless).
         - V_norm: float, normalized velocity.
@@ -436,10 +435,10 @@ class Ephys:
         
 
 
-    def sag_dot(self, s: float, t: float) -> float:  # sag ODE (adapted Brown 2000)
+    def sag_dot(self, s: float, t: float) -> float:  
 
         """
-        Computes sag state derivative, with a time-dependent target value As(t).
+        Computes sag state derivative, with a time-dependent target value As(t) (modified from Brown et al. 2000).
         Inputs:
         - s: float, sag state.
         - t: float, current time.
@@ -457,7 +456,6 @@ class Ephys:
         else:  # later phase
             As = self.P.As_decay  # decay value
         return (As - s) / self.P.Ts  # ODE
-
 
 
 # =============================================================================
@@ -478,7 +476,7 @@ class ModelConfig:  # configuration of model components
 # State names + index mapping 
 # =============================================================================
 
-def build_state_names(model_config: ModelConfig) -> List[str]:  # build list of state names from config
+def build_state_names(model_config: ModelConfig) -> List[str]:  
 
     """
     Builds an ordered list of state names included in the ODE based on ModelConfig.
@@ -498,7 +496,7 @@ def build_state_names(model_config: ModelConfig) -> List[str]:  # build list of 
     return names  # return ordered state list
 
 
-def build_state_index(state_names: List[str]) -> Dict[str, int]:  # map each state name to its index in y
+def build_state_index(state_names: List[str]) -> Dict[str, int]:  
 
     """
     Creates a mapping from state name to position index in the ODE state vector y.
@@ -527,7 +525,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         self._v_lMT = np.gradient(np.asarray(self.P.l_MT, dtype=float), self.P.dt)  # dl_MT/dt for no-tendon FV case
 
 
-    def compute_forces(self, time_index: int, y: np.ndarray, alpha_track: np.ndarray, fibre_type: str) -> Dict[str, float]:
+    def compute_forces(self, time_index: int, y: np.ndarray, fibre_type: str) -> Dict[str, float]:
 
         """
         Computes all mechanical quantities (l_T, eps_T, f_SE, f_PE, f_CE, FL, FV, v_M, alpha)
@@ -535,7 +533,6 @@ class ODESystem:  # ODE assembly and consistent force computations
         Inputs:
         - time_index: int, index into P.time / P.l_MT.
         - y: np.ndarray, ODE state vector at this time (size = n_states).
-        - alpha_track: np.ndarray, pennation history buffer (len(time)+1).
         - fibre_type: str, "slow" or "fast".
         Outputs:
         - forces: Dict[str, float], dictionary of mechanical variables.
@@ -546,10 +543,10 @@ class ODESystem:  # ODE assembly and consistent force computations
         state_index_local = self.state_index  # local alias for state index mapping
         time_index = max(0, min(time_index, len(P.time) - 1))  # clamp time index to valid range
         act = float(y[state_index_local["act"]])  # read activation state
-        alpha = float(alpha_track[time_index]) if model_config.use_tendon else float(P.alpha_0)  # pick current pennation
 
         if model_config.use_tendon:  # tendon system: l_M is dynamic
             l_M = float(y[state_index_local["l_M"]])  # read muscle fibre length from state
+            alpha = self.mech.pennation(l_M, self.S.l_M_0, P.alpha_0) # pick current pennation
             l_T = float(P.l_MT[time_index] - l_M * np.cos(alpha))  # compute tendon length from geometry
             eps_T = float((l_T - P.l_T_slack) / P.l_T_slack)  # tendon strain
             f_SE = float(self.mech.tendon_force(eps_T))  # tendon force
@@ -558,6 +555,7 @@ class ODESystem:  # ODE assembly and consistent force computations
             l_M = float(P.l_MT[time_index])  # fibre length equals MT length
             l_T, eps_T, f_SE = 0.0, 0.0, 0.0  # no tendon quantities
             lM_norm = float(l_M / P.l_M_opt)  # normalized fibre length
+            alpha = float(P.alpha_0)  # pick current pennation
 
         f_PE = float(self.mech.passive_pe(lM_norm)) if model_config.use_PE else 0.0  # passive force if enabled
         FL = float(self.mech.force_length(act, lM_norm)) if model_config.use_FL else 1.0  # FL force if enabled
@@ -590,17 +588,15 @@ class ODESystem:  # ODE assembly and consistent force computations
             FL=FL, FV=FV, v_M=v_M, alpha=alpha)
 
 
-    def ode_system(self, t: float, y: np.ndarray, alpha_track: np.ndarray, distimes: np.ndarray, fibre_type: str) -> np.ndarray:
+    def ode_system(self, t: float, y: np.ndarray, distimes: np.ndarray, fibre_type: str) -> np.ndarray:
 
         """
         - Defines the full ODE right-hand-side for solve_ivp.
         - Computes electrophysiology derivatives always.
         - Adds sag and tendon-related derivatives (l_M, yielding) depending on model_config.
-        - Updates alpha_track forward in time when tendon is enabled.
         Inputs:
         - t: float, current time.
         - y: np.ndarray, current ODE state vector.
-        - alpha_track: np.ndarray, pennation history buffer (shared, updated in-place).
         - distimes: np.ndarray, discharge times in seconds.
         - fibre_type: str, "slow" or "fast".
         Outputs:
@@ -640,7 +636,7 @@ class ODESystem:  # ODE assembly and consistent force computations
             dydt[state_index_local["sag"]] = self.eph.sag_dot(sag_val, t)  # sag derivative
 
         # compute forces/velocity consistently (needed for tendon dynamics AND yielding even without tendon)
-        forces = self.compute_forces(time_index, y, alpha_track, fibre_type)  # compute consistent forces
+        forces = self.compute_forces(time_index, y, fibre_type)  # compute consistent forces
 
         # yielding can be applied even without tendon (depends on velocity)
         if model_config.use_yielding:  # if yielding enabled
@@ -649,12 +645,6 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         if model_config.use_tendon:  # tendon system adds l_M dynamics and pennation update
             dydt[state_index_local["l_M"]] = forces["v_M"]  # dl_M/dt = fibre velocity
-
-            if time_index == 0:  # initialize pennation at first index
-                alpha_track[time_index] = P.alpha_0  
-
-            if time_index + 1 < len(P.time):  # if next index exists
-                alpha_track[time_index + 1] = self.mech.pennation(P.l_MT[time_index + 1], forces["l_T"], self.S.l_M_0, P.alpha_0)  # update alpha
 
         return dydt  # return derivatives to the integrator
 
@@ -681,10 +671,8 @@ class MuscleModel:  # main model object
         self.eph = Ephys(P)  # create electrophysiology block
         self.sys = ODESystem(P, S, self.mech, self.eph, self.model_config)  # create ODE system block
 
-        self.alpha = np.full(len(P.time) + 1, float(P.alpha_0), dtype=float)  # pennation history (used only if tendon)
-
     @property
-    def fibre_type(self) -> str:  # infer fibre type from muscle name
+    def fibre_type(self) -> str:  
 
         """
         Infers fibre type ("slow" or "fast") from the Params.muscle string.
@@ -761,7 +749,7 @@ class MuscleModel:  # main model object
 
         y0 = self._build_y0()  # build initial state vector
 
-        args = (self.alpha, self.distimes.astype(float), fibre_type)  # extra args passed to ode_system
+        args = (self.distimes.astype(float), fibre_type)  # extra args passed to ode_system
         sol = solve_ivp(  # integrate ODEs
             self.sys.ode_system,  
             [self.P.time[0], self.P.time[-1]],  
@@ -800,7 +788,7 @@ class MuscleModel:  # main model object
         v_M = np.zeros(T)  # allocate fibre velocity trace
 
         for i in range(T):  # loop through time samples
-            forces = self.sys.compute_forces(i, Y[:, i], self.alpha, fibre_type)  # compute mechanics consistently
+            forces = self.sys.compute_forces(i, Y[:, i], fibre_type)  # compute mechanics consistently
             FL[i] = forces["FL"]  # store FL
             FV[i] = forces["FV"]  # store FV
             f_PE[i] = forces["f_PE"]  # store passive force
@@ -824,7 +812,7 @@ class MuscleModel:  # main model object
 
 # =============================================================================
 
-def MU_model(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  # public factory
+def MU_model(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  
 
     """
     Constructor that builds Params/States from dictionaries and returns a MuscleModel.

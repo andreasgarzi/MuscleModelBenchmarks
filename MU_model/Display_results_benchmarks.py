@@ -22,9 +22,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
-####################################################################################
+
 # Helper functions
-####################################################################################
 
 def summarize_trials(mae_list, maxae_list, label="", unit="% MVC"):
     """
@@ -804,12 +803,11 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
         f"FI err = {metric_errors['fusion_index_ratio_err']:.4f}"
     )
 
-#############################################################################
+
 "PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 "Files were kept separated to avoid confusion in error and statistics computation"
-#############################################################################
 
-benchmark = 'fast_M_dyn' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'slow_M_sub' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
@@ -1587,15 +1585,19 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
             std_list.append(stde)
         return np.array(mean_list), np.array(max_list), np.array(std_list)
 
-    iso_trials_plot = [
+    iso_const_plot = [
         ("Const 10 Hz", exp_iso_c_10, sim_iso_c_10),
         ("Const 20 Hz", exp_iso_c_20, sim_iso_c_20),
         ("Const 30 Hz", exp_iso_c_30, sim_iso_c_30),
+    ]
+    mean_iso_const, max_iso_const, std_iso_const = build_err(iso_const_plot, MVC)
+
+    iso_rand_plot = [
         ("Rand 10 Hz",  exp_iso_v_10, sim_iso_v_10),
         ("Rand 20 Hz",  exp_iso_v_20, sim_iso_v_20),
         ("Rand 30 Hz",  exp_iso_v_30, sim_iso_v_30),
     ]
-    mean_iso, max_iso, std_iso = build_err(iso_trials_plot, MVC)
+    mean_iso_rand, max_iso_rand, std_iso_rand = build_err(iso_rand_plot, MVC)
 
     dyn_1mm_trials = [
         ("Const 10 Hz", exp_dyn_c_10_1, sim_dyn_c_10_1),
@@ -1636,9 +1638,24 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
         ax.set_title(title, fontweight='bold')
         ax.set_ylim([0, 45])
 
-    # plot_panel(axes[0], x, mean_iso, max_iso, std_iso, "Isometric")
     plot_panel(axes[0], x, mean_1mm, max_1mm, std_1mm, "Dynamic ±1 mm")
     plot_panel(axes[1], x, mean_8mm, max_8mm, std_8mm, "Dynamic ±8 mm")
+
+    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+    for ax in axes:
+        ax.set_xlabel('Stimulation', fontweight='bold')
+    axes[0].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    x = np.arange(1, 3 + 1)
+    x_labels = ["10 Hz", "20 Hz", "30 Hz"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+
+    plot_panel(axes[0], x, mean_iso_const, max_iso_const, std_iso_const, "Isometric - Constant Frequency")
+    plot_panel(axes[1], x, mean_iso_rand, max_iso_rand, std_iso_rand, "Isometric - Random Frequency")
 
     axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     for ax in axes:

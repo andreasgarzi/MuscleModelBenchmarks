@@ -5,7 +5,7 @@ University of New South Wales, GSBE
 Created on Sat Jun  1 14:57:36 2024
 ___________________________________
 
-Plot all the element relationships of the MU-model model
+Plot all the element relationships of the model
 """
 
 from pathlib import Path
@@ -14,9 +14,8 @@ from scipy.optimize import curve_fit
 import numpy as np
 import matplotlib.pyplot as plt
 
-# =============================================================================
+
 # Relationships present in the model
-# =============================================================================
 class Relationships:
     def __init__(self, fibre_type='slow'):
         self.fmax = 1.4
@@ -79,12 +78,9 @@ class Relationships:
             return (1.0 + self.fmax * (v_norm / (K * b))) / (1.0 + v_norm / (K * b))
 
 
-# =============================================================================
 # Color gradients
-# =============================================================================
 def hex_to_rgb(hex_str):
     return [int(hex_str[i:i+2], 16) for i in range(1, 6, 2)]
-
 
 def get_color_gradient(c1, c2, n):
     c1_rgb = np.array(hex_to_rgb(c1)) / 255
@@ -97,9 +93,7 @@ def get_color_gradient(c1, c2, n):
     ]
 
 
-# =============================================================================
 # Parameters for plotting
-# =============================================================================
 points = 1000
 n_a = 5
 
@@ -115,9 +109,7 @@ cg_blue = get_color_gradient("#0b165e", "#00eeff", n_a)
 cg_green = get_color_gradient("#0c520b", "#18e314", len(eps0_vals))
 cg_red = get_color_gradient("#8c0000", "#ffb000", n_a)
 
-# =============================================================================
 # Preallocate arrays
-# =============================================================================
 f_T = np.zeros((points, len(eps0_vals)))
 f_PE = np.zeros(points)
 FL_scaled = np.zeros((n_a, points))
@@ -127,9 +119,7 @@ FV_fast = np.zeros((n_a, points))
 rel_slow = Relationships('slow')
 rel_fast = Relationships('fast')
 
-# =============================================================================
 # Compute curves
-# =============================================================================
 for j, eps0 in enumerate(eps0_vals):
     for i in range(points):
         f_T[i, j] = Relationships.tendon_force(eps_T[i], eps0)
@@ -148,14 +138,14 @@ for a_idx, act in enumerate(act_vals):
         FV_slow[a_idx, i] = rel_slow.fv_force(act, v_norm[i], FL_ref, 1.0)
         FV_fast[a_idx, i] = rel_fast.fv_force(act, v_norm[i], FL_ref, 1.0)
 
-# =============================================================================
+
+
+
+
 # Plotting
-# =============================================================================
 fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 
-# -------------------------------------------------------------------------
 # Tendon force-strain
-# -------------------------------------------------------------------------
 ax = axs[0, 1]
 for j, eps0 in enumerate(eps0_vals):
     ax.plot(
@@ -170,9 +160,7 @@ ax.set_title('SE')
 ax.grid(True)
 ax.legend(fontsize=9)
 
-# -------------------------------------------------------------------------
 # Passive PE
-# -------------------------------------------------------------------------
 ax = axs[0, 0]
 ax.plot(l_M_PE, f_PE, color='#7a1fa2', linewidth=2)
 ax.set_xlabel(r'$\overline{L}^{M}$')
@@ -182,9 +170,7 @@ ax.set_xlim(0.8, 1.8)
 ax.set_ylim(-0.1, 2.2)
 ax.grid(True)
 
-# -------------------------------------------------------------------------
 # Force-velocity: slow + fast overlapped
-# -------------------------------------------------------------------------
 ax = axs[1, 1]
 for a_idx, act in enumerate(act_vals):
     ax.plot(
@@ -204,9 +190,7 @@ ax.set_xlim(-1.2, 1.2)
 ax.grid(True)
 ax.legend(fontsize=8, loc='lower right')
 
-# -------------------------------------------------------------------------
 # Force-length scaled by active state
-# -------------------------------------------------------------------------
 ax = axs[1, 0]
 for a_idx, act in enumerate(act_vals):
     ax.plot(

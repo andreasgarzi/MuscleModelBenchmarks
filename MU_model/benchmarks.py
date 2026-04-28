@@ -118,7 +118,7 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
     t_hi = np.arange(0.0, t_end + 1e-12, dt) # interpolated time
 
     kind = 'cubic' # interp
-    if data_type == 'EDL_twitch': # for twitch, use linear interp to avoid oscillations
+    if data_type == 'EDL_twitch': 
         force = signal.filtfilt(b, a, force) # filt force
 
     force = force - force[0] # offset force
@@ -138,7 +138,7 @@ def prepare_segment_iso(data_path, data_type, trial, f=1000, dt=1e-4):
 # ====================================================================
 
 dt = 1e-4  # s
-base_path = Path('..') / 'benchmarkData'
+base_path = Path() / 'benchmarkData'
 save = False
 
 root = tk.Tk() # Initialise input window
@@ -220,7 +220,7 @@ if scale == 'M': # muscle benchmarks
     
             if trial == 'iso':
               
-                l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # constant MT length
+                l_MT = np.full(len(time_dt)+1, float(l_MT_0), dtype=float)
                 exp_force = read_data(path / f"force_isometric_{stim}{fs}.dat", 'f_iso_SM')
                 exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='cubic')(np.arange(0,t_end,dt))
     
@@ -257,7 +257,7 @@ if scale == 'M': # muscle benchmarks
         
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) - 4 # Musculo-tendon length (mm)
             l_MT_0 = l_MT_0 + d  # apply displacement
-            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+            l_MT = np.full(len(time_dt)+1, float(l_MT_0), dtype=float)
 
             exp_force = np.load(path / f"{l}_{fs}_interp.npy") # exp. force
             Distimes = np.load(path / f"{l}_{fs}_times.npy") # exp. discharge times
@@ -293,7 +293,7 @@ if scale == 'M': # muscle benchmarks
             use_sag = False
             
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
-            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array
+            l_MT = np.full(len(time_dt)+1, float(l_MT_0), dtype=float)
         
         elif benchmark == 'FLR': # isometric length variation
         
@@ -313,7 +313,7 @@ if scale == 'M': # muscle benchmarks
 
             MVC, l_T_slack, l_M_opt, l_M_0, alpha_0 = [2.49, 5, 6.6, 6.6, 10*np.pi/180] # MVC and M/T lengths
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) + length
-            l_MT = np.ones((len(time_dt)+1), dtype=object)*l_MT_0 # full MT length array (n+1 points)
+            l_MT = np.full(len(time_dt)+1, float(l_MT_0), dtype=float)
 
         elif benchmark == 'dyn': # dynamic shortening
 
@@ -349,8 +349,9 @@ if scale == 'M': # muscle benchmarks
 
             disp = np.load(path / f"disp_{a}_{trial}_interp.npy") # load displacement
             l_MT_0 = l_T_slack + (l_M_0)*np.cos(alpha_0) 
-            l_MT = np.empty((len(time_dt)+1), dtype=object) # full MT length array
-            l_MT[0:-1] = np.ones((len(time_dt)), dtype=object)*l_MT_0 + (disp[0:len(time_dt)]*l_M_opt)*np.cos(alpha_0)     
+            l_MT = np.empty(len(time_dt) + 1, dtype=float)
+            l_MT[:-1] = l_MT_0 + (disp[:len(time_dt)] * l_M_opt) * np.cos(alpha_0)
+            l_MT[-1] = l_MT[-2]  
   
 
 if scale == 'MU': # motor-unit benchmarks
@@ -468,7 +469,7 @@ elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
         Ca_slow_23 = pd.read_csv(path / "Ca_slow_23_100Hz.csv", delimiter=' ').to_numpy()
 
         MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1, 0, 30, 30, 0] # at optimal sarcomere length (assumption)
-        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array 
+        l_MT = np.full(len(time_dt), float(l_MT), dtype=float) # full MT length array
         T = 1/102 # adjusted from paper
         Distimes = np.arange(0, 0.04, T)
         muscle = 'rat_SOL' # slow fibre muscle
@@ -478,7 +479,7 @@ elif scale == 'Ca': # Test Ca dynamics (Hollingworth, Rincon exp. data)
         Ca_fast_35 = pd.read_csv(path / "Ca_fast_35_125Hz.csv", delimiter=' ').to_numpy()
 
         MVC, l_MT, l_T_slack, l_M_opt, l_M_0, alpha_0 = [0, 1.6, 0, 30, 1.6*30, 0] # at longer sarcomere length (see article)
-        l_MT = np.ones((len(time_dt)), dtype=object)*l_MT # full MT length array
+        l_MT = np.full(len(time_dt), float(l_MT), dtype=float) # full MT length array
         T = 1/125 # from paper
         Distimes = np.arange(0, 0.08, T)
         muscle = 'rat_EDL' # fast fibre muscle
@@ -524,7 +525,7 @@ model_config = ModelConfig(
 # Decomment section and comment the "Running simulations and plotting solutions" block
 ###############################################################################
 
-"""  1) MSisof [MVC, Ca_max, k1, k2] on 30Hz isometric trial (Perreault 2003) """
+"""  1) B^M-S_iso-f [MVC, Ca_max, k1, k2] on 30Hz isometric trial (Perreault 2003) """
 
 # def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
@@ -552,14 +553,11 @@ model_config = ModelConfig(
 # print("k1_s =", res.x[2])
 # print("k2_s =", res.x[3])
 
-""" 2a) MSdyn2 [MVC] on 0.05 mm dynamic trial (Krylow 1997)
-    2b) MSdyn2 [af] on 2.00 mm dynamic trial (Krylow 1997)
-    2c) MSisol [MVC] on 40 Hz isometric trial (Perreault 2003, digitized from Kim 2015)"""
+"""  2) B^M-S_iso-l [MVC] on 40 Hz isometric trial (Perreault 2003, digitized from Kim 2015)"""
 
 # def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
-#     parameters['MVC'] = x[0]
-#     # parameters['af_s'] = x[0]
+#     parameters['MVC'] =  x[0]
     
 #     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
 #     out = model.run(output_force=True)
@@ -568,23 +566,42 @@ model_config = ModelConfig(
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
-# x0 = [28] # 1.2 N, 0.4, 27 N
-# bnds = [(25, 31)] # (1.1, 1.5), (0.1, 1), (26, 30)
+# x0 = [28] 
+# bnds = [(25, 31)] 
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("MVC = ", res.x[0])
+
+""" 3) B^M-S_dyn2 [MVC] on 0.05 mm dynamic trial (Krylow 1997)"""
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     parameters['MVC'] = x[0]
+    
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [1.2] 
+# bnds = [(1.1, 1.5)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
 # print("MVC =", res.x[0])
-# #print("af_s =", res.x[0])
 
-"""  5) SUB-MAXIMAL benchmark [k1, k2] on 40Hz length trial """
+""" 4) B^M-S_dyn2 [af] on 2.00 mm dynamic trial (Krylow 1997)"""
 
 # def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
-#     parameters['k1'] =  x[0]
-#     parameters['k2'] = x[1]
-#     parameters['Ca_max'] = x[2]
+#     parameters['af_s'] = x[0]
     
 #     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
 #     out = model.run(output_force=True)
@@ -593,156 +610,206 @@ model_config = ModelConfig(
 #     residuals = force_sim - exp_force  
 #     return np.sum(residuals**2)  
 
-# x0 = [11, 17, 188000]
-# bnds = [(10, 19), (10, 19), (5e4, 1e6)]
+# x0 = [0.4]
+# bnds = [(0.1, 1)]
 
 # res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
 # print("Optimized parameters:")
-# print("k1 = ", res.x[0])
-# print("k2 = ", res.x[1])
-# print("Ca_max = ", res.x[2])
+# #print("af_s =", res.x[0])
 
-"""  6) MFisof [Ca_max, k1, k2] on 80 Hz isometric trial (Millard new exp. data) """
 
-#def obj(x, parameters, states, Distimes, exp_force, model_config): 
+"""  5) B^M-F_iso-l [MVC, Ca_max, k1, k2] on 80 Hz isometric trial (Deltal = 0.5mm) (Millard new exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
     
-    #parameters['Ca_max_f_M'] = x[0]
-    #parameters['k1_f_M'] =  x[1]
-    #parameters['k2_f_M'] = x[2]
-#    states['l_M_0'] = x[0]
-#    l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
-#    parameters['l_MT'] = np.ones((len(time_dt)+1), dtype=object)*l_MT_0
+#     parameters['MVC'] = x[0]
+#     parameters['Ca_max_f_M'] = x[1]
+#     parameters['k1_f_M'] =  x[2]
+#     parameters['k2_f_M'] = x[3]
 
-#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-#    out = model.run(output_force=True)
-#    force_sim = out["force"]
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
     
-#    residuals = force_sim - exp_force  
-#    return np.sum(residuals**2)  
+#     residuals = force_sim - exp_force  
+#     return np.sum(residuals**2)  
 
-#x0 = [5e5, 10, 10]
-#bnds = [(1e5, 1e6), (10, 15), (10, 15)]
+# x0 = [2, 5e5, 10, 10]
+# bnds = [(1.9, 2.9), (1e5, 1e6), (10, 15), (10, 15)]
 
-#x0 = [3]
-#bnds = [(1, 6.6)]
-
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
-#               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
-
-#print("Optimized parameters:")
-#print("Ca_max_f_M =", res.x[0])
-#print("k1_f_M =", res.x[1])
-#print("k2_f_M =", res.x[2])
-#print("l_M_0 =", res.x[0])
-
-"""  7) MFisodyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
-
-#def obj(x, parameters, states, Distimes, exp_force, model_config): 
-    
-#    parameters['af_f'] = x[0]
-
-#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-#    out = model.run(output_force=True)
-#    force_sim = out["force"]
-    
-#    residuals = force_sim[mvc_sample:]/force_sim[mvc_sample] - exp_force[mvc_sample:] # only when displacement is applied
-#    return np.sum(residuals**2)  
-
-#x0 = [0.4]
-#bnds = [(0.1, 3)]
-
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
-#            x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
-
-#print("Optimized parameters:")
-#print("af_f =", res.x[0])
-
-"""  8) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Burke 1974 exp. data) """
-
-#def obj(x, parameters, states, Distimes, exp_force, model_config): 
-    
-    #parameters['MVC'] =  x[0]
-    #parameters['Ca_max_f_MU_catGM'] = x[1]
-    #parameters['k1_f_MU_catGM'] =  x[2]
-    #parameters['k2_f_MU_catGM'] = x[3]
-
-    #model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-    #out = model.run(output_force=True)
-    #force_sim = out["force"]
-    
-    #residuals = force_sim[0:len(exp_force)] - exp_force  
-    #return np.sum(residuals**2)  
-
-#x0 = [0.9, 5e5, 10, 10]
-#bnds = [(0.2, 1.4), (1e5, 1e6), (10, 100), (10, 100)]
-
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
-#               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
-
-#print("Optimized parameters:")
-#print("MVC =", res.x[0])
-#print("Ca_max_f_MU_catGM =", res.x[1])
-#print("k1_f_MU_catGM =", res.x[2])
-#print("k2_f_MU_catGM =", res.x[3])
-
-"""  9) MUisof [MVC, Ca_max, k1, k2] on tetanic isometric trial (Celichowski 1999 exp. data) """
-
-#def obj(x, parameters, states, Distimes, exp_force, model_config): 
-    
-#    parameters['MVC'] =  x[0]
-#    parameters['Ca_max_f_MU_ratGM'] = x[1]
-#    parameters['k1_f_MU_ratGM'] =  x[2]
-#    parameters['k2_f_MU_ratGM'] = x[3]
-
-#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-#    out = model.run(output_force=True)
-#    force_sim = out["force"]
-    
-#    residuals = force_sim[0:len(exp_force)] - exp_force  
-#    return np.sum(residuals**2)  
-
-#x0 = [0.078, 5e5, 10, 10]
-#bnds = [(0.06, 0.08), (1e5, 1e6), (10, 100), (10, 100)]
-
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
-#               x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
-
-#print("Optimized parameters:")
-#print("MVC =", res.x[0])
-#print("Ca_max_f_MU_ratGM =", res.x[1])
-#print("k1_f_MU_ratGM =", res.x[2])
-#print("k2_f_MU_ratGM =", res.x[3])
-
-"""  10) MUisof [As, Ts] on unfused tetanus isometric trial (Burke & exp. data) """
-
-#def obj(x, parameters, states, Distimes, exp_force, model_config): 
-    
-#    parameters['As_peak'] =  x[0]
-#    parameters['As_decay'] =  x[1]
-#    parameters['Ts'] = x[2]
-
-#    model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
-#    out = model.run(output_force=True)
-#    force_sim = out["force"]
-    
-#    residuals = force_sim[0:len(exp_force)] - exp_force  
-#    return np.sum(residuals**2)  
-
-#x0 = [1.2, 0.9, 0.1]
-#bnds = [(1, 3), (0.1, 1), (0.01, 2)]
-
-#res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
 #                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
 
-#print("Optimized parameters:")
-#print("As_peak =", res.x[0])
-#print("As_decay =", res.x[1])
-#print("Ts =", res.x[2])
+# print("Optimized parameters:")
+# print("MVC =", res.x[0])
+# print("Ca_max_f_M =", res.x[1])
+# print("k1_f_M =", res.x[2])
+# print("k2_f_M =", res.x[3])
+
+"""  6) B^M-F_iso-f [l_M_0] on 120 Hz isometric trial (Millard new exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     states['l_M_0'] = x[0]
+#     l_MT_0 = l_T_slack + x[0]*np.cos(alpha_0) 
+#     parameters['l_MT'] = np.full(len(time_dt)+1, float(l_MT_0), dtype=float)
+
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [3]
+# bnds = [(1, 6.6)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("l_M_0 =", res.x[0])
+
+"""  7) B^M-F_dyn [af] on -3l0/s shortening trial at 120 Hz (Brown et al. 1999) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     parameters['af_f'] = x[0]
+
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim[mvc_sample:]/force_sim[mvc_sample] - exp_force[mvc_sample:] # only when displacement is applied
+#     return np.sum(residuals**2)  
+
+# x0 = [0.4]
+# bnds = [(0.1, 3)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#             x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("af_f =", res.x[0])
+
+"""  8) B^MU-S_iso-f [MVC, Ca_max, k1, k2] on tetanic isometric trial at 40 Hz (Burke 1974 exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     parameters['MVC'] =  x[0]
+#     parameters['Ca_max_f_MU_catGM'] = x[1]
+#     parameters['k1_f_MU_catGM'] =  x[2]
+#     parameters['k2_f_MU_catGM'] = x[3]
+
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [0.9, 5e5, 10, 10]
+# bnds = [(0.2, 1.4), (1e5, 1e6), (10, 100), (10, 100)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("MVC =", res.x[0])
+# print("Ca_max_f_MU_catGM =", res.x[1])
+# print("k1_f_MU_catGM =", res.x[2])
+# print("k2_f_MU_catGM =", res.x[3])
+
+"""  9) B^MU-F_iso-f [MVC, Ca_max, k1, k2] on tetanic isometric trial at 150 Hz (Celichowski 1999 exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     parameters['MVC'] =  x[0]
+#     parameters['Ca_max_f_MU_ratGM'] = x[1]
+#     parameters['k1_f_MU_ratGM'] =  x[2]
+#     parameters['k2_f_MU_ratGM'] = x[3]
+
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [0.078, 5e5, 10, 10]
+# bnds = [(0.06, 0.08), (1e5, 1e6), (10, 100), (10, 100)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("MVC =", res.x[0])
+# print("Ca_max_f_MU_ratGM =", res.x[1])
+# print("k1_f_MU_ratGM =", res.x[2])
+# print("k2_f_MU_ratGM =", res.x[3])
+
+"""  10) B^MU-F_iso-f [As_peak, As_decay, Ts] sag parameters on isometric trial at 30 Hz (Celichowski 1999 exp. data) """
+
+# def obj(x, parameters, states, Distimes, exp_force, model_config): 
+    
+#     parameters['As_peak'] = x[0]
+#     parameters['As_decay'] = x[1]
+#     parameters['Ts'] = x[2]
+
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=True)
+#     force_sim = out["force"]
+    
+#     residuals = force_sim[0:len(exp_force)] - exp_force  
+#     return np.sum(residuals**2)  
+
+# x0 = [1.2, 0.9, 0.1]
+# bnds = [(1, 3), (0.1, 1), (0.01, 2)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_force, model_config), 
+#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True})
+
+# print("Optimized parameters:")
+# print("As_peak =", res.x[0])
+# print("As_decay =", res.x[1])
+# print("Ts =", res.x[2])
 
 
-""" 11) Ca transient ODE [c1, c2, c3] parameters estimation """
+""" 11) Ca transient ODE [c1_s, c2_s, c3_s] parameters estimation """
+
+# def obj(x, parameters, states, Distimes, exp_data, model_config): 
+    
+#     parameters['c1_s'] = x[0]
+#     parameters['c2_s'] = x[1]
+#     parameters['c3_s'] = x[2]
+    
+#     model = MU_model(parameters, states, Distimes, model_config) # Create an model class instance
+#     out = model.run(output_force=False)  
+#     Ca = out["Ca"]
+
+#     idx = np.isin(np.round(time_dt,4), np.round((exp_data[:,0]-exp_data[0,0])*1e-3, 4)).nonzero()[0]
+
+#     residuals = Ca[idx]*10**6 - exp_data[:,1]  
+#     return np.sum(residuals**2)  
+
+#     exp_data = Ca_slow_23
+#     x0 = [6.029e3, 1.8e5, 0.54]
+#     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
+
+# res = minimize(lambda x: obj(x, parameters, states, Distimes, exp_data, model_config), 
+#                 x0, method='Nelder-Mead', bounds=bnds, options={'disp': True, 'maxiter': 500})
+
+# print("Optimized parameters:")
+# print("c1 =", res.x[0])M
+# parameters['c1_s'] = res.x[0]
+# print("c2 =", res.x[1])
+# parameters['c2_s'] = res.x[1]
+# print("c3 =", res.x[2])
+# parameters['c3_s'] = res.x[2]
+
+""" 12) Ca transient ODE [c1_f, c2_f, c3_f] parameters estimation """
 
 # def obj(x, parameters, states, Distimes, exp_data, model_config): 
     
@@ -759,11 +826,6 @@ model_config = ModelConfig(
 #     residuals = Ca[idx]*10**6 - exp_data[:,1]  
 #     return np.sum(residuals**2)  
 
-# if fibre == 'slow':
-#     exp_data = Ca_slow_23
-#     x0 = [6.029e3, 1.8e5, 0.54]
-#     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
-# elif fibre == 'fast':
 #     exp_data = Ca_fast_35
 #     x0 = [2.4e3, 4.3e5, 0.6]
 #     bnds = [(1e3, 1e5), (1e5, 1e6), (0.1, 2)]
