@@ -30,8 +30,8 @@ from MU_model import MU_model, ModelConfig
 from benchmark_trials import BENCHMARK_TRIALS
 
 
-BASE_PATH = Path("benchmarkData")
-RESULTS_PATH = Path("results")
+BASE_PATH = Path(__file__).resolve().parent.parent / "benchmarkData"
+RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 
 
 #______________________________________________________________________________________________
@@ -115,7 +115,7 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
     """
 
     data = load_data(data_path, data_type)
-
+    
     if data_type == "rat_EDL_isof":
         freq_map = {30: 0, 50: 1, 60: 2, 70: 3, 80: 4, 90: 5, 100: 6, 120: 7} # freq. map
         seg_idx = freq_map[int(trial)]
@@ -159,7 +159,7 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
     force_interp = sp.interpolate.interp1d(t, force, kind="cubic")(t_interp) # interp force
     force_interp[force_interp < 0] = 0 # inferior limit to 0
 
-    return {"spike_times_sec": spike_times_sec, "t_hi": t_interp, "force_hi": force_interp}
+    return {"spike_times_sec": spike_times_sec, "t_interp": t_interp, "force_interp": force_interp}
 
 def fibre_type(m: str) -> str:  
     """
@@ -303,7 +303,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_force = interp_xy(exp_data, time, kind="cubic") # interp exp force
         distimes = np.load(path / f"{muscle}_{fs}Hz_{stim}_stim.npy")  # load discharge times
 
-    elif benchmark == "isof" and muscle == "rat_EDL":
+    elif scale == "Muscle" and benchmark == "isof" and muscle == "rat_EDL":
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
@@ -486,8 +486,8 @@ def apply_values(case: dict, names: list[str], values: np.ndarray, opt_config: d
         Updated case with modified parameters/states.
     """
 
-    new_case = case.copy()
-    new_case["parameters"] = case["parameters"].copy()
+    new_case = case.copy() 
+    new_case["parameters"] = case["parameters"].copy() 
     new_case["states"] = case["states"].copy()
 
     for name, value in zip(names, values):
@@ -497,7 +497,7 @@ def apply_values(case: dict, names: list[str], values: np.ndarray, opt_config: d
         else:
             new_case["parameters"][name] = value
 
-    if opt_config.get("rebuild_par", False) or opt_config.get("rebuild_lMT_from_lM0", False):
+    if opt_config.get("rebuild_par", False) or opt_config.get("rebuild_lMT_from_lM0", False): # if specified in opt_config, rebuild l_MT from l_M_0 (to ensure consistency when l_M_0 is optimised)
         l_M_0 = new_case["states"].get("l_M_0", case["states"]["l_M_0"])
         l_T_slack = new_case["parameters"]["l_T_slack"]
         alpha_0 = new_case["parameters"]["alpha_0"]
@@ -528,25 +528,25 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
     - residuals: np.ndarray
     """
 
-    target = opt_config.get("target", "force")
+    target = opt_config.get("target", "force") # target reference for optimization (default: force)
 
     if target == "calcium":
         exp_data = case["exp_ca"]
-        t_exp = (exp_data[:, 0] - exp_data[0, 0]) * 1e-3
-        idx = np.isin(np.round(case["time"], 4), np.round(t_exp, 4)).nonzero()[0]
-        sim = out["Ca"][idx] * 1e6
-        exp = exp_data[:, 1]
-        n = min(len(sim), len(exp))
-        return sim[:n] - exp[:n]
+        t_exp = (exp_data[:, 0] - exp_data[0, 0]) * 1e-3 # convert exp time from ms to s and align to model time
+        idx = np.isin(np.round(case["time"], 4), np.round(t_exp, 4)).nonzero()[0] # find indices in model time that correspond to exp time (rounded to 4 decimals to avoid floating point issues)
+        sim = out["Ca"][idx] * 1e6 # convert simulated Ca from M to uM for comparison with exp data
+        exp = exp_data[:, 1] # exp Ca in uM
+        n = min(len(sim), len(exp)) # ensure same length for residuals
+        return sim[:n] - exp[:n] # residuals for calcium transient optimization
 
     sim = out["force"]
     exp = case["exp_force"]
 
     if target == "force_dynamic_ratio":
-        i = int(case["mvc_sample"])
-        sim = sim[i:] / sim[i]
+        i = int(case["mvc_sample"]) # sample index corresponding to MVC (for normalisation)
+        sim = sim[i:] / sim[i] # normalise simulated force to MVC
         exp = exp[i:]
-        n = min(len(sim), len(exp))
+        n = min(len(sim), len(exp)) 
         return sim[:n] - exp[:n]
 
     n = min(len(sim), len(exp))
@@ -568,9 +568,9 @@ def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
         Sum of squared residuals.
     """
 
-    trial_case = apply_values(case, opt_config["parameters"], x, opt_config)
+    trial_case = apply_values(case, opt_config["parameters"], x, opt_config) # apply current parameter values to case
     out = run_case(trial_case)
-    residuals = residual_vector(trial_case, out, opt_config)
+    residuals = residual_vector(trial_case, out, opt_config) # compute residuals
     return float(np.sum(residuals ** 2))
 
 
@@ -592,33 +592,33 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
         Optimisation result object.
     """
 
-    opt_config = case["config"].get("optimization")
+    opt_config = case["config"].get("optimization") # get optimiziation config from case
     if opt_config is None:
         raise ValueError(f"No optimization block found for trial '{case['name']}'.")
 
-    x0 = np.asarray(opt_config["x0"], dtype=float)
-    bounds = opt_config.get("bounds")
-    method = opt_config.get("method", "Nelder-Mead")
+    x0 = np.asarray(opt_config["x0"], dtype=float) # initial parameter values
+    bounds = opt_config.get("bounds") # parameter bounds (optional)
+    method = opt_config.get("method", "Nelder-Mead") # optimization method (default: Nelder-Mead)
 
-    options = {"disp": True}
-    if maxiter is not None:
+    options = {"disp": True} # display optimization progress
+    if maxiter is not None: # set maxiter if provided as argument, otherwise use value from opt_config if available
         options["maxiter"] = int(maxiter)
     elif opt_config.get("maxiter") is not None:
         options["maxiter"] = int(opt_config["maxiter"])
 
     print("\nOptimisation:", opt_config.get("label", case["name"]))
     print("Parameters:", ", ".join(opt_config["parameters"]))
-
+    
     res = minimize(
         lambda x: objective(x, case, opt_config),
         x0,
         method=method,
         bounds=bounds,
         options=options,
-    )
+    ) # run optimization
 
-    opt_case = apply_values(case, opt_config["parameters"], res.x, opt_config)
-    out = run_case(opt_case)
+    opt_case = apply_values(case, opt_config["parameters"], res.x, opt_config) # apply optimised values to case
+    out = run_case(opt_case) # run model with optimised case to get output for plotting/saving
 
     print("\nOptimized parameters:")
     for pname, pvalue in zip(opt_config["parameters"], res.x):
@@ -632,7 +632,7 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
 # Plot and save
 # _____________________________________________________________________
 
-def plot_case(case: dict, out: dict, show: bool = True) -> None:
+def plot_case(case: dict, out: dict, show: bool = True):
     """
     Plot simulated vs experimental results.
 
@@ -655,9 +655,9 @@ def plot_case(case: dict, out: dict, show: bool = True) -> None:
         exp_force = np.asarray(case["exp_force"], dtype=float).copy()
 
         if case["normalise_dynamic_force"]:
-            i = int(case["mvc_sample"])
-            force_sim = force_sim / force_sim[i]
-            if not np.isclose(float(case["config"]["freq"]), 120.0):
+            i = int(case["mvc_sample"]) # sample index corresponding to MVC (for normalisation)
+            force_sim = force_sim / force_sim[i] # normalise simulated force to MVC
+            if not np.isclose(float(case["config"]["freq"]), 120.0): # for the 120Hz dynamic trials, exp force is already normalised to MVC, so only normalise if not 120Hz
                 exp_force = exp_force / exp_force[i]
 
         plt.figure(figsize=(8, 4))
@@ -688,7 +688,7 @@ def plot_case(case: dict, out: dict, show: bool = True) -> None:
         plt.show()
 
 
-def save_case(case: dict, out: dict, opt_result=None) -> None:
+def save_case(case: dict, out: dict, opt_result=None):
     """
     Save simulation results, experimental data, figures, and optimisation results.
 
@@ -718,8 +718,8 @@ def save_case(case: dict, out: dict, opt_result=None) -> None:
         np.save(RESULTS_PATH / "simulated" / f"{name}_Ca.npy", out["Ca"])
         np.save(RESULTS_PATH / "experimental" / f"{name}_Ca.npy", case["exp_ca"])
 
-    if opt_result is not None:
-        opt_config = case["config"].get("optimization", {})
+    if opt_result is not None: # if optimization was performed, save the optimized parameter values and objective value in a text file
+        opt_config = case["config"].get("optimization", {}) # get optimization config for label and parameter names
         with open(RESULTS_PATH / "optimisation" / f"{name}_optimised.txt", "w", encoding="utf-8") as f:
             f.write(opt_config.get("label", name) + "\n")
             f.write(f"Objective = {opt_result.fun}\n")
@@ -735,7 +735,7 @@ def save_case(case: dict, out: dict, opt_result=None) -> None:
 # Command line interface
 # _____________________________________________________________________
 
-def main() -> None:
+def main():
     """
     Command-line interface for running and optimising benchmark trials.
 
@@ -746,8 +746,8 @@ def main() -> None:
     - --save: save outputs
     - --no-plot: disable plotting
     """
-    
-    parser = argparse.ArgumentParser(description="Run or optimise one muscle-model benchmark trial.")
+
+    parser = argparse.ArgumentParser(description="Run or optimise one muscle-model benchmark trial.") 
     parser.add_argument("trial", nargs="?", help="Trial name from benchmark_trials.py")
     parser.add_argument("--save", action="store_true", help="Save simulated/experimental arrays and figure.")
     parser.add_argument("--no-plot", action="store_true", help="Run without showing the plot.")
