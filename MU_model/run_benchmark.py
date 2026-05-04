@@ -3,24 +3,21 @@ Author: Andrea Sgarzi
 Email: a.sgarzi@ad.unsw.edu.au
 Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
-This script implements a collection of animal-based experimental benchmarks
-used to validate and test a motor-unit (MU) driven muscle model.
+Run, plot, save, or optimise one benchmark trial for the MU-driven muscle model.
 
-The benchmarks include:
-- Slow and fast fibre types
-- Isometric and dynamic contractions at various frequencies
-- Muscle-scale, motor-unit-scale, and calcium-transient-scale simulations
-
-Experimental datasets are derived from the literature and are used to:
-- Configure model parameters and inputs (stimulation, length, force)
-- Select active model components (tendon, force-length, force-velocity, yielding, sag)
-- Compare simulated outputs against experimental force or calcium traces
+The trial-specific information is stored in benchmark_trials.py. This driver mainly:
+- loads the appropriate experimental data and stimulation input;
+- constructs the model input dictionaries;
+- runs the model;
+- optionally runs the optimisation block associated with a trial;
+- optionally saves simulated/experimental outputs and figures.
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -34,7 +31,7 @@ from benchmark_trials import BENCHMARK_TRIALS
 
 
 BASE_PATH = Path("benchmarkData")
-#RESULTS_PATH = Path("results")
+RESULTS_PATH = Path("results")
 
 
 #______________________________________________________________________________________________
@@ -42,6 +39,21 @@ BASE_PATH = Path("benchmarkData")
 #______________________________________________________________________________________________
 
 def load_data(file: Path, data_type: str) -> np.ndarray:
+    """
+    Load experimental data from text-based files (.dat/.ddf) applying the correct
+    number of header rows to skip depending on the dataset.
+
+    Inputs:
+    - file: Path
+        Path to the data file.
+    - data_type: str
+        Identifier of the dataset (used to determine how many rows to skip).
+
+    Outputs:
+    - data: np.ndarray
+        Loaded data array (typically columns = time, force, etc.).
+    """
+
     skip_rows = {
         "rat_SOL_dyn2_disp": 16,
         "rat_SOL_dyn2_force": 15,        
@@ -53,14 +65,55 @@ def load_data(file: Path, data_type: str) -> np.ndarray:
         "rat_EDL_isol": 99,
         "rat_EDL_dyn": 190,
     }
-    return np.loadtxt(file, delimiter="\t", skiprows=skip_rows[data_type]) # load data skipping sepcified n. of rows
+    return np.loadtxt(file, delimiter="\t", skiprows=skip_rows[data_type]) 
 
 
 def interp_xy(data: np.ndarray, t_new: np.ndarray, kind: str = "cubic") -> np.ndarray:
-    return sp.interpolate.interp1d(data[:, 0], data[:, 1], kind=kind)(t_new) # cubic interp
+    """
+    Interpolate experimental data onto a new time vector.
+
+    Inputs:
+    - data: np.ndarray
+        Input array with columns [time, signal].
+    - t_new: np.ndarray
+        Target time vector for interpolation.
+    - kind: str
+        Interpolation type ("linear", "cubic", etc.).
+
+    Outputs:
+    - y_interp: np.ndarray
+        Interpolated signal aligned to t_new.
+    """
+
+    return sp.interpolate.interp1d(data[:, 0], data[:, 1], kind=kind)(t_new) 
 
 
 def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1000, dt: float = 1e-4) -> dict:
+    """
+    Extract and process a specific rat EDL trial from .ddf files.
+
+    The function selects the correct segment (based on frequency or length),
+    extracts force and spike data, and interpolates them.
+
+    Inputs:
+    - data_path: Path
+        Path to the .ddf file.
+    - data_type: str
+        Type of dataset ("rat_EDL_isof", "rat_EDL_isol", etc.).
+    - trial: int or float
+        Identifier of the trial (frequency or length depending on dataset).
+    - f: int
+        Sampling frequency of the experimental data.
+    - dt: float
+        Desired time resolution for interpolation.
+
+    Outputs:
+    - dict containing:
+        - "spike_times_sec": np.ndarray
+        - "t_interp": np.ndarray
+        - "force_interp": np.ndarray
+    """
+
     data = load_data(data_path, data_type)
 
     if data_type == "rat_EDL_isof":
@@ -109,12 +162,36 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
     return {"spike_times_sec": spike_times_sec, "t_hi": t_interp, "force_hi": force_interp}
 
 def fibre_type(m: str) -> str:  
-        if m in {"rat_SOL", "cat_SOL", "cat_LG"}:  # slow muscles
-            return "slow"  
-        if m in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # fast muscles
-            return "fast"  
+    """
+    Infer fibre type (slow or fast) from muscle name.
 
-def build_model_config(config: dict) -> ModelConfig:
+    Inputs:
+    - m: str
+        Muscle name (e.g., "rat_SOL", "cat_CF").
+
+    Outputs:
+    - fibre_type: str
+        "slow" or "fast".
+    """
+
+    if m in {"rat_SOL", "cat_SOL", "cat_LG"}:  # slow muscles
+        return "slow"  
+    if m in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # fast muscles
+        return "fast"  
+
+def build_model_config(config: dict) -> ModelConfig: 
+    """
+    Build ModelConfig object from trial configuration.
+
+    Inputs:
+    - config: dict
+        Trial configuration dictionary (from benchmark_trials.py).
+
+    Outputs:
+    - model_config: ModelConfig
+        Configuration of active model components (SE, PE, FL, FV, etc.).
+    """
+
     return ModelConfig(
         use_SE=bool(config.get("use_SE", False)),
         use_PE=bool(config.get("use_PE", False)),
@@ -129,16 +206,48 @@ def build_model_config(config: dict) -> ModelConfig:
 # Benchmark trial builder
 #___________________________________________________________________________________________________
 
-def build_case(name: str, config: dict) -> dict:
+def build_case(name: str, config: dict) -> dict: 
+    """
+    Build a benchmark case by loading experimental data and constructing
+    the required model inputs (time, l_MT, discharge times, etc.).
 
+    The behaviour depends on the benchmark type (isof, isol, dyn, MU, Ca_transients).
+
+    Inputs:
+    - name: str
+        Name of the trial.
+    - config: dict
+        Trial configuration from benchmark_trials.py.
+
+    Outputs:
+    - case: dict containing:
+        - "time": np.ndarray
+        - "l_MT": np.ndarray
+        - "distimes": np.ndarray
+        - "exp_force": np.ndarray (if applicable)
+        - "exp_ca": np.ndarray (if applicable)
+        - "output_force": bool
+        - "normalise_dynamic_force": bool
+        - "mvc_sample": int (if applicable)
+    """
+
+    scale = config["scale"] # muscle scale ("Muscle", "MU" or "Ca_transients")
     benchmark = config["benchmark"] # benchmark name (based on paper)
     muscle = config["muscle"] # muscle name ("species_muscle")
     t_end = config.get("t_end", None) # final simulation time
     fs = str(config["freq"]) # stimulation frequency
     dt = 1e-4 # simulation time step
-    if t_end != None: time = np.arange(0, t_end, dt) # create time vector if final time is known
+    time = None if t_end is None else np.arange(0, float(t_end), dt)# create time vector if final time is known
 
-    if benchmark == "dyn2" and muscle == "rat_SOL": # SLOW MUSCLE dynamic benchmark (Krylow, Sandercock 1997)
+    exp_force = None
+    exp_ca = None
+    distimes = None
+    l_MT = None
+    output_force = scale != "Ca_transients"
+    normalise_dynamic_force = False
+    mvc_sample = None
+
+    if scale == "Muscle" and benchmark == "dyn2" and muscle == "rat_SOL": # SLOW MUSCLE dynamic benchmark (Krylow, Sandercock 1997)
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
@@ -153,7 +262,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_force = interp_xy(exp_data, time, kind="quadratic") # interp exp force
         distimes = np.arange(0, t_end, 1/float(fs)) # create discharge times
 
-    elif benchmark == "isof" and muscle == "cat_SOL": # SLOW MUSCLE iso-f benchmark (Perreault et al. 2003)
+    elif scale == "Muscle" and benchmark == "isof" and muscle == "cat_SOL": # SLOW MUSCLE iso-f benchmark (Perreault et al. 2003)
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
@@ -165,7 +274,7 @@ def build_case(name: str, config: dict) -> dict:
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0 # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif benchmark == "isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
+    elif scale == "Muscle" and benchmark == "isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
@@ -178,14 +287,13 @@ def build_case(name: str, config: dict) -> dict:
         if int(fs) == 1: # twitch case
             distimes = np.round(distimes, 3)
 
-    elif benchmark == "dyn1" and muscle == "cat_SOL":
+    elif scale == "Muscle" and benchmark == "dyn1" and muscle == "cat_SOL": # SLOW MUSCLE dyn1 benchmark (Perreault et al. 2003)
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
         stim = config["stim"] # stimulation type (constant: "c" vs. random/variable: "v")
         d = int(config["displacement_mm"]) # extract discplacement amplitude (to select disp file, based on ref.)
-        disp_file = path / f"cat_SOL_{d}mm_disp.dat"
-        disp = load_data(disp_file, "cat_SOL_dyn1_disp") # load displacement
+        disp = load_data(path / f"{muscle}_{d}mm_disp.dat", "cat_SOL_dyn1_disp") # load displacement
         disp = interp_xy(disp, np.arange(0, t_end + dt, dt), kind="cubic") # interp displacement
     
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0 # initial musculo-tendon length
@@ -199,29 +307,29 @@ def build_case(name: str, config: dict) -> dict:
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
-        if fs == 1:
-            part = extract_ratEDL_trial(path / "rat_EDL_isof_1Hz.ddf", "rat_EDL_isof_1Hz") # extract twitch trial (1Hz) with LPF
+        if int(fs) == 1:
+            part = extract_ratEDL_trial(path / f"{muscle}_isof_1Hz.ddf", "rat_EDL_isof_1Hz", dt=dt) # extract isof trial with 1Hz frequency (twitch)
         else:
-            part = extract_ratEDL_trial(path / "rat_EDL_isof.ddf", "rat_EDL_isof", trial=int(fs)) # extract isof trial with specified frequency
+            part = extract_ratEDL_trial(path / f"{muscle}_isof.ddf", "rat_EDL_isof", trial=int(fs), dt=dt) # extract isof trial with specified frequency
         time = part["t_interp"] # load exp time
         exp_force = part["force_interp"] # load exp force
         distimes = part["spike_times_sec"] # load discharge times
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif benchmark == "isol" and muscle == "rat_EDL":
+    elif scale == "Muscle" and benchmark == "isol" and muscle == "rat_EDL":
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
         l = float(config["length_mm"]) # length offset (to select length trial, based on ref.)
-        part = extract_ratEDL_trial(path / "rat_EDL_isof.ddf", "rat_EDL_isof", trial=l) # extract isof trial with specified frequency
+        part = extract_ratEDL_trial(path / f"{muscle}_isol.ddf", "rat_EDL_isol", trial=l, dt=dt) # extract isof trial with specified frequency
         time = part["t_interp"] # load exp time
         exp_force = part["force_interp"] # load exp force
         distimes = part["spike_times_sec"] # load discharge times
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) + l # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif benchmark == "dyn" and muscle == "cat_CF":
+    elif scale == "Muscle" and benchmark == "dyn" and muscle == "cat_CF":
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
@@ -290,25 +398,50 @@ def build_case(name: str, config: dict) -> dict:
         if muscle == "cat_SOL":
             exp_ca = pd.read_csv(path / "Ca_slow_23_100Hz.csv", delimiter=' ').to_numpy()
             l_MT = np.full(len(time), 1, dtype=float) # full MT length array
-            T = 1/fs # adjusted from paper
-            distimes = np.arange(0, 0.04, T)
-
+            distimes = np.arange(0, 0.04, 1/fs) # adjusted from paper
         elif muscle == "rat_EDL":
             exp_ca = pd.read_csv(path / "Ca_fast_35_125Hz.csv", delimiter=' ').to_numpy()
             l_MT = np.full(len(time), 1.6, dtype=float) # full MT length array
-            T = 1/fs # adjusted from paper
-            distimes = np.arange(0, 0.08, T)
-
+            distimes = np.arange(0, 0.08, 1/fs) # adjusted from paper
     else:
         raise ValueError(f"No loader implemented for Muscle benchmark '{benchmark}' and muscle '{muscle}'.")
+    
+    if time is None or l_MT is None or distimes is None:
+        raise RuntimeError(f"Incomplete case construction for trial '{name}'.")
+    
+    parameters = {
+        "time": np.asarray(time, dtype=float),
+        "dt": dt,
+        "muscle": muscle,
+        "scale": scale,
+        "MVC": float(config["MVC"]),
+        "vmax": float(config.get("vmax", 10.0)), # 10 if not specified
+        "alpha_0": float(config["alpha_0"]),
+        "l_MT": np.asarray(l_MT, dtype=float).ravel(),
+        "l_M_opt": float(config["l_M_opt"]),
+        "l_T_slack": float(config["l_T_slack"]),
+    }
+
+    states = {
+        "MUAP_0": 0.0,
+        "Ca_0": 0.0,
+        "act_0": 1e-9,
+        "l_M_0": float(config["l_M_0"]),
+        "y_0": 1.0,
+        "s_0": 1.0,
+    }
 
     return {
-        "time": time,
-        "l_MT": np.asarray(l_MT, dtype=float).ravel(),
+        "name": name,
+        "config": config,
+        "parameters": parameters,
+        "states": states,
         "distimes": np.asarray(distimes, dtype=float).ravel(),
+        "model_config": build_model_config(config),
+        "time": parameters["time"],
         "exp_force": exp_force,
         "exp_ca": exp_ca,
-        "output_force": True,
+        "output_force": output_force,
         "normalise_dynamic_force": normalise_dynamic_force,
         "mvc_sample": mvc_sample,
     }
@@ -319,37 +452,82 @@ def build_case(name: str, config: dict) -> dict:
 # _____________________________________________________________________
 
 def run_case(case: dict) -> dict:
+    """
+    Run the muscle model for a given benchmark case.
+
+    Inputs:
+    - case: dict
+        Fully constructed case containing parameters, states, and inputs.
+
+    Outputs:
+    - out: dict
+        Model outputs (force, Ca, activation, etc.).
+    """
     model = MU_model(case["parameters"], case["states"], case["distimes"], case["model_config"])
     return model.run(output_force=case["output_force"])
 
 
 def apply_values(case: dict, names: list[str], values: np.ndarray, opt_config: dict) -> dict:
-    # Copy enough of the case to avoid carrying parameter changes between objective calls.
+    """
+    Apply new parameter/state values to a case (used during optimisation).
+
+    Inputs:
+    - case: dict
+        Original case.
+    - names: list[str]
+        Names of parameters or states to modify.
+    - values: np.ndarray
+        New values.
+    - opt_config: dict
+        Optimisation configuration.
+
+    Outputs:
+    - new_case: dict
+        Updated case with modified parameters/states.
+    """
+
     new_case = case.copy()
     new_case["parameters"] = case["parameters"].copy()
     new_case["states"] = case["states"].copy()
 
     for name, value in zip(names, values):
         value = float(value)
-        if name in new_case["parameters"]:
-            new_case["parameters"][name] = value
-        elif name in new_case["states"]:
+        if name in new_case["states"]:
             new_case["states"][name] = value
         else:
-            raise ValueError(f"Cannot optimise unknown parameter/state: {name}")
+            new_case["parameters"][name] = value
 
-    # Special case used in the old script: l_M_0 changes the isometric MT length too.
-    if opt_config.get("rebuild_lMT_from_lM0", False):
-        l_M_0 = new_case["states"]["l_M_0"]
+    if opt_config.get("rebuild_par", False) or opt_config.get("rebuild_lMT_from_lM0", False):
+        l_M_0 = new_case["states"].get("l_M_0", case["states"]["l_M_0"])
         l_T_slack = new_case["parameters"]["l_T_slack"]
         alpha_0 = new_case["parameters"]["alpha_0"]
         l_MT_0 = l_T_slack + l_M_0 * np.cos(alpha_0)
-        new_case["parameters"]["l_MT"] = np.full(len(new_case["time"]) + 1, float(l_MT_0), dtype=float)
+        n = len(new_case["time"]) + 1 if new_case["model_config"].use_SE else len(new_case["time"])
+        new_case["parameters"]["l_MT"] = np.full(n, float(l_MT_0), dtype=float)
 
     return new_case
 
 
 def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
+    """
+    Compute residuals between simulated and experimental data.
+
+    Target ref.erences for optimisation can be specified in opt_config["target"] and include:
+    - force
+    - dynamic force ratio
+    - calcium transients
+
+    Inputs:
+    - case: dict
+    - out: dict
+        Model output.
+    - opt_config: dict
+        Optimisation settings.
+
+    Outputs:
+    - residuals: np.ndarray
+    """
+
     target = opt_config.get("target", "force")
 
     if target == "calcium":
@@ -376,13 +554,44 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
 
 
 def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
+    """
+    Objective function for optimisation (sum of squared residuals).
+
+    Inputs:
+    - x: np.ndarray
+        Current parameter values.
+    - case: dict
+    - opt_config: dict
+
+    Outputs:
+    - error: float
+        Sum of squared residuals.
+    """
+
     trial_case = apply_values(case, opt_config["parameters"], x, opt_config)
     out = run_case(trial_case)
     residuals = residual_vector(trial_case, out, opt_config)
     return float(np.sum(residuals ** 2))
 
 
-def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, object]:
+def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, Any]:
+    """
+    Run parameter optimisation for a given case.
+
+    Inputs:
+    - case: dict
+    - maxiter: int or None
+        Maximum number of iterations.
+
+    Outputs:
+    - opt_case: dict
+        Case with optimised parameters.
+    - out: dict
+        Model output using optimised parameters.
+    - res: OptimizeResult
+        Optimisation result object.
+    """
+
     opt_config = case["config"].get("optimization")
     if opt_config is None:
         raise ValueError(f"No optimization block found for trial '{case['name']}'.")
@@ -412,8 +621,8 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, o
     out = run_case(opt_case)
 
     print("\nOptimized parameters:")
-    for name, value in zip(opt_config["parameters"], res.x):
-        print(f"  {name} = {value:.8g}")
+    for pname, pvalue in zip(opt_config["parameters"], res.x):
+        print(f"  {pname} = {pvalue:.8g}")
     print(f"Objective = {res.fun:.8g}")
 
     return opt_case, out, res
@@ -424,22 +633,36 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, o
 # _____________________________________________________________________
 
 def plot_case(case: dict, out: dict, show: bool = True) -> None:
-    scale = case["config"]["scale"]
-    time_dt = case["time"]
+    """
+    Plot simulated vs experimental results.
 
-    if scale in {"M", "MU"}:
+    Supports:
+    - Force (Muscle / MU)
+    - Calcium transients
+
+    Inputs:
+    - case: dict
+    - out: dict
+    - show: bool
+        Whether to display the plot.
+    """
+
+    scale = case["config"]["scale"]
+    time = case["time"]
+
+    if scale in {"Muscle", "MU"}:
         force_sim = out["force"].copy()
-        exp_force = case["exp_force"].copy()
+        exp_force = np.asarray(case["exp_force"], dtype=float).copy()
 
         if case["normalise_dynamic_force"]:
-            i = case["mvc_sample"]
+            i = int(case["mvc_sample"])
             force_sim = force_sim / force_sim[i]
-            if case["config"].get("frequency") != "120":
+            if not np.isclose(float(case["config"]["freq"]), 120.0):
                 exp_force = exp_force / exp_force[i]
 
         plt.figure(figsize=(8, 4))
-        plt.plot(time_dt, force_sim, label="Simulated Force", linewidth=2)
-        plt.plot(time_dt[: len(exp_force)], exp_force[: len(time_dt)], "k", label="Experimental Force", linewidth=1.5)
+        plt.plot(time, force_sim, label="Simulated Force", linewidth=2)
+        plt.plot(time[: len(exp_force)], exp_force[: len(time)], "k", label="Experimental Force", linewidth=1.5)
         plt.ylabel("Force [N]", fontsize=12)
         plt.xlabel("Time [s]", fontsize=12)
         plt.title(case["name"], weight="bold")
@@ -447,17 +670,14 @@ def plot_case(case: dict, out: dict, show: bool = True) -> None:
         plt.grid()
         plt.tight_layout()
 
-    elif scale == "Ca":
-        Ca = out["Ca"]
+    elif scale == "Ca_transients":
         exp_ca = case["exp_ca"]
-        fibre_type = case["config"]["fibre_type"]
-
         plt.figure(figsize=(5, 3), dpi=300)
-        plt.plot(time_dt, Ca * 1e6, label="Simulated")
+        plt.plot(time, out["Ca"] * 1e6, label="Simulated")
         plt.plot((exp_ca[:, 0] - exp_ca[0, 0]) * 1e-3, exp_ca[:, 1], "k--", label="Experimental")
         plt.xlabel("Time [s]", fontsize=12)
         plt.ylabel(r"[$Ca^{2+}$] [$\mu$M]", fontsize=12)
-        plt.title(f"Ca transient - {fibre_type}", weight="bold")
+        plt.title(case["name"], weight="bold")
         plt.xlim((0, 0.15))
         plt.ylim((0, 20))
         plt.legend(loc="upper right")
@@ -469,6 +689,21 @@ def plot_case(case: dict, out: dict, show: bool = True) -> None:
 
 
 def save_case(case: dict, out: dict, opt_result=None) -> None:
+    """
+    Save simulation results, experimental data, figures, and optimisation results.
+
+    Outputs are saved in:
+    - results/simulated/
+    - results/experimental/
+    - results/figures/
+    - results/optimisation/
+
+    Inputs:
+    - case: dict
+    - out: dict
+    - opt_result: optional optimisation result
+    """
+
     name = case["name"]
     RESULTS_PATH.mkdir(exist_ok=True)
     (RESULTS_PATH / "simulated").mkdir(exist_ok=True)
@@ -476,7 +711,7 @@ def save_case(case: dict, out: dict, opt_result=None) -> None:
     (RESULTS_PATH / "figures").mkdir(exist_ok=True)
     (RESULTS_PATH / "optimisation").mkdir(exist_ok=True)
 
-    if case["config"]["scale"] in {"M", "MU"}:
+    if case["config"]["scale"] in {"Muscle", "MU"}:
         np.save(RESULTS_PATH / "simulated" / f"{name}_force.npy", out["force"])
         np.save(RESULTS_PATH / "experimental" / f"{name}_force.npy", case["exp_force"])
     else:
@@ -501,27 +736,44 @@ def save_case(case: dict, out: dict, opt_result=None) -> None:
 # _____________________________________________________________________
 
 def main() -> None:
+    """
+    Command-line interface for running and optimising benchmark trials.
+
+    Available options:
+    - --list: list all trials
+    - --list-opt: list trials with optimisation
+    - --optimize: run optimisation
+    - --save: save outputs
+    - --no-plot: disable plotting
+    """
+    
     parser = argparse.ArgumentParser(description="Run or optimise one muscle-model benchmark trial.")
     parser.add_argument("trial", nargs="?", help="Trial name from benchmark_trials.py")
     parser.add_argument("--save", action="store_true", help="Save simulated/experimental arrays and figure.")
     parser.add_argument("--no-plot", action="store_true", help="Run without showing the plot.")
     parser.add_argument("--list", action="store_true", help="List available trials.")
     parser.add_argument("--list-opt", action="store_true", help="List trials that include an optimisation block.")
+    parser.add_argument("--benchmark", default=None, help="Optional benchmark filter for --list, e.g. isof, isol, dyn, dyn1, dyn2.")
+    parser.add_argument("--scale", default=None, help="Optional scale filter for --list, e.g. Muscle, MU, Ca_transients.")
     parser.add_argument("--optimize", action="store_true", help="Run the optimisation block associated with this trial.")
     parser.add_argument("--maxiter", type=int, default=None, help="Override optimisation maxiter.")
     args = parser.parse_args()
 
     if args.list:
         print("Available benchmark trials:")
-        for key in BENCHMARK_TRIALS:
+        for key, cfg in BENCHMARK_TRIALS.items():
+            if args.benchmark is not None and cfg.get("benchmark") != args.benchmark:
+                continue
+            if args.scale is not None and cfg.get("scale") != args.scale:
+                continue
             print(f"  {key}")
         return
 
     if args.list_opt:
         print("Trials with optimisation blocks:")
-        for key, config in BENCHMARK_TRIALS.items():
-            if "optimization" in config:
-                label = config["optimization"].get("label", "")
+        for key, cfg in BENCHMARK_TRIALS.items():
+            if "optimization" in cfg:
+                label = cfg["optimization"].get("label", "")
                 print(f"  {key}: {label}")
         return
 
