@@ -4,10 +4,10 @@
 ~*.f
 *.pyc
 *.cpp
-*.csv
-*.dat
-*.ddf
-*.npy
+#*.csv
+#*.dat
+#*.ddf
+#*.npy
 
 
 git-filter-repo

@@ -41,7 +41,7 @@ class Params:
     time: np.ndarray            # time vector
     dt: float                   # time resolution (s)
     muscle: str                 # e.g. 'rat_SOL', 'rat_EDL', 'cat_SOL', 'cat_GM', 'cat_CF'
-    scale: str                  # 'M', 'MU', 'Ca'
+    scale: str                  # 'Muscle', 'MU', 'Ca'
     MVC: float                  # maximum isometric force [N]
     vmax: float                 # maximum contraction velocity [l0/s] (later scaled by l_M_opt)
     alpha_0: float              # initial pennation angle [rad]
@@ -83,7 +83,7 @@ class Params:
 
         if self.muscle in {"cat_SOL", "rat_SOL"}:  # tendon stiffness is muscle-specific
             self.eps_0 = 0.06  # Soleus literature (see paper)
-        elif self.muscle in {"rat_EDL", "cat_GM", "cat_CF", "rat_GM"}:  # other muscle group
+        elif self.muscle in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # other muscle group
             self.eps_0 = 0.04  # Thelen-type stiffness (see paper notes)
         else:  
             self.eps_0 = 0.06  # animal soleus literature
@@ -394,19 +394,19 @@ class Ephys:
         
         P = self.P  # keep parameters
 
-        if fibre_type == "slow" and P.scale in {"M", "Ca"}:  # slow muscle scale
+        if fibre_type == "slow" and P.scale in {"Muscle", "Ca_transients"}:  # slow muscle scale
             Ca_norm = Ca * P.Ca_max_s_M  # scale normalized Ca
             k1, k2 = P.k1_s_M, P.k2_s_M  # kinetics
-        elif fibre_type == "fast" and P.scale in {"M", "Ca"}:  # fast muscle scale
+        elif fibre_type == "fast" and P.scale in {"Muscle", "Ca_transients"}:  # fast muscle scale
             Ca_norm = Ca * P.Ca_max_f_M  
             k1, k2 = P.k1_f_M, P.k2_f_M  
         elif fibre_type == "slow" and P.scale == "MU":  # slow MU scale
             Ca_norm = Ca * P.Ca_max_s_MU  
             k1, k2 = P.k1_s_MU, P.k2_s_MU  
-        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "cat_GM":  # fast MU scale
+        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "cat_MG":  # fast MU scale
             Ca_norm = Ca * P.Ca_max_f_MU_catGM  
             k1, k2 = P.k1_f_MU_catGM, P.k2_f_MU_catGM  
-        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "rat_GM":  # fast MU scale
+        elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "rat_MG":  # fast MU scale
             Ca_norm = Ca * P.Ca_max_f_MU_ratGM  
             k1, k2 = P.k1_f_MU_ratGM, P.k2_f_MU_ratGM      
         else:  
@@ -446,7 +446,7 @@ class Ephys:
         - dsag: float, sag derivative.
         """
         P = self.P
-        if P.muscle == "cat_GM":
+        if P.muscle == "cat_MG":
             tp = 0.262
         else:
             tp = 0.1
@@ -464,7 +464,7 @@ class Ephys:
 
 @dataclass(frozen=True)  # fixed configuration
 class ModelConfig:  # configuration of model components
-    use_tendon: bool = True     # SE + pennation + l_M ODE, otherwise l_M == l_MT
+    use_SE: bool = True     # SE + pennation + l_M ODE, otherwise l_M == l_MT
     use_PE: bool = True         # include passive elastic element
     use_FL: bool = True         # include force-length relationship
     use_FV: bool = True         # include force-velocity relationship
@@ -487,7 +487,7 @@ def build_state_names(model_config: ModelConfig) -> List[str]:
     """
     
     names = ["beta", "dbeta", "Ca", "dCa", "act"]  # always-present states
-    if model_config.use_tendon:  # tendon system requires fibre length state
+    if model_config.use_SE:  # tendon system requires fibre length state
         names.append("l_M")  
     if model_config.use_yielding:  # yielding only if enabled
         names.append("yielding")  
@@ -544,7 +544,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         time_index = max(0, min(time_index, len(P.time) - 1))  # clamp time index to valid range
         act = float(y[state_index_local["act"]])  # read activation state
 
-        if model_config.use_tendon:  # tendon system: l_M is dynamic
+        if model_config.use_SE:  # tendon system: l_M is dynamic
             l_M = float(y[state_index_local["l_M"]])  # read muscle fibre length from state
             alpha = self.mech.pennation(l_M, self.S.l_M_0, P.alpha_0) # pick current pennation
             l_T = float(P.l_MT[time_index] - l_M * np.cos(alpha))  # compute tendon length from geometry
@@ -560,7 +560,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         f_PE = float(self.mech.passive_pe(lM_norm)) if model_config.use_PE else 0.0  # passive force if enabled
         FL = float(self.mech.force_length(act, lM_norm)) if model_config.use_FL else 1.0  # FL force if enabled
 
-        if model_config.use_tendon:  # if tendon: CE force from equilibrium
+        if model_config.use_SE:  # if tendon: CE force from equilibrium
             f_CE = float(f_SE / max(1e-9, np.cos(alpha)) - f_PE)  # CE force (normalized)
         else:  # no tendon: CE not defined in equilibrium form
             f_CE = 0.0  # set to 0 for completeness
@@ -568,7 +568,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         # Yielding can be applied also without tendon, because v_M is still available from l_MT kinematics
         # Therefore  v_M is always computed when possible (even if FV is disabled).
         if model_config.use_FV:  # FV enabled
-            if model_config.use_tendon:  # tendon system: invert FV to get v_M
+            if model_config.use_SE:  # tendon system: invert FV to get v_M
                 v_M = float(self.mech.fv_velocity(act, lM_norm, f_CE / max(1e-12, FL), FL, fibre_type, P.vmax))  # fibre velocity
                 FV = float(self.mech.fv_force(act, v_M / P.vmax, FL, lM_norm, fibre_type))  # FV factor
             else:  # no tendon: v_M from imposed MT kinematics
@@ -577,7 +577,7 @@ class ODESystem:  # ODE assembly and consistent force computations
                 FV = float(self.mech.fv_force(act, v_norm, FL, lM_norm, fibre_type))  # FV factor
         else:  # FV disabled
             # still compute v_M in the no-tendon case so yielding has access to velocity
-            if model_config.use_tendon:  # tendon case with FV disabled
+            if model_config.use_SE:  # tendon case with FV disabled
                 v_M = 0.0  # neutral choice (no FV inversion available)
             else:  # no tendon case: velocity is imposed by l_MT regardless of FV usage
                 v_M = float(self._v_lMT[time_index])  # imposed fibre velocity
@@ -617,7 +617,7 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         DDbeta = self.eph.MU_AP_2nd(t, distimes, beta, dbeta)  # MUAP second derivative
 
-        if model_config.use_tendon:  # if tendon system use fibre length state for Ca kinetics
+        if model_config.use_SE:  # if tendon system use fibre length state for Ca kinetics
             l_norm_for_Ca = float(y[state_index_local["l_M"]]) / P.l_M_opt  # normalized fibre length
         else:  # otherwise use imposed MT length for Ca kinetics
             l_norm_for_Ca = float(P.l_MT[time_index] / P.l_M_opt)  # normalized imposed length
@@ -643,7 +643,7 @@ class ODESystem:  # ODE assembly and consistent force computations
             yld = float(y[state_index_local["yielding"]])  # current yielding state
             dydt[state_index_local["yielding"]] = self.eph.yield_dot(yld, forces["v_M"] / P.vmax)  # yielding derivative
 
-        if model_config.use_tendon:  # tendon system adds l_M dynamics and pennation update
+        if model_config.use_SE:  # tendon system adds l_M dynamics and pennation update
             dydt[state_index_local["l_M"]] = forces["v_M"]  # dl_M/dt = fibre velocity
 
         return dydt  # return derivatives to the integrator
@@ -683,9 +683,9 @@ class MuscleModel:  # main model object
         """
         
         m = self.P.muscle  # local muscle name
-        if m in {"rat_SOL", "cat_SOL"}:  # slow muscles
+        if m in {"rat_SOL", "cat_SOL", "cat_LG"}:  # slow muscles
             return "slow"  
-        if m in {"rat_EDL", "cat_GM", "cat_CF", "rat_GM"}:  # fast muscles
+        if m in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # fast muscles
             return "fast"  
         raise ValueError(f"Unknown muscle '{m}'")  # error if unknown
     
@@ -709,7 +709,7 @@ class MuscleModel:  # main model object
         y0[state_index_local["dCa"]] = self.S.Ca_0  # initial dCa
         y0[state_index_local["act"]] = self.S.act_0  # initial activation
 
-        if self.model_config.use_tendon:  # tendon requires l_M state
+        if self.model_config.use_SE:  # tendon requires l_M state
             y0[state_index_local["l_M"]] = self.S.l_M_0  # initial fibre length
 
         # yielding can be applied even without tendon (depends on velocity)
@@ -769,7 +769,7 @@ class MuscleModel:  # main model object
             "act": Y[state_index_local["act"], :],  # activation state
         }
 
-        if self.model_config.use_tendon:  # tendon case: l_M comes from state vector
+        if self.model_config.use_SE:  # tendon case: l_M comes from state vector
             out["l_M"] = Y[state_index_local["l_M"], :]  # fibre length trajectory
         else:  # no tendon case: l_M equals imposed length
             out["l_M"] = self.P.l_MT.copy()  # imposed fibre length
