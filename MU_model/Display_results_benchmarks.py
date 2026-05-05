@@ -807,7 +807,7 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
 "PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 "Files were kept separated to avoid confusion in error and statistics computation"
 
-benchmark = 'slow_M_len' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'slow_M_max' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 

@@ -28,7 +28,7 @@ BENCHMARK_TRIALS = {
             "target": "force",
         },
     },
-    "slow_M_dyn2_0.1mm": {
+    "slow_M_dyn2_0.10mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "dyn2", "amplitude_mm": 0.10, "freq": 70, "t_end": 2.0,
         "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
@@ -38,17 +38,17 @@ BENCHMARK_TRIALS = {
         "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },
-    "slow_M_dyn2_0.5mm": {
+    "slow_M_dyn2_0.50mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "dyn2", "amplitude_mm": 0.50, "freq": 70, "t_end": 2.0,
         "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },    
-    "slow_M_dyn2_1mm": {
+    "slow_M_dyn2_1.00mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "dyn2", "amplitude_mm": 1.00, "freq": 70, "t_end": 2.0,
         "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },    
-    "slow_M_dyn2_2mm": {
+    "slow_M_dyn2_2.00mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "dyn2", "amplitude_mm": 2.00, "freq": 70, "t_end": 2.0,
         "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,         
