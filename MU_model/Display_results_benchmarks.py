@@ -807,7 +807,7 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
 "PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 "Files were kept separated to avoid confusion in error and statistics computation"
 
-benchmark = 'slow_M_sub' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'slow_M_len' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
@@ -1042,7 +1042,7 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, sim_iso_c_20, 'r')
     plt.title(u"Constant 20 Hz", x=0.2, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 30))
 
     plt.subplot(3, 2, 4)
@@ -1120,7 +1120,7 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, sim_dyn_c_20_1_noy, 'r--')
     plt.title(u"Constant 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
@@ -1201,7 +1201,7 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
     plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
     plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Rat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
+    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
     plt.ylim((0, 37))
 
     plt.subplot(3, 2, 4)
@@ -1788,7 +1788,7 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
     plt.ylim((0, 35))
 
-    fig.text(0.01, 0.5, 'Rat Soleus (Slow) Force [N]', va='center', rotation='vertical',
+    fig.text(0.01, 0.5, 'Cat Soleus (Slow) Force [N]', va='center', rotation='vertical',
              weight='bold', fontsize=14)
 
     plt.tight_layout()

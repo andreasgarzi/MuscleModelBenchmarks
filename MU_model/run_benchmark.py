@@ -341,11 +341,11 @@ def build_case(name: str, config: dict) -> dict:
         
         if fs == 120:
             disp_file = path / f"{muscle}_{fs}Hz_{trial}_disp.npy" 
-            distimes = np.arange(0, t_end, 1.0/fs) # create discharge times
+            distimes = np.arange(0, t_end, 1.0/float(fs)) # create discharge times
             mvc_sample = 1083 if trial == "short" else 1090 # sample index corresponding to MVC (for normalisation)
         else:
             disp_file = path / f"{muscle}_subfreq_{trial}_interp_disp.npy"
-            distimes = np.arange(0, 0.15, 1.0/fs) # create discharge times for sub-freq trials (only first 150ms, to avoid including the second burst in the lengthening trial)
+            distimes = np.arange(0, 0.15, 1.0/float(fs)) # create discharge times for sub-freq trials (only first 150ms, to avoid including the second burst in the lengthening trial)
             mvc_sample = 1119 # sample index corresponding to MVC (for normalisation) for sub-freq trials (only first 150ms, to avoid including the second burst in the lengthening trial)
 
         disp = np.load(disp_file) # load displacement (shortening or lengthening)
