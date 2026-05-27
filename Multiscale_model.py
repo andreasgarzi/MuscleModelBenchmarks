@@ -812,7 +812,7 @@ class MuscleModel:  # main model object
 
 # =============================================================================
 
-def MU_model(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  
+def Multiscale_model(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  
 
     """
     Constructor that builds Params/States from dictionaries and returns a MuscleModel.

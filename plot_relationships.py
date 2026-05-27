@@ -13,7 +13,7 @@ import pandas as pd
 from scipy.optimize import curve_fit
 import numpy as np
 import matplotlib.pyplot as plt
-
+from matplotlib.lines import Line2D
 
 # Relationships present in the model
 class Relationships:
@@ -139,11 +139,20 @@ for a_idx, act in enumerate(act_vals):
         FV_fast[a_idx, i] = rel_fast.fv_force(act, v_norm[i], FL_ref, 1.0)
 
 
-
-
-
 # Plotting
 fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+fig.subplots_adjust(hspace=0.35)
+
+labels = ['A', 'B', 'C', 'D']
+
+for ax, lab in zip(axs.flat, labels):
+    ax.text(
+        -0.14, 1.1, lab,
+        transform=ax.transAxes,
+        fontsize=14,
+        fontweight='bold',
+        va='top'
+    )
 
 # Tendon force-strain
 ax = axs[0, 1]
@@ -154,18 +163,18 @@ for j, eps0 in enumerate(eps0_vals):
         color=cg_green[j],
         label=rf'$\epsilon_0^T$ = {eps0*100:.1f}%'
     )
-ax.set_xlabel(r'$\epsilon^T$ [%]')
-ax.set_ylabel(r'$\overline{F}^{T}$')
-ax.set_title('SE')
+ax.set_xlabel(r'$\epsilon^T$ [%]', fontsize=11)
+ax.set_ylabel(r'$\overline{F}^{T}$', fontsize=11)
+ax.set_title('SE', fontweight='bold')
 ax.grid(True)
 ax.legend(fontsize=9)
 
 # Passive PE
 ax = axs[0, 0]
 ax.plot(l_M_PE, f_PE, color='#7a1fa2', linewidth=2)
-ax.set_xlabel(r'$\overline{L}^{M}$')
-ax.set_ylabel(r'$\overline{F}_{PE}$')
-ax.set_title('PE')
+ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=11)
+ax.set_ylabel(r'$\overline{F}_{PE}$', fontsize=11)
+ax.set_title('PE', fontweight='bold')
 ax.set_xlim(0.8, 1.8)
 ax.set_ylim(-0.1, 2.2)
 ax.grid(True)
@@ -176,19 +185,43 @@ for a_idx, act in enumerate(act_vals):
     ax.plot(
         v_norm, FV_slow[a_idx, :],
         color=cg_blue[a_idx],
-        label=f'act = {act:.1f}, slow'
     )
     ax.plot(
         v_norm, FV_fast[a_idx, :],
         color=cg_red[a_idx],
-        label=f'act = {act:.1f}, fast'
     )
-ax.set_xlabel(r'$\overline{V}^{M}$')
-ax.set_ylabel(r'$\overline{f}_{FV}$')
-ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', )
+ax.set_xlabel(r'$\overline{V}^{M}$', fontsize=11)
+ax.set_ylabel(r'$\overline{f}_{FV}$', fontsize=11)
+ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', fontweight='bold')
 ax.set_xlim(-1.2, 1.2)
 ax.grid(True)
 ax.legend(fontsize=8, loc='lower right')
+
+handles = []
+
+# slow (prima)
+for a_idx, act in enumerate(act_vals):
+    handles.append(
+        Line2D(
+            [0], [0],
+            color=cg_blue[a_idx],
+            lw=1,
+            label=f'act = {act:.1f}, slow'
+        )
+    )
+
+# fast (dopo)
+for a_idx, act in enumerate(act_vals):
+    handles.append(
+        Line2D(
+            [0], [0],
+            color=cg_red[a_idx],
+            lw=1,
+            label=f'act = {act:.1f}, fast'
+        )
+    )
+
+ax.legend(handles=handles, fontsize=8, loc='lower right')
 
 # Force-length scaled by active state
 ax = axs[1, 0]
@@ -199,13 +232,14 @@ for a_idx, act in enumerate(act_vals):
         color=cg_blue[a_idx],
         label=f'act = {act:.1f}'
     )
-ax.set_xlabel(r'$\overline{L}^{M}$')
-ax.set_ylabel(r'$\overline{f}_{FL}$')
-ax.set_title('CE - FL')
+ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=11)
+ax.set_ylabel(r'$\overline{f}_{FL}$', fontsize=11)
+ax.set_title('CE - FL', fontweight='bold')
 ax.grid(True)
 ax.legend(fontsize=9)
 
-plt.tight_layout()
+
+fig.savefig("relationships_plot.png", dpi=400, bbox_inches="tight")
 plt.show()
 
 #####################################################################################################
@@ -307,9 +341,17 @@ axes[0].plot(konishi_peak[:, 0], konishi_peak[:, 1], 'gx', label='Konishi 1991')
 axes[0].plot(l_sm, Ca_sm, 'k', label='Fit')
 axes[0].set_xlim([0.8, 2.1])
 axes[0].set_ylim([0, 1.2])
-axes[0].set_ylabel('Normalized f1')
+axes[0].set_ylabel('Normalized f1', fontweight='bold')
 axes[0].grid()
 axes[0].set_xticklabels([])
+
+axes[0].text(
+    0.02, 0.95, 'A',
+    transform=axes[0].transAxes,
+    fontsize=12,
+    fontweight='bold',
+    va='top'
+)
 
 # f2
 axes[1].plot(ttp_data[:, 0], ttp_data[:, 1], 'gx', label='Konishi 1991')
@@ -317,9 +359,17 @@ axes[1].plot(l_smttp, Ca_smttp, 'k', label='Fit')
 axes[1].plot(l_left, left_smttp, 'k')
 axes[1].plot(l_right, right_smttp, 'k')
 axes[1].set_xlim([0.8, 2.1])
-axes[1].set_xlabel('Normalized sarcomere length')
-axes[1].set_ylabel('Normalized f2')
+axes[1].set_xlabel('Normalized sarcomere length', fontweight='bold')
+axes[1].set_ylabel('Normalized f2', fontweight='bold')
 axes[1].grid()
 
-plt.tight_layout()
+axes[1].text(
+    0.02, 0.95, 'B',
+    transform=axes[1].transAxes,
+    fontsize=12,
+    fontweight='bold',
+    va='top'
+)
+
+fig.savefig("calcium_fit.png", dpi=400, bbox_inches="tight")
 plt.show()

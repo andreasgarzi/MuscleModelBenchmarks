@@ -5,9 +5,9 @@
 *.pyc
 *.cpp
 *.csv
-#*.dat
+*.dat
 *.ddf
-#*.npy
+*.npy
 
 
 git-filter-repo

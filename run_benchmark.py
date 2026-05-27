@@ -26,7 +26,7 @@ from scipy import signal
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from MU_model import MU_model, ModelConfig
+from Multiscale_model import ModelConfig, Multiscale_model
 from benchmark_trials import BENCHMARK_TRIALS
 
 
@@ -125,10 +125,10 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
 
     elif data_type == "rat_EDL_isol":
         length_map = {
-            0.25: 0, 0.5: 1, 0.75: 2, 1.0: 3, 1.25: 4, 1.5: 5,
-            1.75: 6, 2.0: 7, 2.25: 8, 2.5: 9, 2.75: 10, 3.0: 11,
-            3.25: 12, 3.5: 13, 3.75: 14, 4.0: 15, 4.25: 16,
-            4.5: 17, 4.75: 18, 5.0: 19,
+            0.25: 0, 0.5: 1, 0.75: 2, 1: 3, 1.25: 4, 1.5: 5,
+            1.75: 6, 2: 7, 2.25: 8, 2.5: 9, 2.75: 10, 3: 11,
+            3.25: 12, 3.5: 13, 3.75: 14, 4: 15, 4.25: 16,
+            4.5: 17, 4.75: 18, 5: 19,
         } # length map
         seg_idx = length_map[float(trial)]
         start = seg_idx * 16000 + 1000 # 16000 samples in between trials (starting from 1000 samples offset)
@@ -161,6 +161,7 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
 
     return {"spike_times_sec": spike_times_sec, "t_interp": t_interp, "force_interp": force_interp}
 
+
 def fibre_type(m: str) -> str:  
     """
     Infer fibre type (slow or fast) from muscle name.
@@ -178,6 +179,7 @@ def fibre_type(m: str) -> str:
         return "slow"  
     if m in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # fast muscles
         return "fast"  
+
 
 def build_model_config(config: dict) -> ModelConfig: 
     """
@@ -251,7 +253,7 @@ def build_case(name: str, config: dict) -> dict:
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
-        amp = str(config["amplitude_mm"]) # displacement amplitude
+        amp = config["amplitude_mm"] # displacement amplitude
         disp = load_data(path / f"{muscle}_disp.dat", "rat_SOL_dyn2_disp") # load displacement
         disp = interp_xy(disp, np.arange(0, t_end + dt, dt), kind="cubic") # interp displacement
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 2.0 # initial musculo-tendon length
@@ -278,8 +280,8 @@ def build_case(name: str, config: dict) -> dict:
 
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
-        length = int(config["length"]) # delta L (to select length offset, based on ref.)
-        offset = {0: 8.0, 8: 0.0, 16: -8.0}[length]
+        length = config["length"] # delta L (to select length offset, based on ref.)
+        offset = {0: 8.0, 8: 0.0, 16: -8.0}[int(length)]
         l_MT_0 = (float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0) + offset # initial musculo-tendon length offset
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
         exp_force = np.load(path / f"{muscle}_{fs}Hz_{length}mm_interp_force.npy") # load exp force
@@ -292,7 +294,7 @@ def build_case(name: str, config: dict) -> dict:
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
         stim = config["stim"] # stimulation type (constant: "c" vs. random/variable: "v")
-        d = int(config["displacement_mm"]) # extract discplacement amplitude (to select disp file, based on ref.)
+        d = config["displacement_mm"] # extract discplacement amplitude (to select disp file, based on ref.)
         disp = load_data(path / f"{muscle}_{d}mm_disp.dat", "cat_SOL_dyn1_disp") # load displacement
         disp = interp_xy(disp, np.arange(0, t_end + dt, dt), kind="cubic") # interp displacement
     
@@ -334,7 +336,7 @@ def build_case(name: str, config: dict) -> dict:
         path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
 
         trial = config["trial"] # shortening ("short") vs. lengthening ("length") trial
-        l_M_0_scale = float(config["l_M_0_scale"]) # scale factor for l_M_0 (to select trial, based on ref.)
+        l_M_0_scale = config["l_M_0_scale"] # scale factor for l_M_0 (to select trial, based on ref.)
         force_file = path / f"{muscle}_{fs}Hz_{l_M_0_scale}L0_{trial}_force.npy"
         exp_force = np.load(force_file)[: len(time)] # load exp force
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
@@ -361,7 +363,7 @@ def build_case(name: str, config: dict) -> dict:
         
         if muscle == "cat_LG":
 
-            path = BASE_PATH / config["scale"] / "MU_S"
+            path = BASE_PATH / config["scale"] / benchmark
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
             if fs == 1:
@@ -373,7 +375,8 @@ def build_case(name: str, config: dict) -> dict:
 
         elif muscle == "cat_MG" or muscle == "rat_MG":
 
-            path = BASE_PATH / config["scale"] / "MU_FR"
+            path = BASE_PATH / config["scale"] / benchmark
+            #path = BASE_PATH / config["scale"] / "MU_FF"
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
             if fs == 1 and muscle == "cat_MG":
@@ -394,15 +397,14 @@ def build_case(name: str, config: dict) -> dict:
     elif config["scale"] == "Ca_transients":
 
         path = BASE_PATH / config["scale"] 
+        exp_ca = pd.read_csv(path / f"{benchmark}.csv", delimiter=' ').to_numpy()
         
-        if muscle == "cat_SOL":
-            exp_ca = pd.read_csv(path / "Ca_slow_23_100Hz.csv", delimiter=' ').to_numpy()
-            l_MT = np.full(len(time), 1, dtype=float) # full MT length array
-            distimes = np.arange(0, 0.04, 1/fs) # adjusted from paper
+        if muscle == "rat_SOL":
+            l_MT = np.full(len(time), 1.0, dtype=float) # full MT length array
+            distimes = np.arange(0, 0.04, 1/float(fs)) # adjusted from paper
         elif muscle == "rat_EDL":
-            exp_ca = pd.read_csv(path / "Ca_fast_35_125Hz.csv", delimiter=' ').to_numpy()
             l_MT = np.full(len(time), 1.6, dtype=float) # full MT length array
-            distimes = np.arange(0, 0.08, 1/fs) # adjusted from paper
+            distimes = np.arange(0, 0.08, 1/float(fs)) # adjusted from paper
     else:
         raise ValueError(f"No loader implemented for Muscle benchmark '{benchmark}' and muscle '{muscle}'.")
     
@@ -463,7 +465,7 @@ def run_case(case: dict) -> dict:
     - out: dict
         Model outputs (force, Ca, activation, etc.).
     """
-    model = MU_model(case["parameters"], case["states"], case["distimes"], case["model_config"])
+    model = Multiscale_model(case["parameters"], case["states"], case["distimes"], case["model_config"])
     return model.run(output_force=case["output_force"])
 
 

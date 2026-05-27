@@ -10,13 +10,10 @@ Fast_M: (fast_M_iso, fast_M_len, fast_M_dyn)
 MU: (slow_MU, fast_MU)
 
 """
-import os
+
 from pathlib import Path
 import numpy as np
-import pandas as pd
-import scipy as sp
-from scipy import signal
-from sklearn.metrics import r2_score
+from matplotlib.gridspec import GridSpec
 from scipy.signal import find_peaks
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
@@ -807,11 +804,11 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
 "PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 "Files were kept separated to avoid confusion in error and statistics computation"
 
-benchmark = 'slow_M_max' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn]
+benchmark = 'fast_M_iso' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn, Ca_transients]
 base_path = Path('..') / 'Results_benchmarks'
 dt = 1e-4
 
-if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997 experiments
+if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997
 
     sim_path = base_path / 'slow_M' / 'sim'
     exp_path = base_path / 'slow_M' / 'exp'
@@ -834,64 +831,53 @@ if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997 experiments
     time_dt = np.arange(0, t_end, dt)
     MVC = 1.32
 
-    fig = plt.figure(figsize=(7, 8))
+    fig = plt.figure(figsize=(9, 8))
 
-    plt.subplot(6, 1, 1)
-    plt.plot(time_dt, exp1, 'k')
-    plt.plot(time_dt, sim1, 'r')
-    plt.title(u"\u00B1 0.05 mm", x=0.1, y=0.97, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
+    gs = GridSpec(8, 1, height_ratios=[1.15, 1.15, 1.15, 1.15, 1.15, 1.15, 0.15, 3.0], hspace=0.55, figure=fig)
+    axes = []
+    for i in range(6):
+        axes.append(fig.add_subplot(gs[i, 0]))
 
-    plt.subplot(6, 1, 2)
-    plt.plot(time_dt, exp2, 'k')
-    plt.plot(time_dt, sim2, 'r')
-    plt.title(u"\u00B1 0.10 mm", x=0.1, y=0.97, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
-
-    plt.subplot(6, 1, 3)
-    plt.plot(time_dt, exp3, 'k')
-    plt.plot(time_dt, sim3, 'r')
-    plt.title(u"\u00B1 0.25 mm", x=0.1, y=0.97, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
-
-    plt.subplot(6, 1, 4)
-    plt.plot(time_dt, exp4, 'k')
-    plt.plot(time_dt, sim4, 'r')
-    plt.title(u"\u00B1 0.50 mm", x=0.1, y=0.97, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
-
-    plt.subplot(6, 1, 5)
-    plt.plot(time_dt, exp5, 'k')
-    plt.plot(time_dt, sim5, 'r')
-    plt.title(u"\u00B1 1.00 mm", x=0.1, y=0.97, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
-
-    plt.subplot(6, 1, 6)
-    plt.plot(time_dt, exp6, 'k')
-    plt.plot(time_dt, sim6, 'r')
-    plt.title(u"\u00B1 2.00 mm", x=0.1, y=0.97, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.xlim((-0.03, 2.03))
-    plt.ylim((0, 2))
-
-    fig.text(0.01, 0.5, 'Rat Soleus (Slow) Force [N]', va='center', rotation='vertical',
-             weight='bold', fontsize=14)
-
-    plt.tight_layout()
-    plt.show()
+    ax_err = fig.add_subplot(gs[7, 0])
 
     # -------------------------------------------------------------------------
-    # Errors and R²
+    # FORCE SUBPLOTS 
+    # -------------------------------------------------------------------------
+    data = [
+        (exp1, sim1, u"\u00B1 0.05 mm"),
+        (exp2, sim2, u"\u00B1 0.10 mm"),
+        (exp3, sim3, u"\u00B1 0.25 mm"),
+        (exp4, sim4, u"\u00B1 0.50 mm"),
+        (exp5, sim5, u"\u00B1 1.00 mm"),
+        (exp6, sim6, u"\u00B1 2.00 mm"),
+    ]
+
+    for i, (exp, sim, label) in enumerate(data):
+        ax = axes[i]
+
+        ax.plot(time_dt, exp, 'k')
+        ax.plot(time_dt, sim, 'r')
+
+        ax.set_title(label, x=0.1, y=0.97, weight='bold')
+        ax.set_xlim((-0.03, 2.03))
+        ax.set_ylim((0, 2))
+
+        if i < 5:
+            ax.tick_params(axis='x', labelbottom=False)
+        else:
+            ax.set_xlabel('Time [s]', weight='bold', fontsize=11)
+
+    fig.text(
+        0.077, 0.63,
+        'Rat Soleus (Slow) Force [N]',
+        va='center',
+        rotation='vertical',
+        weight='bold',
+        fontsize=12
+    )
+
+    # -------------------------------------------------------------------------
+    # ERRORS 
     # -------------------------------------------------------------------------
     exp_all = [exp1, exp2, exp3, exp4, exp5, exp6]
     sim_all = [sim1, sim2, sim3, sim4, sim5, sim6]
@@ -900,54 +886,24 @@ if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997 experiments
     mean_err_list = []
     max_err_list = []
     std_err_list = []
-    r2_list = []
 
-    print("\n=== Benchmark: slow_M_max ===")
-    print(f"MVC = {MVC:.2f} N\n")
-
-    for exp, sim, disp in zip(exp_all, sim_all, displacements):
+    for exp, sim in zip(exp_all, sim_all):
         mae, maxae, stde = pct_errors(exp, sim, MVC)
-        r2 = compute_r2(exp, sim)
-
         mean_err_list.append(mae)
         max_err_list.append(maxae)
         std_err_list.append(stde)
-        r2_list.append(r2)
 
-        print(f"Displacement ±{disp:.2f} mm:")
-        print(f"  mAE = {mae:.2f}% F0   (std = {stde:.2f})")
-        print(f"  MAE = {maxae:.2f}% F0")
-        print(f"  R²  = {r2:.4f}\n")
-
-    mmae = np.mean(mean_err_list)
-    mstde = np.std(mean_err_list)
-    mr2 = np.nanmean(r2_list)
-    sr2 = np.nanstd(r2_list)
-
-    print(f"  Mean mAE = {mmae:.2f}% F0   (std = {mstde:.2f})")
-    print(f"  Mean R²  = {mr2:.4f}   (std = {sr2:.4f})\n")
-
-    summarize_trials(
-        mean_err_list,
-        max_err_list,
-        label="— slow_M_max summary (all displacements) —",
-        unit="% F0"
-    )
-    summarize_metric_list(r2_list, "— slow_M_max summary: R² (all displacements) —", "")
-
-    # -------------------------------------------------------------------------
-    # Error plot (unchanged)
-    # -------------------------------------------------------------------------
     x = np.arange(1, len(displacements) + 1)
 
     mean_err_arr = np.array(mean_err_list)
     max_err_arr = np.array(max_err_list)
     std_err_arr = np.array(std_err_list)
 
-    fig, ax = plt.subplots(figsize=(6, 4.5))
-
-    ax.plot(x, mean_err_arr, '-o', color='k', label='mAE ± SD')
-    ax.fill_between(
+    # -------------------------------------------------------------------------
+    # ERROR PLOT 
+    # -------------------------------------------------------------------------
+    ax_err.plot(x, mean_err_arr, '-o', color='k', label='mAE ± SD')
+    ax_err.fill_between(
         x,
         mean_err_arr - std_err_arr,
         mean_err_arr + std_err_arr,
@@ -955,15 +911,27 @@ if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997 experiments
         alpha=0.2
     )
 
-    ax.plot(x, max_err_arr, '--*', color='k', label='MAE')
+    ax_err.plot(x, max_err_arr, '--*', color='k', label='MAE')
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([f'{d:.2f}' for d in displacements])
-    ax.set_xlabel('Max. length variation amplitude [mm]', fontweight='bold')
-    ax.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    ax.set_ylim(bottom=0)
-    ax.legend()
+    ax_err.set_xticks(x)
+    ax_err.set_xticklabels([f'{d:.2f}' for d in displacements])
+    ax_err.set_xlabel('Max. length variation amplitude [mm]', fontweight='bold')
+    ax_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold', fontsize=11)
+    ax_err.set_ylim(bottom=0)
+    ax_err.legend()
+
+    fig.text(0.1, 0.93, 'A', fontsize=15, fontweight='bold', ha='left', va='top')
+    fig.text(0.1, 0.3, 'B', fontsize=15, fontweight='bold', ha='left', va='top')
+
+    legend_handles = [
+        Line2D([0], [0], color='k', lw=1.5, label='Experimental'),
+        Line2D([0], [0], color='r', lw=1.5, label='Simulated')
+        ]
+
+    fig.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(0.88, 0.97), fontsize=11)
+
     plt.tight_layout()
+    plt.savefig('slow_M_max_summary.png', dpi=400, bbox_inches='tight')
     plt.show()
 
 
@@ -993,82 +961,6 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     time_dt = np.arange(0, t_end, dt)
     MVC = 26.13
 
-
-    # Legend handles
-    legend_handles = [
-        Line2D([0], [0], color='k', lw=2, label='Experimental'),
-        Line2D([0], [0], color='r', lw=2, label='Simulated (yielding)'),
-        Line2D([0], [0], color='r', lw=2, label='Simulated (no yielding)', linestyle='dashed'),
-    ]
-
-    # Create empty figure
-    fig = plt.figure(figsize=(6, 1.2))  # largo e basso (tipo strip)
-
-    # Add legend
-    fig.legend(handles=legend_handles,
-               loc='center',
-               ncol=3,
-               frameon=True,
-               fancybox=False,
-               edgecolor='black',
-               fontsize=12)
-
-    # Remove axes completely
-    plt.axis('off')
-    plt.show()
-
-
-    # -------------------------------------------------------------------------
-    # ISO plots (unchanged)
-    # -------------------------------------------------------------------------
-    fig = plt.figure(figsize=(10, 9))
-
-    plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_iso_c_10, 'k')
-    plt.plot(time_dt, sim_iso_c_10, 'r')
-    plt.title(u"Constant 10 Hz", x=0.2, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_iso_v_10, 'k')
-    plt.plot(time_dt, sim_iso_v_10, 'r')
-    plt.title(u"Random 10 Hz", x=0.2, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(3, 2, 3)
-    plt.plot(time_dt, exp_iso_c_20, 'k')
-    plt.plot(time_dt, sim_iso_c_20, 'r')
-    plt.title(u"Constant 20 Hz", x=0.2, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
-
-    plt.subplot(3, 2, 4)
-    plt.plot(time_dt, exp_iso_v_20, 'k')
-    plt.plot(time_dt, sim_iso_v_20, 'r')
-    plt.title(u"Random 20 Hz", x=0.2, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(3, 2, 5)
-    plt.plot(time_dt, exp_iso_c_30, 'k')
-    plt.plot(time_dt, sim_iso_c_30, 'r')
-    plt.title(u"Constant 30 Hz", x=0.2, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
-
-    plt.subplot(3, 2, 6)
-    plt.plot(time_dt, exp_iso_v_30, 'k')
-    plt.plot(time_dt, sim_iso_v_30, 'r')
-    plt.title(u"Random 30 Hz", x=0.2, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 30))
-    
-    plt.tight_layout()
-    plt.show()
-
     # -------------------------------------------------------------------------
     # Load dynamic constant trials
     # -------------------------------------------------------------------------
@@ -1094,63 +986,6 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     exp_dyn_c_30_8 = np.load(exp_path / 'sub_dyn_c_30_8.npy')
 
     # -------------------------------------------------------------------------
-    # Dynamic constant plots (unchanged)
-    # -------------------------------------------------------------------------
-    fig = plt.figure(figsize=(10, 9))
-
-    plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_dyn_c_10_1, 'k')
-    plt.plot(time_dt, sim_dyn_c_10_1, 'r')
-    plt.plot(time_dt, sim_dyn_c_10_1_noy, 'r--')
-    plt.title(u"Constant 10 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_c_10_8, 'k')
-    plt.plot(time_dt, sim_dyn_c_10_8, 'r')
-    plt.plot(time_dt, sim_dyn_c_10_8_noy, 'r--')
-    plt.title(u"Constant 10 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 3)
-    plt.plot(time_dt, exp_dyn_c_20_1, 'k')
-    plt.plot(time_dt, sim_dyn_c_20_1, 'r')
-    plt.plot(time_dt, sim_dyn_c_20_1_noy, 'r--')
-    plt.title(u"Constant 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 4)
-    plt.plot(time_dt, exp_dyn_c_20_8, 'k')
-    plt.plot(time_dt, sim_dyn_c_20_8, 'r')
-    plt.plot(time_dt, sim_dyn_c_20_8_noy, 'r--')
-    plt.title(u"Constant 20 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 5)
-    plt.plot(time_dt, exp_dyn_c_30_1, 'k')
-    plt.plot(time_dt, sim_dyn_c_30_1, 'r')
-    plt.plot(time_dt, sim_dyn_c_30_1_noy, 'r--')
-    plt.title(u"Constant 30 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 6)
-    plt.plot(time_dt, exp_dyn_c_30_8, 'k')
-    plt.plot(time_dt, sim_dyn_c_30_8, 'r')
-    plt.plot(time_dt, sim_dyn_c_30_8_noy, 'r--')
-    plt.title(u"Constant 30 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.tight_layout()
-    plt.show()
-
-    # -------------------------------------------------------------------------
     # Load dynamic random trials
     # -------------------------------------------------------------------------
     sim_dyn_v_10_1 = np.load(sim_path / 'sub_dyn_v_10_1.npy')
@@ -1174,62 +1009,6 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     exp_dyn_v_20_8 = np.load(exp_path / 'sub_dyn_v_20_8.npy')
     exp_dyn_v_30_8 = np.load(exp_path / 'sub_dyn_v_30_8.npy')
 
-    # -------------------------------------------------------------------------
-    # Dynamic random plots 
-    # -------------------------------------------------------------------------
-    fig = plt.figure(figsize=(10, 9))
-
-    plt.subplot(3, 2, 1)
-    plt.plot(time_dt, exp_dyn_v_10_1, 'k')
-    plt.plot(time_dt, sim_dyn_v_10_1, 'r')
-    plt.plot(time_dt, sim_dyn_v_10_1_noy, 'r--')
-    plt.title(u"Random 10 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 2)
-    plt.plot(time_dt, exp_dyn_v_10_8, 'k')
-    plt.plot(time_dt, sim_dyn_v_10_8, 'r')
-    plt.plot(time_dt, sim_dyn_v_10_8_noy, 'r--')
-    plt.title(u"Random 10 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 3)
-    plt.plot(time_dt, exp_dyn_v_20_1, 'k')
-    plt.plot(time_dt, sim_dyn_v_20_1, 'r')
-    plt.plot(time_dt, sim_dyn_v_20_1_noy, 'r--')
-    plt.title(u"Random 20 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylabel('Cat Soleus (Slow) Force [N]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 4)
-    plt.plot(time_dt, exp_dyn_v_20_8, 'k')
-    plt.plot(time_dt, sim_dyn_v_20_8, 'r')
-    plt.plot(time_dt, sim_dyn_v_20_8_noy, 'r--')
-    plt.title(u"Random 20 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 5)
-    plt.plot(time_dt, exp_dyn_v_30_1, 'k')
-    plt.plot(time_dt, sim_dyn_v_30_1, 'r')
-    plt.plot(time_dt, sim_dyn_v_30_1_noy, 'r--')
-    plt.title(u"Random 30 Hz, \u00B1 1 mm", x=0.21, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.subplot(3, 2, 6)
-    plt.plot(time_dt, exp_dyn_v_30_8, 'k')
-    plt.plot(time_dt, sim_dyn_v_30_8, 'r')
-    plt.plot(time_dt, sim_dyn_v_30_8_noy, 'r--')
-    plt.title(u"Random 30 Hz, \u00B1 8 mm", x=0.21, y=0.99, weight='bold')
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-    plt.ylim((0, 37))
-
-    plt.tight_layout()
-    plt.show()
 
     # -------------------------------------------------------------------------
     # Trial definitions
@@ -1284,7 +1063,6 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
 
     # -------------------------------------------------------------------------
     # Helper for isometric trials
-    # No twitch reference available in this dataset -> peak/twitch ratio = NaN
     # -------------------------------------------------------------------------
     def process_iso_trials(
         trials,
@@ -1572,10 +1350,11 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
         "— slow_M_sub summary: DYN NO YIELDING R² (all trials) —",
         ""
     )
+  
+    ####################################################################################
+    # Plots
+    ####################################################################################
 
-    # -------------------------------------------------------------------------
-    # Error plots (unchanged)
-    # -------------------------------------------------------------------------
     def build_err(trials, MVC):
         mean_list, max_list, std_list = [], [], []
         for _, exp, sim in trials:
@@ -1593,76 +1372,278 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     mean_iso_const, max_iso_const, std_iso_const = build_err(iso_const_plot, MVC)
 
     iso_rand_plot = [
-        ("Rand 10 Hz",  exp_iso_v_10, sim_iso_v_10),
-        ("Rand 20 Hz",  exp_iso_v_20, sim_iso_v_20),
-        ("Rand 30 Hz",  exp_iso_v_30, sim_iso_v_30),
+        ("Rand 10 Hz", exp_iso_v_10, sim_iso_v_10),
+        ("Rand 20 Hz", exp_iso_v_20, sim_iso_v_20),
+        ("Rand 30 Hz", exp_iso_v_30, sim_iso_v_30),
     ]
     mean_iso_rand, max_iso_rand, std_iso_rand = build_err(iso_rand_plot, MVC)
 
-    dyn_1mm_trials = [
-        ("Const 10 Hz", exp_dyn_c_10_1, sim_dyn_c_10_1),
-        ("Const 20 Hz", exp_dyn_c_20_1, sim_dyn_c_20_1),
-        ("Const 30 Hz", exp_dyn_c_30_1, sim_dyn_c_30_1),
-        ("Rand 10 Hz",  exp_dyn_v_10_1, sim_dyn_v_10_1),
-        ("Rand 20 Hz",  exp_dyn_v_20_1, sim_dyn_v_20_1),
-        ("Rand 30 Hz",  exp_dyn_v_30_1, sim_dyn_v_30_1),
+    dyn_const_trials = [
+        ("Const 10 Hz, 1mm", exp_dyn_c_10_1, sim_dyn_c_10_1),
+        ("Const 20 Hz, 1mm", exp_dyn_c_20_1, sim_dyn_c_20_1),
+        ("Const 30 Hz, 1mm", exp_dyn_c_30_1, sim_dyn_c_30_1),
+        ("Const 10 Hz, 8mm", exp_dyn_c_10_8, sim_dyn_c_10_8),
+        ("Const 20 Hz, 8mm", exp_dyn_c_20_8, sim_dyn_c_20_8),
+        ("Const 30 Hz, 8mm", exp_dyn_c_30_8, sim_dyn_c_30_8),
     ]
-    mean_1mm, max_1mm, std_1mm = build_err(dyn_1mm_trials, MVC)
+    mean_const, max_const, std_const = build_err(dyn_const_trials, MVC)
 
-    dyn_8mm_trials = [
-        ("Const 10 Hz", exp_dyn_c_10_8, sim_dyn_c_10_8),
-        ("Const 20 Hz", exp_dyn_c_20_8, sim_dyn_c_20_8),
-        ("Const 30 Hz", exp_dyn_c_30_8, sim_dyn_c_30_8),
-        ("Rand 10 Hz",  exp_dyn_v_10_8, sim_dyn_v_10_8),
-        ("Rand 20 Hz",  exp_dyn_v_20_8, sim_dyn_v_20_8),
-        ("Rand 30 Hz",  exp_dyn_v_30_8, sim_dyn_v_30_8),
+    dyn_rand_trials = [
+        ("Rand 10 Hz, 1mm", exp_dyn_v_10_1, sim_dyn_v_10_1),
+        ("Rand 20 Hz, 1mm", exp_dyn_v_20_1, sim_dyn_v_20_1),
+        ("Rand 30 Hz, 1mm", exp_dyn_v_30_1, sim_dyn_v_30_1),
+        ("Rand 10 Hz, 8mm", exp_dyn_v_10_8, sim_dyn_v_10_8),
+        ("Rand 20 Hz, 8mm", exp_dyn_v_20_8, sim_dyn_v_20_8),
+        ("Rand 30 Hz, 8mm", exp_dyn_v_30_8, sim_dyn_v_30_8),
     ]
-    mean_8mm, max_8mm, std_8mm = build_err(dyn_8mm_trials, MVC)
+    mean_rand, max_rand, std_rand = build_err(dyn_rand_trials, MVC)
 
-    x = np.arange(1, 6 + 1)
-    x_labels = ["Constant 10 Hz", "Constant 20 Hz", "Constant 30 Hz", "Random 10 Hz", "Random 20 Hz", "Random 30 Hz"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
-
-    def plot_panel(ax, x, mean_arr, max_arr, std_arr, title):
+    def plot_error_panel(ax, x, labels, mean_arr, max_arr, std_arr, xlabel, title, size_labels=11, size_title=11):
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD')
+        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD', markersize=3.5, linewidth=1)
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-        ax.plot(x, max_arr, '--*', color='k', label='MAE')
+        ax.plot(x, max_arr, '--*', color='k', label='MAE', markersize=3.5, linewidth=1)
 
+        ax.set_title(title, fontweight='bold', fontsize=size_title)
         ax.set_xticks(x)
-        ax.set_xticklabels(x_labels)
-        ax.set_xticklabels(x_labels, rotation=30, ha='right', rotation_mode='anchor')
-        ax.set_title(title, fontweight='bold')
+        ax.set_xticklabels(labels, rotation=30, ha='right', rotation_mode='anchor')
         ax.set_ylim([0, 45])
+        ax.set_xlabel(xlabel, fontweight='bold', fontsize=size_labels)
+        ax.tick_params(axis='both', labelsize=8)
 
-    plot_panel(axes[0], x, mean_1mm, max_1mm, std_1mm, "Dynamic ±1 mm")
-    plot_panel(axes[1], x, mean_8mm, max_8mm, std_8mm, "Dynamic ±8 mm")
 
-    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    for ax in axes:
-        ax.set_xlabel('Stimulation', fontweight='bold')
-    axes[0].legend()
+    def plot_force_panel(ax, time, exp, sim, ylim, label_text=None, sim_noy=None, label_inside=True):
+        ax.plot(time, exp, 'k', lw=1, label='Experimental')
+        ax.plot(time, sim, 'r', lw=1, label='Simulated')
+        if sim_noy is not None:
+            ax.plot(time, sim_noy, 'r--', lw=1, label='Simulated no yielding')
 
-    plt.tight_layout()
+        if label_text is not None and label_inside:
+            ax.text(
+                0.96, 0.90, label_text,
+                transform=ax.transAxes,
+                ha='right',
+                va='top',
+                fontsize=8,
+                fontweight='bold'
+            )
+
+        ax.set_ylim(ylim)
+        ax.tick_params(axis='both', labelsize=8)
+
+
+    # ============================================================
+    # ISOMETRIC FIGURE
+    # ============================================================
+
+    fig = plt.figure(figsize=(7, 8))
+
+    gs = GridSpec(5, 2, height_ratios=[1, 1, 1, 0.12, 0.9], hspace=0.28, wspace=0.25, figure=fig)
+    fig.text(0.09, 0.92, "A", fontsize=14, fontweight="bold", ha="left", va="top")
+    fig.text(0.09, 0.26, "B", fontsize=14, fontweight="bold", ha="left", va="bottom")
+
+    iso_force_data = [
+        (exp_iso_c_10, sim_iso_c_10, "10 Hz"),
+        (exp_iso_v_10, sim_iso_v_10, "10 Hz"),
+        (exp_iso_c_20, sim_iso_c_20, "20 Hz"),
+        (exp_iso_v_20, sim_iso_v_20, "20 Hz"),
+        (exp_iso_c_30, sim_iso_c_30, "30 Hz"),
+        (exp_iso_v_30, sim_iso_v_30, "30 Hz"),
+    ]
+
+    iso_axes = []
+
+    for i, (exp, sim, freq_label) in enumerate(iso_force_data):
+        r, c = divmod(i, 2)
+        ax = fig.add_subplot(gs[r, c])
+        iso_axes.append(ax)
+
+        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 30), label_text=freq_label, label_inside=True)
+
+        if r < 2:
+            ax.set_xticklabels([])
+        else:
+            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=8)
+
+    iso_axes[0].set_title("Constant frequency", fontweight="bold", fontsize=10)
+    iso_axes[1].set_title("Random frequency", fontweight="bold", fontsize=10)
+
+    iso_axes[0].legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.text(
+        0.06, 0.61,
+        "Cat Soleus (Slow) Force [N]",
+        va='center',
+        rotation='vertical',
+        fontweight='bold',
+        fontsize=10
+    )
+
+    x_iso = np.arange(1, 4)
+    iso_labels = ["10", "20", "30"]
+
+    ax_err1 = fig.add_subplot(gs[4, 0])
+    ax_err2 = fig.add_subplot(gs[4, 1], sharey=ax_err1)
+
+    ax_err1.set_anchor('N')
+    ax_err2.set_anchor('N')
+
+    plot_error_panel(
+        ax_err1, x_iso, iso_labels,
+        mean_iso_const, max_iso_const, std_iso_const,
+        xlabel="Stimulation frequency [Hz]", title="Constant frequency", size_labels=9, size_title=10
+    )
+    plot_error_panel(
+        ax_err2, x_iso, iso_labels,
+        mean_iso_rand, max_iso_rand, std_iso_rand,
+        xlabel="Stimulation frequency [Hz]", title="Random frequency", size_labels=9, size_title=10
+    )
+
+    ax_err1.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+    ax_err1.legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.savefig("slow_M_sub_isometric_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
-    x = np.arange(1, 3 + 1)
-    x_labels = ["10 Hz", "20 Hz", "30 Hz"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
+    # ============================================================
+    # DYNAMIC FIGURE
+    # ============================================================
 
-    plot_panel(axes[0], x, mean_iso_const, max_iso_const, std_iso_const, "Isometric - Constant Frequency")
-    plot_panel(axes[1], x, mean_iso_rand, max_iso_rand, std_iso_rand, "Isometric - Random Frequency")
+    fig = plt.figure(figsize=(14.5, 8.2))
+    gs = GridSpec(5, 4, height_ratios=[1, 1, 1, 0.12, 0.9], hspace=0.32, wspace=0.25, figure=fig)
+    fig.text(0.099, 0.92, "A", fontsize=15, fontweight="bold", ha="left", va="top")
+    fig.text(0.099, 0.26, "C", fontsize=15, fontweight="bold", ha="left", va="bottom")
+    fig.text(0.52, 0.92, "B", fontsize=15, fontweight="bold", ha="center", va="top")
+    fig.text(0.52, 0.26, "D", fontsize=15, fontweight="bold", ha="center", va="bottom")
 
-    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    for ax in axes:
-        ax.set_xlabel('Stimulation', fontweight='bold')
-    axes[0].legend()
+    dyn_const_force_data = [
+        (exp_dyn_c_10_1, sim_dyn_c_10_1, sim_dyn_c_10_1_noy, "10 Hz, ±1 mm"),
+        (exp_dyn_c_10_8, sim_dyn_c_10_8, sim_dyn_c_10_8_noy, "10 Hz, ±8 mm"),
+        (exp_dyn_c_20_1, sim_dyn_c_20_1, sim_dyn_c_20_1_noy, "20 Hz, ±1 mm"),
+        (exp_dyn_c_20_8, sim_dyn_c_20_8, sim_dyn_c_20_8_noy, "20 Hz, ±8 mm"),
+        (exp_dyn_c_30_1, sim_dyn_c_30_1, sim_dyn_c_30_1_noy, "30 Hz, ±1 mm"),
+        (exp_dyn_c_30_8, sim_dyn_c_30_8, sim_dyn_c_30_8_noy, "30 Hz, ±8 mm"),
+    ]
 
-    plt.tight_layout()
+    dyn_rand_force_data = [
+        (exp_dyn_v_10_1, sim_dyn_v_10_1, sim_dyn_v_10_1_noy, "10 Hz, ±1 mm"),
+        (exp_dyn_v_10_8, sim_dyn_v_10_8, sim_dyn_v_10_8_noy, "10 Hz, ±8 mm"),
+        (exp_dyn_v_20_1, sim_dyn_v_20_1, sim_dyn_v_20_1_noy, "20 Hz, ±1 mm"),
+        (exp_dyn_v_20_8, sim_dyn_v_20_8, sim_dyn_v_20_8_noy, "20 Hz, ±8 mm"),
+        (exp_dyn_v_30_1, sim_dyn_v_30_1, sim_dyn_v_30_1_noy, "30 Hz, ±1 mm"),
+        (exp_dyn_v_30_8, sim_dyn_v_30_8, sim_dyn_v_30_8_noy, "30 Hz, ±8 mm"),
+    ]
+
+    dyn_axes = []
+
+    for i, (exp, sim, sim_noy, label_text) in enumerate(dyn_const_force_data):
+        r, c = divmod(i, 2)
+        ax = fig.add_subplot(gs[r, c])
+        dyn_axes.append(ax)
+
+        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+
+        ax.set_title(label_text, fontweight='bold', fontsize=9, pad=3)
+
+        if r < 2:
+            ax.set_xticklabels([])
+        else:
+            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9)
+
+    for i, (exp, sim, sim_noy, label_text) in enumerate(dyn_rand_force_data):
+        r, c = divmod(i, 2)
+        ax = fig.add_subplot(gs[r, c + 2])
+        dyn_axes.append(ax)
+
+        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+
+        ax.set_title(label_text, fontweight='bold', fontsize=9, pad=3)
+
+        if r < 2:
+            ax.set_xticklabels([])
+        else:
+            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9)
+
+    fig.text(
+        0.097, 0.61,
+        "Cat Soleus (slow) Force [N]",
+        va='center',
+        rotation='vertical',
+        fontweight='bold',
+        fontsize=10
+    )
+
+    x_dyn = np.arange(1, 7)
+    dyn_labels = [
+        "10 Hz, ±1 mm", "20 Hz, ±1 mm", "30 Hz, ±1 mm",
+        "10 Hz, ±8 mm", "20 Hz, ±8 mm", "30 Hz, ±8 mm"
+    ]
+
+    ax_err_c = fig.add_subplot(gs[4, 0:2])
+    ax_err_v = fig.add_subplot(gs[4, 2:4], sharey=ax_err_c)
+
+    plot_error_panel(
+        ax_err_c, x_dyn, dyn_labels,
+        mean_const, max_const, std_const, xlabel="Trial", title="Constant frequency"
+    )
+    plot_error_panel(
+        ax_err_v, x_dyn, dyn_labels,
+        mean_rand, max_rand, std_rand, xlabel="Trial", title="Random frequency"
+    )
+
+    ax_err_c.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+
+    ax_err_c.legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+    ax_err_v.legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.text(
+        0.3, 0.915,
+        "Constant frequency",
+        ha="center",
+        fontweight="bold",
+        fontsize=11
+    )
+    fig.text(
+        0.72, 0.915,
+        "Random frequency",
+        ha="center",
+        fontweight="bold",
+        fontsize=11
+    )
+
+    dyn_axes[0].legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    dyn_axes[6].legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.savefig("slow_M_sub_dynamic_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
 
@@ -1700,99 +1681,6 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     t_end = 1.4
     time_dt = np.arange(0, t_end, dt)
     MVC = 30.25
-
-    # -------------------------------------------------------------------------
-    # Plots 
-    # -------------------------------------------------------------------------
-    fig = plt.figure(figsize=(9, 8))
-
-    plt.subplot(4, 3, 1)
-    plt.plot(time_dt, exp_twitch_0, 'k')
-    plt.plot(time_dt, sim_twitch_0, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 10))
-
-    plt.subplot(4, 3, 2)
-    plt.plot(time_dt, exp_twitch_8, 'k')
-    plt.plot(time_dt, sim_twitch_8, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 10))
-
-    plt.subplot(4, 3, 3)
-    plt.plot(time_dt, exp_twitch_16, 'k')
-    plt.plot(time_dt, sim_twitch_16, 'r')
-    plt.title(r"1 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 10))
-
-    plt.subplot(4, 3, 4)
-    plt.plot(time_dt, exp_iso_0_10, 'k')
-    plt.plot(time_dt, sim_iso_0_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 5)
-    plt.plot(time_dt, exp_iso_8_10, 'k')
-    plt.plot(time_dt, sim_iso_8_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 6)
-    plt.plot(time_dt, exp_iso_16_10, 'k')
-    plt.plot(time_dt, sim_iso_16_10, 'r')
-    plt.title(r"10 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 7)
-    plt.plot(time_dt, exp_iso_0_20, 'k')
-    plt.plot(time_dt, sim_iso_0_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 8)
-    plt.plot(time_dt, exp_iso_8_20, 'k')
-    plt.plot(time_dt, sim_iso_8_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 9)
-    plt.plot(time_dt, exp_iso_16_20, 'k')
-    plt.plot(time_dt, sim_iso_16_20, 'r')
-    plt.title(r"20 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
-    plt.gca().tick_params(axis='x', which='both', labelbottom=False)
-    plt.ylim((0, 30))
-
-    plt.subplot(4, 3, 10)
-    plt.plot(time_dt, exp_iso_0_40, 'k')
-    plt.plot(time_dt, sim_iso_0_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = 0 mm", x=0.4, y=0.99, weight='bold')
-    plt.ylim((0, 35))
-
-    plt.subplot(4, 3, 11)
-    plt.plot(time_dt, exp_iso_8_40, 'k')
-    plt.plot(time_dt, sim_iso_8_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm", x=0.4, y=0.99, weight='bold')
-    plt.ylim((0, 35))
-    plt.xlabel('Time [s]', weight='bold', fontsize=14)
-
-    plt.subplot(4, 3, 12)
-    plt.plot(time_dt, exp_iso_16_40, 'k')
-    plt.plot(time_dt, sim_iso_16_40, 'r')
-    plt.title(r"40 Hz, $\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm", x=0.4, y=0.99, weight='bold')
-    plt.ylim((0, 35))
-
-    fig.text(0.01, 0.5, 'Cat Soleus (Slow) Force [N]', va='center', rotation='vertical',
-             weight='bold', fontsize=14)
-
-    plt.tight_layout()
-    plt.show()
 
     print("\n=== Benchmark: slow_M_len (Perreault/Kim) ===")
     print(f"MVC = {MVC:.2f} N\n")
@@ -2035,7 +1923,7 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
     print()
 
     # -------------------------------------------------------------------------
-    # Error panels (unchanged)
+    # Error panels 
     # -------------------------------------------------------------------------
     def build_len_err(exp_list, sim_list, MVC):
         mean_list, max_list, std_list = [], [], []
@@ -2064,34 +1952,143 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
         MVC
     )
 
-    x = np.arange(1, 5)
-    x_labels = ["1 Hz", "10 Hz", "20 Hz", "40 Hz"]
+    ######################################################################
+    # Plots
+    #######################################################################
 
-    fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharey=True)
+    def plot_len_force_panel(ax, time, exp, sim, ylim, label_text=None):
+        ax.plot(time, exp, 'k', lw=1, label='Experimental')
+        ax.plot(time, sim, 'r', lw=1, label='Simulated')
 
-    def plot_panel(ax, x, mean_arr, max_arr, std_arr, title):
+        if label_text is not None:
+            ax.text(
+                0.96, 0.90,
+                label_text,
+                transform=ax.transAxes,
+                ha='right',
+                va='top',
+                fontsize=8,
+                fontweight='bold'
+            )
+
+        ax.set_ylim(ylim)
+        ax.tick_params(axis='both', labelsize=8)
+
+    def plot_len_error_panel(ax, x, labels, mean_arr, max_arr, std_arr, title):
         lower = np.maximum(mean_arr - std_arr, 0)
         upper = mean_arr + std_arr
 
-        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD')
+        ax.plot(x, mean_arr, '-o', color='k', label='mAE ± SD', markersize=3.5, linewidth=1)
         ax.fill_between(x, lower, upper, color='k', alpha=0.2)
-        ax.plot(x, max_arr, '--*', color='k', label='MAE')
+        ax.plot(x, max_arr, '--*', color='k', label='MAE', markersize=3.5, linewidth=1)
 
+        ax.set_title(title, fontweight='bold', fontsize=10)
         ax.set_xticks(x)
-        ax.set_xticklabels(x_labels)
-        ax.set_title(title, fontweight='bold')
-        ax.set_ylim(bottom=0)
+        ax.set_xticklabels(labels, rotation=30, ha='right', rotation_mode='anchor')
+        ax.set_xlabel('Stimulation frequency [Hz]', fontweight='bold', fontsize=9)
+        ax.set_ylim([0, 45])
+        ax.tick_params(axis='both', labelsize=8)
 
-    plot_panel(axes[0], x, mean_0,  max_0,  std_0,  r"$\boldsymbol{\Delta}\mathbf{L}$ = 0 mm")
-    plot_panel(axes[1], x, mean_8,  max_8,  std_8,  r"$\boldsymbol{\Delta}\mathbf{L}$ = - 8 mm")
-    plot_panel(axes[2], x, mean_16, max_16, std_16, r"$\boldsymbol{\Delta}\mathbf{L}$ = - 16 mm")
+    fig = plt.figure(figsize=(9, 10))
+    gs = GridSpec(6, 3, height_ratios=[1, 1, 1, 1, 0.18, 1], hspace=0.24, wspace=0.25, figure=fig)
 
-    axes[0].set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    for ax in axes:
-        ax.set_xlabel('Stimulation frequency', fontweight='bold')
-    axes[0].legend()
+    fig.text(0.09, 0.92, "A", fontsize=14, fontweight="bold", ha="left", va="top")
+    fig.text(0.09, 0.25, "B", fontsize=14, fontweight="bold", ha="left", va="bottom")
 
-    plt.tight_layout()
+    force_data = [
+        [
+            (exp_twitch_0,  sim_twitch_0,  (0, 10), "1 Hz"),
+            (exp_twitch_8,  sim_twitch_8,  (0, 10), "1 Hz"),
+            (exp_twitch_16, sim_twitch_16, (0, 10), "1 Hz"),
+        ],
+        [
+            (exp_iso_0_10,  sim_iso_0_10,  (0, 30), "10 Hz"),
+            (exp_iso_8_10,  sim_iso_8_10,  (0, 30), "10 Hz"),
+            (exp_iso_16_10, sim_iso_16_10, (0, 30), "10 Hz"),
+        ],
+        [
+            (exp_iso_0_20,  sim_iso_0_20,  (0, 30), "20 Hz"),
+            (exp_iso_8_20,  sim_iso_8_20,  (0, 30), "20 Hz"),
+            (exp_iso_16_20, sim_iso_16_20, (0, 30), "20 Hz"),
+        ],
+        [
+            (exp_iso_0_40,  sim_iso_0_40,  (0, 35), "40 Hz"),
+            (exp_iso_8_40,  sim_iso_8_40,  (0, 35), "40 Hz"),
+            (exp_iso_16_40, sim_iso_16_40, (0, 35), "40 Hz"),
+        ],
+    ]
+
+    col_titles = [
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = 0 mm",
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = -8 mm",
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = -16 mm",
+    ]
+
+    force_axes = []
+
+    for r in range(4):
+        for c in range(3):
+            exp, sim, ylim, freq_label = force_data[r][c]
+            ax = fig.add_subplot(gs[r, c])
+            force_axes.append(ax)
+
+            plot_len_force_panel(ax, time_dt, exp, sim, ylim, label_text=freq_label)
+
+            if r == 0:
+                ax.set_title(col_titles[c], fontweight='bold', fontsize=10, pad=4)
+
+            if r < 3:
+                ax.set_xticklabels([])
+            else:
+                ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9)
+
+
+    force_axes[1].legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.text(
+        0.07, 0.60,
+        "Cat Soleus (Slow) Force [N]",
+        va='center',
+        rotation='vertical',
+        fontweight='bold',
+        fontsize=10
+    )
+
+    x = np.arange(1, 5)
+    x_labels = ["1", "10", "20", "40"]
+
+    ax_err_0 = fig.add_subplot(gs[5, 0])
+    ax_err_8 = fig.add_subplot(gs[5, 1], sharey=ax_err_0)
+    ax_err_16 = fig.add_subplot(gs[5, 2], sharey=ax_err_0)
+
+    plot_len_error_panel(
+        ax_err_0, x, x_labels,
+        mean_0, max_0, std_0,
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = 0 mm"
+    )
+    plot_len_error_panel(
+        ax_err_8, x, x_labels,
+        mean_8, max_8, std_8,
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = -8 mm"
+    )
+    plot_len_error_panel(
+        ax_err_16, x, x_labels,
+        mean_16, max_16, std_16,
+        r"$\boldsymbol{\Delta}\mathbf{L}$ = -16 mm"
+    )
+
+    ax_err_0.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+    ax_err_8.legend(
+        loc='upper left',
+        fontsize=8,
+        frameon=True
+    )
+
+    fig.savefig("slow_M_len_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
 
@@ -2156,118 +2153,128 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     MVC_F1 = 0.40
     MVC_F2 = 0.073
 
+        # -------------------------------------------------------------------------
+    # Force traces - combined figure
     # -------------------------------------------------------------------------
-    # Force traces
-    # -------------------------------------------------------------------------
-    # Common legend handles
     legend_handles = [
         Line2D([0], [0], color='k', lw=2, label='Experimental'),
         Line2D([0], [0], color='r', lw=2, label='Simulated (sag)'),
         Line2D([0], [0], color='r', lw=2, ls='--', label='Simulated (no sag)')
     ]
-    fig, axs = plt.subplots(2, 3, figsize=(12, 5))
 
-    # --- Row 1: Cat LG (S) ---
-    axs[0, 0].plot(time_dt_S, exp_S_twitch, 'k')
-    axs[0, 0].plot(time_dt_S, sim_S_twitch, 'r')
-    axs[0, 0].text(0.8, 0.95, '1 Hz', transform=axs[0, 0].transAxes,
-                   ha='left', va='top', weight='bold')
-    axs[0, 0].set_ylabel('Cat LG (S) \nMU Force [N]', weight='bold', fontsize=14)
-    axs[0, 0].set_ylim((0, MVC_S + 0.01))
+    fig = plt.figure(figsize=(14, 9))
 
-    axs[0, 1].plot(time_dt_S, exp_S_unfused, 'k')
-    axs[0, 1].plot(time_dt_S, sim_S_unfused, 'r')
-    axs[0, 1].text(0.8, 0.95, '12.5 Hz', transform=axs[0, 1].transAxes,
-                   ha='left', va='top', weight='bold')
-    axs[0, 1].tick_params(axis='y', which='both', labelleft=False)
-    axs[0, 1].set_ylim((0, MVC_S + 0.01))
+    gs = GridSpec(
+        3, 15,
+        height_ratios=[1, 1, 1],
+        hspace=0.35,
+        wspace=0.35,
+        figure=fig
+    )
 
-    axs[0, 2].plot(time_dt_S, exp_S_fused, 'k')
-    axs[0, 2].plot(time_dt_S, sim_S_fused, 'r')
-    axs[0, 2].plot(time_dt_S, sim_S_fused, 'r--')
-    axs[0, 2].text(0.8, 0.95, '40 Hz', transform=axs[0, 2].transAxes,
-                   ha='left', va='top', weight='bold')
-    axs[0, 2].tick_params(axis='y', which='both', labelleft=False)
-    axs[0, 2].set_ylim((0, MVC_S + 0.01))
+    # Top block: 2 x 3
+    axs_top = np.empty((2, 3), dtype=object)
+    for r in range(2):
+        for c in range(3):
+            axs_top[r, c] = fig.add_subplot(gs[r, c*5:(c+1)*5])
 
-    # --- Row 2: Cat MG (F) ---
-    axs[1, 0].plot(time_dt_F1, exp_F_twitch, 'k')
-    axs[1, 0].plot(time_dt_F1, sim_F_twitch, 'r')
-    axs[1, 0].text(0.8, 0.95, '1 Hz', transform=axs[1, 0].transAxes,
-                   ha='left', va='top', weight='bold')
-    axs[1, 0].set_ylabel('Cat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
-    axs[1, 0].set_ylim((0, MVC_F1))
+    # Bottom block: 1 x 5
+    axs_bot = []
+    for c in range(5):
+        axs_bot.append(fig.add_subplot(gs[2, c*3:(c+1)*3]))
 
-    axs[1, 1].plot(time_dt_F1, exp_F_unfused, 'k')
-    axs[1, 1].plot(time_dt_F1, sim_F_unfused, 'r')
-    axs[1, 1].plot(time_dt_F1, sim_F_unfused_nosag, 'r--')
-    axs[1, 1].text(0.8, 0.95, '25 Hz', transform=axs[1, 1].transAxes,
-                   ha='left', va='top', weight='bold')
-    axs[1, 1].set_xlabel('Time [s]', weight='bold', fontsize=14)
-    axs[1, 1].tick_params(axis='y', which='both', labelleft=False)
-    axs[1, 1].set_ylim((0, MVC_F1))
+    # -------------------------------------------------------------------------
+    # Row 1: Cat LG (S)
+    # -------------------------------------------------------------------------
+    axs_top[0, 0].plot(time_dt_S, exp_S_twitch, 'k')
+    axs_top[0, 0].plot(time_dt_S, sim_S_twitch, 'r')
+    axs_top[0, 0].text(0.8, 0.95, '1 Hz', transform=axs_top[0, 0].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[0, 0].set_ylabel('Cat LG (S) \nMU Force [N]', weight='bold', fontsize=14)
+    axs_top[0, 0].set_ylim((0, MVC_S + 0.01))
 
-    axs[1, 2].plot(time_dt_F1, exp_F_fused, 'k')
-    axs[1, 2].plot(time_dt_F1, sim_F_fused, 'r')
-    axs[1, 2].text(0.8, 0.95, '40 Hz', transform=axs[1, 2].transAxes,
-               ha='left', va='top', weight='bold')
-    axs[1, 2].tick_params(axis='y', which='both', labelleft=False)
-    axs[1, 2].set_ylim((0, MVC_F1))
+    axs_top[0, 1].plot(time_dt_S, exp_S_unfused, 'k')
+    axs_top[0, 1].plot(time_dt_S, sim_S_unfused, 'r')
+    axs_top[0, 1].text(0.8, 0.95, '12.5 Hz', transform=axs_top[0, 1].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[0, 1].tick_params(axis='y', which='both', labelleft=False)
+    axs_top[0, 1].set_ylim((0, MVC_S + 0.01))
 
-    fig.legend(handles=legend_handles,
-              loc='upper center',
-              ncol=3,
-              frameon=True,
-              fancybox=False,      
-              edgecolor='black',  
-              fontsize=12,
-              bbox_to_anchor=(0.5, 1.0))
+    axs_top[0, 2].plot(time_dt_S, exp_S_fused, 'k')
+    axs_top[0, 2].plot(time_dt_S, sim_S_fused, 'r')
+    axs_top[0, 2].plot(time_dt_S, sim_S_fused, 'r--')
+    axs_top[0, 2].text(0.8, 0.95, '40 Hz', transform=axs_top[0, 2].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[0, 2].tick_params(axis='y', which='both', labelleft=False)
+    axs_top[0, 2].set_ylim((0, MVC_S + 0.01))
 
-    plt.tight_layout(rect=[0, 0, 1, 0.92])
-    plt.show()
+    axs_top[0, 0].legend(
+        handles=legend_handles,
+        loc='upper left',
+        fontsize=10,
+        frameon=True,
+        fancybox=False,
+        edgecolor='black'
+    )
 
-    fig, axs = plt.subplots(1, 5, figsize=(14, 5))
+    # -------------------------------------------------------------------------
+    # Row 2: Cat MG (F)
+    # -------------------------------------------------------------------------
+    axs_top[1, 0].plot(time_dt_F1, exp_F_twitch, 'k')
+    axs_top[1, 0].plot(time_dt_F1, sim_F_twitch, 'r')
+    axs_top[1, 0].text(0.8, 0.95, '1 Hz', transform=axs_top[1, 0].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[1, 0].set_ylabel('Cat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+    axs_top[1, 0].set_ylim((0, MVC_F1 + 0.04))
 
-    axs[0].plot(time_dt_F2, exp_F_25, 'k')
-    axs[0].plot(time_dt_F2, sim_F_25, 'r')
-    axs[0].plot(time_dt_F2, sim_F_25_nosag, 'r--')
-    axs[0].text(0.76, 0.95, '25 Hz', transform=axs[0].transAxes,
-            ha='left', va='top', weight='bold')
-    axs[0].set_ylim((0, MVC_F2 + 0.006))
-    axs[0].set_ylabel('Rat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+    axs_top[1, 1].plot(time_dt_F1, exp_F_unfused, 'k')
+    axs_top[1, 1].plot(time_dt_F1, sim_F_unfused, 'r')
+    axs_top[1, 1].plot(time_dt_F1, sim_F_unfused_nosag, 'r--')
+    axs_top[1, 1].text(0.8, 0.95, '25 Hz', transform=axs_top[1, 1].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[1, 1].set_xlabel('Time [s]', weight='bold', fontsize=14)
+    axs_top[1, 1].tick_params(axis='y', which='both', labelleft=False)
+    axs_top[1, 1].set_ylim((0, MVC_F1 + 0.04))
 
-    axs[1].plot(time_dt_F2, exp_F_30, 'k')
-    axs[1].plot(time_dt_F2, sim_F_30, 'r')
-    axs[1].plot(time_dt_F2, sim_F_30_nosag, 'r--')
-    axs[1].text(0.76, 0.95, '30 Hz', transform=axs[1].transAxes,
-            ha='left', va='top', weight='bold')
-    axs[1].tick_params(axis='y', which='both', labelleft=False)
-    axs[1].set_ylim((0, MVC_F2 + 0.006))
+    axs_top[1, 2].plot(time_dt_F1, exp_F_fused, 'k')
+    axs_top[1, 2].plot(time_dt_F1, sim_F_fused, 'r')
+    axs_top[1, 2].text(0.8, 0.95, '40 Hz', transform=axs_top[1, 2].transAxes,
+                       ha='left', va='top', weight='bold')
+    axs_top[1, 2].tick_params(axis='y', which='both', labelleft=False)
+    axs_top[1, 2].set_ylim((0, MVC_F1 + 0.04))
 
-    axs[2].plot(time_dt_F2, exp_F_35, 'k')
-    axs[2].plot(time_dt_F2, sim_F_35, 'r')
-    axs[2].plot(time_dt_F2, sim_F_35_nosag, 'r--')
-    axs[2].text(0.76, 0.95, '35 Hz', transform=axs[2].transAxes,
-            ha='left', va='top', weight='bold')
-    axs[2].tick_params(axis='y', which='both', labelleft=False)
-    axs[2].set_ylim((0, MVC_F2 + 0.006))
+    # -------------------------------------------------------------------------
+    # Bottom row: Rat MG (F)
+    # -------------------------------------------------------------------------
+    bottom_data = [
+        (exp_F_25,  sim_F_25,  sim_F_25_nosag,  '25 Hz'),
+        (exp_F_30,  sim_F_30,  sim_F_30_nosag,  '30 Hz'),
+        (exp_F_35,  sim_F_35,  sim_F_35_nosag,  '35 Hz'),
+        (exp_F_40,  sim_F_40,  sim_F_40_nosag,  '40 Hz'),
+        (exp_F_150, sim_F_150, None,             '150 Hz'),
+    ]
 
-    axs[3].plot(time_dt_F2, exp_F_40, 'k')
-    axs[3].plot(time_dt_F2, sim_F_40, 'r')
-    axs[3].plot(time_dt_F2, sim_F_40_nosag, 'r--')
-    axs[3].text(0.76, 0.95, '40 Hz', transform=axs[3].transAxes,
-            ha='left', va='top', weight='bold')
-    axs[3].tick_params(axis='y', which='both', labelleft=False)
-    axs[3].set_ylim((0, MVC_F2 + 0.006))
+    for i, (exp, sim, sim_nosag, label) in enumerate(bottom_data):
+        axs_bot[i].plot(time_dt_F2, exp, 'k')
+        axs_bot[i].plot(time_dt_F2, sim, 'r')
 
-    axs[4].plot(time_dt_F2, exp_F_150, 'k')
-    axs[4].plot(time_dt_F2, sim_F_150, 'r')
-    axs[4].text(0.76, 0.95, '150 Hz', transform=axs[4].transAxes,
-            ha='left', va='top', weight='bold')
-    axs[4].tick_params(axis='y', which='both', labelleft=False)
-    axs[4].set_ylim((0, MVC_F2 + 0.006))
+        if sim_nosag is not None:
+            axs_bot[i].plot(time_dt_F2, sim_nosag, 'r--')
 
-    plt.tight_layout(rect=[0, 0, 1, 0.92])
+        axs_bot[i].text(0.72, 0.96, label, transform=axs_bot[i].transAxes,
+                        ha='left', va='top', weight='bold')
+        axs_bot[i].set_ylim((0, MVC_F2 + 0.012))
+
+        if i == 0:
+            axs_bot[i].set_ylabel('Rat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+        else:
+            axs_bot[i].tick_params(axis='y', which='both', labelleft=False)
+
+        if i == 2:
+            axs_bot[i].set_xlabel('Time [s]', weight='bold', fontsize=14)
+
+    plt.tight_layout()
+    fig.savefig("MU_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
     print("\n=== Benchmark: MU (Burke 1974 & Celichowski 1999) ===")
@@ -2796,67 +2803,6 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
 
     MVC = 2.49
 
-    # -------------------------------------------------------------------------
-    # Plots (updated: twitch separated)
-    # -------------------------------------------------------------------------
-    fig, axes = plt.subplots(2, 3, figsize=(11, 7))
-    ax_twitch_exp = axes[0, 0]
-    ax_ffr_exp    = axes[0, 1]
-    ax_ffr_sim    = axes[0, 2]
-    ax_blank      = axes[1, 0]
-    ax_flr_exp    = axes[1, 1]
-    ax_flr_sim    = axes[1, 2]
-
-    # Twitch subplot
-    ax_twitch_exp.plot(time_dt_twitch, exp_FFR_1, 'k', label='Experimental')
-    ax_twitch_exp.plot(time_dt_twitch, sim_FFR_1, 'r', label='Simulated')
-    ax_twitch_exp.set_title("Twitch (1 Hz)", weight='bold')
-    ax_twitch_exp.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
-    ax_twitch_exp.set_xlabel("Time [s]", weight='bold')
-    ax_twitch_exp.legend(loc='upper right', fontsize=7)
-
-    # FFR panels
-    n_ffr = len(freqs)
-    gray_levels = np.linspace(0.75, 0.15, n_ffr)
-    red_levels = np.linspace(0.4, 1.0, n_ffr)
-
-    for i, (f, y) in enumerate(zip(freqs, exp_FFR_series)):
-        ax_ffr_exp.plot(time_dt, y, color=str(gray_levels[i]), label=f"{f} Hz")
-    ax_ffr_exp.set_title("Experimental Tetani", weight='bold')
-    ax_ffr_exp.set_ylim([-0.08, 1.7])
-    ax_ffr_exp.set_xlabel("Time [s]", weight='bold')
-    ax_ffr_exp.legend(loc='upper right', fontsize=7)
-
-    for i, (f, y) in enumerate(zip(freqs, sim_FFR_series)):
-        ax_ffr_sim.plot(time_dt, y, color=(red_levels[i], 0, 0), label=f"{f} Hz")
-    ax_ffr_sim.set_ylim([-0.08, 1.7])
-    ax_ffr_sim.set_title("Simulated Tetani", weight='bold')
-    ax_ffr_sim.set_xlabel("Time [s]", weight='bold')
-    ax_ffr_sim.legend(loc='upper right', fontsize=7)
-
-    # FLR panels
-    n_flr = len(disp_mm)
-    gray_levels_flr = np.linspace(0.15, 0.75, n_flr)
-    red_levels_flr = np.linspace(0.4, 1.0, n_flr)
-
-    ax_blank.axis('off')
-
-    for i, (d, y) in enumerate(zip(disp_mm, exp_FLR_series)):
-        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]), label=f"$\Delta L$ = + {d:.1f} mm")
-    ax_flr_exp.set_title("Experimental Tetani (80 Hz)", weight='bold')
-    ax_flr_exp.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
-    ax_flr_exp.set_xlabel("Time [s]", weight='bold')
-    ax_flr_exp.legend(loc='upper right', fontsize=7)
-
-    for i, (d, y) in enumerate(zip(disp_mm, sim_FLR_series)):
-        ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0), label=f"$\Delta L$ = + {d:.1f} mm")
-    ax_flr_sim.set_title("Simulated Tetani (80 Hz)", weight='bold')
-    ax_flr_sim.set_xlabel("Time [s]", weight='bold')
-    ax_flr_sim.legend(loc='upper right', fontsize=7)
-
-    plt.tight_layout()
-    plt.show()
-
     print("\n=== Benchmark: fast_M_iso ===")
     print(f"MVC = {MVC:.2f} N\n")
 
@@ -3110,7 +3056,7 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     )
 
     # -------------------------------------------------------------------------
-    # Error plots (updated: include twitch in FFR panel)
+    # Error plots 
     # -------------------------------------------------------------------------
     ffr_x = [1] + freqs
     ffr_labels = ['1'] + [str(f) for f in freqs]
@@ -3123,31 +3069,114 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     flr_max_arr  = np.array(flr_res["maxae"])
     flr_std_arr  = np.array(flr_res["std"])
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+    # -------------------------------------------------------------------------
+    # Combined plot: force traces + errors
+    # -------------------------------------------------------------------------
+    fig = plt.figure(figsize=(15, 7))
 
-    # --- FFR: twitch + tetani ---
+    gs = GridSpec(2, 5, width_ratios=[1, 1.2, 1.2, 0.05, 1.4], hspace=0.6, wspace=0.2, figure=fig)
+
+    ax_twitch   = fig.add_subplot(gs[0, 0])
+    ax_ffr_exp  = fig.add_subplot(gs[0, 1])
+    ax_ffr_sim  = fig.add_subplot(gs[0, 2])
+    ax_ffr_err  = fig.add_subplot(gs[0, 4])
+
+    ax_blank    = fig.add_subplot(gs[1, 0])
+    ax_flr_exp  = fig.add_subplot(gs[1, 1])
+    ax_flr_sim  = fig.add_subplot(gs[1, 2])
+    ax_flr_err  = fig.add_subplot(gs[1, 4])
+
+    # -------------------------------------------------------------------------
+    # Panel A: FFR
+    # -------------------------------------------------------------------------
+    ax_twitch.plot(time_dt_twitch, exp_FFR_1, 'k', label='Experimental')
+    ax_twitch.plot(time_dt_twitch, sim_FFR_1, 'r', label='Simulated')
+    ax_twitch.set_title("Twitch (1 Hz)", weight='bold', fontsize=10)
+    ax_twitch.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
+    ax_twitch.set_xlabel("Time [s]", weight='bold')
+    ax_twitch.legend(loc='upper right', fontsize=7)
+
+    n_ffr = len(freqs)
+    gray_levels = np.linspace(0.75, 0.15, n_ffr)
+    red_levels = np.linspace(0.4, 1.0, n_ffr)
+
+    for i, (f, y) in enumerate(zip(freqs, exp_FFR_series)):
+        ax_ffr_exp.plot(time_dt, y, color=str(gray_levels[i]), label=f"{f} Hz")
+
+    ax_ffr_exp.set_title("Experimental tetani", weight='bold', fontsize=10)
+    ax_ffr_exp.set_ylim([-0.08, 1.7])
+    ax_ffr_exp.set_xlabel("Time [s]", weight='bold')
+    ax_ffr_exp.legend(loc='upper right', fontsize=7)
+
+    for i, (f, y) in enumerate(zip(freqs, sim_FFR_series)):
+        ax_ffr_sim.plot(time_dt, y, color=(red_levels[i], 0, 0), label=f"{f} Hz")
+
+    ax_ffr_sim.set_title("Simulated tetani", weight='bold', fontsize=10)
+    ax_ffr_sim.set_ylim([-0.08, 1.7])
+    ax_ffr_sim.set_xlabel("Time [s]", weight='bold')
+    ax_ffr_sim.legend(loc='upper right', fontsize=7)
+
     lower = np.maximum(ffr_mean_arr - ffr_std_arr, 0)
     upper = ffr_mean_arr + ffr_std_arr
-    ax1.plot(ffr_x, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
-    ax1.fill_between(ffr_x, lower, upper, color='k', alpha=0.2)
-    ax1.plot(ffr_x, ffr_max_arr, '--*', color='k', label='MAE')
-    ax1.set_xticks(ffr_x)
-    ax1.set_xticklabels(ffr_labels)
-    ax1.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
-    ax1.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    ax1.set_ylim([0, 50])
-    ax1.legend(loc='upper left')
 
-    # --- FLR ---
+    ax_ffr_err.plot(ffr_x, ffr_mean_arr, '-o', color='k', label='mAE ± SD')
+    ax_ffr_err.fill_between(ffr_x, lower, upper, color='k', alpha=0.2)
+    ax_ffr_err.plot(ffr_x, ffr_max_arr, '--*', color='k', label='MAE')
+    ax_ffr_err.set_xticks(ffr_x)
+    ax_ffr_err.set_xticklabels(ffr_labels)
+    ax_ffr_err.set_xlabel('Stimulation frequency [Hz]', fontweight='bold')
+    ax_ffr_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+    ax_ffr_err.set_ylim([0, 50])
+    ax_ffr_err.set_title("Experimental vs. Simulated", weight='bold', fontsize=10)
+    ax_ffr_err.legend(loc='upper left', fontsize=7)
+
+    # -------------------------------------------------------------------------
+    # Panel B: FLR
+    # -------------------------------------------------------------------------
+    ax_blank.axis('off')
+
+    n_flr = len(disp_mm)
+    gray_levels_flr = np.linspace(0.15, 0.75, n_flr)
+    red_levels_flr = np.linspace(0.4, 1.0, n_flr)
+
+    for i, (d, y) in enumerate(zip(disp_mm, exp_FLR_series)):
+        ax_flr_exp.plot(time_dt, y, color=str(gray_levels_flr[i]),
+                        label=f"$\Delta L$ = + {d:.1f} mm")
+
+    ax_flr_exp.set_title("Experimental tetani", weight='bold', fontsize=10)
+    ax_flr_exp.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
+    ax_flr_exp.set_xlabel("Time [s]", weight='bold')
+    ax_flr_exp.legend(loc='upper right', fontsize=7)
+
+    for i, (d, y) in enumerate(zip(disp_mm, sim_FLR_series)):
+        ax_flr_sim.plot(time_dt, y, color=(red_levels_flr[i], 0, 0),
+                        label=f"$\Delta L$ = + {d:.1f} mm")
+
+    ax_flr_sim.set_title("Simulated tetani", weight='bold', fontsize=10)
+    ax_flr_sim.set_xlabel("Time [s]", weight='bold')
+    ax_flr_sim.legend(loc='upper right', fontsize=7)
+
     lower_f = np.maximum(flr_mean_arr - flr_std_arr, 0)
     upper_f = flr_mean_arr + flr_std_arr
-    ax2.plot(disp_mm, flr_mean_arr, '-o', color='k', label='mAE ± SD')
-    ax2.fill_between(disp_mm, lower_f, upper_f, color='k', alpha=0.2)
-    ax2.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
-    ax2.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
-    ax2.set_ylim([0, 40])
 
-    plt.tight_layout()
+    ax_flr_err.plot(disp_mm, flr_mean_arr, '-o', color='k', label='mAE ± SD')
+    ax_flr_err.fill_between(disp_mm, lower_f, upper_f, color='k', alpha=0.2)
+    ax_flr_err.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
+    ax_flr_err.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
+    ax_flr_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
+    ax_flr_err.set_ylim([0, 40])
+    ax_flr_err.set_title("Experimental vs. Simulated", weight='bold', fontsize=10)
+    ax_flr_err.legend(loc='upper left', fontsize=7)
+
+    # Panel labels
+    fig.text(0.09, 0.95, 'A', fontsize=15, fontweight='bold', ha='left', va='top')
+    fig.text(0.26, 0.47, 'B', fontsize=15, fontweight='bold', ha='left', va='top')
+    fig.text(0.68, 0.95, 'C', fontsize=15, fontweight='bold', ha='right', va='top')
+    fig.text(0.68, 0.47, 'D', fontsize=15, fontweight='bold', ha='right', va='top')
+
+    plt.subplots_adjust(hspace=0.5, wspace=0.3)
+    #plt.tight_layout(rect=[0.02, 0, 1, 0.97])
+    plt.savefig('fast_M_iso_summary.png', dpi=400, bbox_inches='tight')
     plt.show()
 
 
@@ -3190,9 +3219,10 @@ elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
     MVC = 2.49
 
     # -------------------------------------------------------------------------
-    # Plots (unchanged)
+    # Plots 
     # -------------------------------------------------------------------------
     fig = plt.figure(figsize=(12, 7))
+    plt.subplots_adjust(hspace=0.4, wspace=0.2)
 
     plt.subplot(3, 3, 1)
     plt.plot(time_dt_sub[0:len(disp_sub_l)], exp_dyn_20_095_l[0:len(disp_sub_l)], 'k')
@@ -3213,13 +3243,12 @@ elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
     plt.ylim((0, 1.9))
 
     plt.subplot(3, 3, 3)
-    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k', label='Experimental-Shortening')
-    plt.plot(time_dt_max, exp_dyn_120_095_s, 'gray', label='Experimental-Lengthening')
-    plt.plot(time_dt_max, sim_dyn_120_095_l, 'r', label='Simulated-Shortening')
-    plt.plot(time_dt_max, sim_dyn_120_095_s, 'orange', label='Simulated-Lengthening')
+    plt.plot(time_dt_max, exp_dyn_120_095_l, 'k')
+    plt.plot(time_dt_max, exp_dyn_120_095_s, 'gray')
+    plt.plot(time_dt_max, sim_dyn_120_095_l, 'r')
+    plt.plot(time_dt_max, sim_dyn_120_095_s, 'orange')
     plt.axvline(time_dt_sub[1100], color='gray', linestyle='--', linewidth=1)
     plt.title(r"120 Hz, at 0.95$\mathbf{L^{CE}_{0}}$", x=0.3, y=0.99, weight='bold')
-    plt.legend(loc=(0.2, 1.3), fontsize=12)
     plt.ylim((0, 1.7))
     plt.xlim((0.08, 0.16))
 
@@ -3268,9 +3297,19 @@ elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
     plt.ylim((-0.1, 0.12))
     plt.xlim((0.08, 0.16))
 
-    fig.text(0.03, 0.67, 'Cat CF (Fast)\nNormalized force', va='center', rotation='vertical',
+    fig.text(0.05, 0.65, 'Cat CF (Fast) Normalized force', va='center', rotation='vertical',
              weight='bold', fontsize=14)
 
+    legend_handles = [
+        Line2D([0], [0],color='k', lw=1.5, label='Experimental-Shortening'),
+        Line2D([0], [0], color='gray', lw=1.5, label='Experimental-Lengthening'),
+        Line2D([0], [0], color='r', lw=1.5, label='Simulated-Shortening'),
+        Line2D([0], [0], color='orange', lw=1.5, label='Simulated-Lengthening')
+    ]
+
+    fig.legend(handles=legend_handles, loc='center right', bbox_to_anchor=(0.9, 0.5), fontsize=11)
+
+    plt.savefig('fast_M_dynamic_summary.png', dpi=400, bbox_inches='tight')
     plt.tight_layout()
     plt.show()
 
@@ -3422,3 +3461,49 @@ elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
     plt.tight_layout()
     plt.show()
 
+
+elif benchmark == 'Ca_transients':  # Baylor, Hollingworth 1997, Rincon 2014, 2022
+
+    sim_path = base_path / 'Ca_transients' / 'sim'
+    exp_path = base_path / 'Ca_transients' / 'exp'
+
+    exp_S_Ca = np.load(exp_path / 'slow_23_100Hz_Ca.npy')
+    exp_F_Ca = np.load(exp_path / 'fast_35_125Hz_Ca.npy')
+
+    sim_S_Ca = np.load(sim_path / 'slow_23_100Hz_Ca.npy')
+    sim_F_Ca = np.load(sim_path / 'fast_35_125Hz_Ca.npy')
+
+    time_dt = np.arange(0, 1.4, dt)
+
+    fig, ax = plt.subplots(1, 2, figsize=(10, 3))
+
+    # Panel A: slow
+    ax[0].plot(time_dt, sim_S_Ca * 1e6, 'g', lw=1.5, label='Simulated')
+    ax[0].plot((exp_S_Ca[:, 0] - exp_S_Ca[0, 0]) * 1e-3, exp_S_Ca[:, 1], 'k--', lw=1.2, label='Experimental')
+
+    ax[0].text(0.03, 0.95, 'A', transform=ax[0].transAxes, fontsize=15, fontweight='bold', va='top', ha='left')
+    ax[0].set_xlabel('Time [s]', fontweight='bold')
+    ax[0].set_ylabel(r'[$\mathbf{Ca^{2+}}$] [$\mathbf{\mu}$M]', fontweight='bold')
+    ax[0].set_xlim((0, 0.15))
+    ax[0].set_ylim((0, 20))
+
+    # Panel B: fast
+    ax[1].plot(time_dt, sim_F_Ca * 1e6, 'g', lw=1.5, label='Simulated')
+    ax[1].plot((exp_F_Ca[:, 0] - exp_F_Ca[0, 0]) * 1e-3, exp_F_Ca[:, 1], 'k--', lw=1.2, label='Experimental')
+
+    ax[1].text(0.03, 0.95, 'B', transform=ax[1].transAxes, fontsize=15, fontweight='bold', va='top', ha='left')
+    ax[1].set_xlabel('Time [s]', fontweight='bold')
+    ax[1].set_xlim((0, 0.13))
+    ax[1].tick_params(axis='y', labelleft=False)
+    ax[1].legend(loc='upper right')
+
+    for a in ax:
+        a.spines['top'].set_visible(False)
+        a.spines['right'].set_visible(False)
+        a.tick_params(direction='out')
+        a.xaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
+
+    plt.tight_layout()
+
+    fig.savefig("Ca_transients.png", dpi=400, bbox_inches="tight")
+    plt.show()

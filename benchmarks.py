@@ -33,7 +33,7 @@ import tkinter as tk
 from tkinter import simpledialog
 from scipy.optimize import minimize
 
-from MU_model import MU_model, ModelConfig 
+from Multiscale_model import ModelConfig, Multiscale_model 
 
 # =====================================================================
 # Utils
@@ -846,7 +846,7 @@ model_config = ModelConfig(
 # Simulation & plots
 # =====================================================================
 
-model = MU_model(parameters, states, Distimes, model_config)
+model = Multiscale_model(parameters, states, Distimes, model_config)
 
 if scale == 'M':
 
