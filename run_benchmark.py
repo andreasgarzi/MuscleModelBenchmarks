@@ -26,13 +26,11 @@ from scipy import signal
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from Multiscale_model import ModelConfig, Multiscale_model
+from benchmark_Model import ModelConfig, benchmark_Model
 from benchmark_trials import BENCHMARK_TRIALS
 
 
-BASE_PATH = Path(__file__).resolve().parent.parent / "benchmarkData"
-RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
-
+base_path = Path() / "benchmark_Data" # benchmark input data path
 
 #______________________________________________________________________________________________
 # Helper functions
@@ -159,26 +157,7 @@ def extract_ratEDL_trial(data_path: Path, data_type: str, trial=None, f: int = 1
     force_interp = sp.interpolate.interp1d(t, force, kind="cubic")(t_interp) # interp force
     force_interp[force_interp < 0] = 0 # inferior limit to 0
 
-    return {"spike_times_sec": spike_times_sec, "t_interp": t_interp, "force_interp": force_interp}
-
-
-def fibre_type(m: str) -> str:  
-    """
-    Infer fibre type (slow or fast) from muscle name.
-
-    Inputs:
-    - m: str
-        Muscle name (e.g., "rat_SOL", "cat_CF").
-
-    Outputs:
-    - fibre_type: str
-        "slow" or "fast".
-    """
-
-    if m in {"rat_SOL", "cat_SOL", "cat_LG"}:  # slow muscles
-        return "slow"  
-    if m in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # fast muscles
-        return "fast"  
+    return {"spike_times_sec": spike_times_sec, "t_interp": t_interp, "force_interp": force_interp} 
 
 
 def build_model_config(config: dict) -> ModelConfig: 
@@ -241,6 +220,8 @@ def build_case(name: str, config: dict) -> dict:
     dt = 1e-4 # simulation time step
     time = None if t_end is None else np.arange(0, float(t_end), dt)# create time vector if final time is known
 
+    results_path = Path() / "benchmark_Results" / scale / benchmark
+
     exp_force = None
     exp_ca = None
     distimes = None
@@ -251,7 +232,7 @@ def build_case(name: str, config: dict) -> dict:
 
     if scale == "Muscle" and benchmark == "dyn2" and muscle == "rat_SOL": # SLOW MUSCLE dynamic benchmark (Krylow, Sandercock 1997)
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         amp = config["amplitude_mm"] # displacement amplitude
         disp = load_data(path / f"{muscle}_disp.dat", "rat_SOL_dyn2_disp") # load displacement
@@ -266,7 +247,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "isof" and muscle == "cat_SOL": # SLOW MUSCLE iso-f benchmark (Perreault et al. 2003)
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         stim = config["stim"] # stimulation type (constant: "c" vs. random/variable: "v")
         force_file = path / f"{muscle}_{fs}Hz_{stim}_force.dat"
@@ -278,7 +259,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         length = config["length"] # delta L (to select length offset, based on ref.)
         offset = {0: 8.0, 8: 0.0, 16: -8.0}[int(length)]
@@ -291,7 +272,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "dyn1" and muscle == "cat_SOL": # SLOW MUSCLE dyn1 benchmark (Perreault et al. 2003)
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         stim = config["stim"] # stimulation type (constant: "c" vs. random/variable: "v")
         d = config["displacement_mm"] # extract discplacement amplitude (to select disp file, based on ref.)
@@ -307,7 +288,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "isof" and muscle == "rat_EDL":
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         if int(fs) == 1:
             part = extract_ratEDL_trial(path / f"{muscle}_isof_1Hz.ddf", "rat_EDL_isof_1Hz", dt=dt) # extract isof trial with 1Hz frequency (twitch)
@@ -321,7 +302,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "isol" and muscle == "rat_EDL":
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         l = float(config["length_mm"]) # length offset (to select length trial, based on ref.)
         part = extract_ratEDL_trial(path / f"{muscle}_isol.ddf", "rat_EDL_isol", trial=l, dt=dt) # extract isof trial with specified frequency
@@ -333,7 +314,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif scale == "Muscle" and benchmark == "dyn" and muscle == "cat_CF":
 
-        path = BASE_PATH / config["scale"] / f"{fibre_type(muscle)}_{benchmark}"
+        path = base_path / scale / benchmark
 
         trial = config["trial"] # shortening ("short") vs. lengthening ("length") trial
         l_M_0_scale = config["l_M_0_scale"] # scale factor for l_M_0 (to select trial, based on ref.)
@@ -363,7 +344,7 @@ def build_case(name: str, config: dict) -> dict:
         
         if muscle == "cat_LG":
 
-            path = BASE_PATH / config["scale"] / benchmark
+            path = base_path / scale / benchmark
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
             if fs == 1:
@@ -375,8 +356,8 @@ def build_case(name: str, config: dict) -> dict:
 
         elif muscle == "cat_MG" or muscle == "rat_MG":
 
-            path = BASE_PATH / config["scale"] / benchmark
-            #path = BASE_PATH / config["scale"] / "MU_FF"
+            path = base_path / scale / benchmark
+            #path = base_path / scale / "MU_FF"
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
             if fs == 1 and muscle == "cat_MG":
@@ -396,7 +377,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif config["scale"] == "Ca_transients":
 
-        path = BASE_PATH / config["scale"] 
+        path = base_path / scale / benchmark
         exp_ca = pd.read_csv(path / f"{benchmark}.csv", delimiter=' ').to_numpy()
         
         if muscle == "rat_SOL":
@@ -410,7 +391,7 @@ def build_case(name: str, config: dict) -> dict:
     
     if time is None or l_MT is None or distimes is None:
         raise RuntimeError(f"Incomplete case construction for trial '{name}'.")
-    
+
     parameters = {
         "time": np.asarray(time, dtype=float),
         "dt": dt,
@@ -446,6 +427,7 @@ def build_case(name: str, config: dict) -> dict:
         "output_force": output_force,
         "normalise_dynamic_force": normalise_dynamic_force,
         "mvc_sample": mvc_sample,
+        "results_path": results_path,
     }
 
 
@@ -465,7 +447,7 @@ def run_case(case: dict) -> dict:
     - out: dict
         Model outputs (force, Ca, activation, etc.).
     """
-    model = Multiscale_model(case["parameters"], case["states"], case["distimes"], case["model_config"])
+    model = benchmark_Model(case["parameters"], case["states"], case["distimes"], case["model_config"])
     return model.run(output_force=case["output_force"])
 
 
@@ -690,7 +672,7 @@ def plot_case(case: dict, out: dict, show: bool = True):
         plt.show()
 
 
-def save_case(case: dict, out: dict, opt_result=None):
+def save_case(case: dict, out: dict, results_path, opt_result=None):
     """
     Save simulation results, experimental data, figures, and optimisation results.
 
@@ -707,29 +689,28 @@ def save_case(case: dict, out: dict, opt_result=None):
     """
 
     name = case["name"]
-    RESULTS_PATH.mkdir(exist_ok=True)
-    (RESULTS_PATH / "simulated").mkdir(exist_ok=True)
-    (RESULTS_PATH / "experimental").mkdir(exist_ok=True)
-    (RESULTS_PATH / "figures").mkdir(exist_ok=True)
-    (RESULTS_PATH / "optimisation").mkdir(exist_ok=True)
+    results_path.mkdir(exist_ok=True)
+    (results_path / "sim").mkdir(exist_ok=True)
+    (results_path / "exp").mkdir(exist_ok=True)
+    (results_path / "optimisation").mkdir(exist_ok=True)
 
     if case["config"]["scale"] in {"Muscle", "MU"}:
-        np.save(RESULTS_PATH / "simulated" / f"{name}_force.npy", out["force"])
-        np.save(RESULTS_PATH / "experimental" / f"{name}_force.npy", case["exp_force"])
+        np.save(results_path / "sim" / f"{name}_force.npy", out["force"])
+        np.save(results_path / "exp" / f"{name}_force.npy", case["exp_force"])
     else:
-        np.save(RESULTS_PATH / "simulated" / f"{name}_Ca.npy", out["Ca"])
-        np.save(RESULTS_PATH / "experimental" / f"{name}_Ca.npy", case["exp_ca"])
+        np.save(results_path / "sim" / f"{name}_Ca.npy", out["Ca"])
+        np.save(results_path / "exp" / f"{name}_Ca.npy", case["exp_ca"])
 
     if opt_result is not None: # if optimization was performed, save the optimized parameter values and objective value in a text file
         opt_config = case["config"].get("optimization", {}) # get optimization config for label and parameter names
-        with open(RESULTS_PATH / "optimisation" / f"{name}_optimised.txt", "w", encoding="utf-8") as f:
+        with open(results_path / "optimisation" / f"{name}_optimised.txt", "w", encoding="utf-8") as f:
             f.write(opt_config.get("label", name) + "\n")
             f.write(f"Objective = {opt_result.fun}\n")
             for pname, pval in zip(opt_config.get("parameters", []), opt_result.x):
                 f.write(f"{pname} = {pval}\n")
 
     plot_case(case, out, show=False)
-    plt.savefig(RESULTS_PATH / "figures" / f"{name}.png", dpi=300)
+    # plt.savefig(results_path / "figures" / f"{name}.png", dpi=500)
     plt.close()
 
 
@@ -786,20 +767,20 @@ def main():
         raise SystemExit(f"Unknown trial '{args.trial}'. Use --list to see available trials.")
 
     config = BENCHMARK_TRIALS[args.trial].copy()
-    case = build_case(args.trial, config)
+    case = build_case(args.trial, config) # build benchmark trial case
 
     if args.optimize:
-        case, out, opt_result = optimise_case(case, maxiter=args.maxiter)
+        case, out, opt_result = optimise_case(case, maxiter=args.maxiter) # optimize parameters in trial case
     else:
-        out = run_case(case)
+        out = run_case(case) # otherwise just run the simulation
         opt_result = None
 
     if not args.no_plot:
-        plot_case(case, out, show=True)
+        plot_case(case, out, show=True) # plot results
 
     if args.save or config.get("save", False):
-        save_case(case, out, opt_result=opt_result)
-        print(f"Saved results for {args.trial} in '{RESULTS_PATH}'.")
+        save_case(case, out, case['results_path'], opt_result=opt_result) # save in results folder
+        print(f"Saved results for {args.trial} in '{case['results_path']}'.")
 
 
 if __name__ == "__main__":
