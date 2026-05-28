@@ -33,7 +33,7 @@ import tkinter as tk
 from tkinter import simpledialog
 from scipy.optimize import minimize
 
-from Multiscale_model import ModelConfig, Multiscale_model 
+from benchmark_Model import ModelConfig, Multiscale_model 
 
 # =====================================================================
 # Utils
