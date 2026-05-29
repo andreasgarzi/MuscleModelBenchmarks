@@ -804,28 +804,28 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
 "PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
 "Files were kept separated to avoid confusion in error and statistics computation"
 
-benchmark = 'fast_M_iso' # specify benchmark among [MU, slow_M_max, slow_M_sub, slow_M_len, fast_M_iso, fast_M_dyn, Ca_transients]
-base_path = Path('..') / 'Results_benchmarks'
+benchmark = 'fast_iso' # specify benchmark among [slow_dyn2, slow_isof_dyn1, slow_isol, fast_iso, fast_dyn, MU, Ca_transients]
+base_path = Path() / 'benchmark_Results'
 dt = 1e-4
 
-if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997
+if benchmark == 'slow_dyn2':  # Krylow & Sandercock 1997
 
-    sim_path = base_path / 'slow_M' / 'sim'
-    exp_path = base_path / 'slow_M' / 'exp'
+    sim_path = base_path / 'Muscle' / benchmark / 'sim'
+    exp_path = base_path / 'Muscle' / benchmark / 'exp'
 
-    exp1 = np.load(exp_path / 'max_0.npy')
-    exp2 = np.load(exp_path / 'max_1.npy')
-    exp3 = np.load(exp_path / 'max_2.npy')
-    exp4 = np.load(exp_path / 'max_3.npy')
-    exp5 = np.load(exp_path / 'max_4.npy')
-    exp6 = np.load(exp_path / 'max_5.npy')
+    exp1 = np.load(exp_path / 'rat_SOL_0.05mmm_force.npy')
+    exp2 = np.load(exp_path / 'rat_SOL_0.10mmm_force.npy')
+    exp3 = np.load(exp_path / 'rat_SOL_0.25mmm_force.npy')
+    exp4 = np.load(exp_path / 'rat_SOL_0.50mmm_force.npy')
+    exp5 = np.load(exp_path / 'rat_SOL_1.00mmm_force.npy')
+    exp6 = np.load(exp_path / 'rat_SOL_2.00mmm_force.npy')
 
-    sim1 = np.load(sim_path / 'max_0.npy')
-    sim2 = np.load(sim_path / 'max_1.npy')
-    sim3 = np.load(sim_path / 'max_2.npy')
-    sim4 = np.load(sim_path / 'max_3.npy')
-    sim5 = np.load(sim_path / 'max_4.npy')
-    sim6 = np.load(sim_path / 'max_5.npy')
+    sim1 = np.load(sim_path / 'rat_SOL_0.05mmm_force.npy')
+    sim2 = np.load(sim_path / 'rat_SOL_0.10mmm_force.npy')
+    sim3 = np.load(sim_path / 'rat_SOL_0.25mmm_force.npy')
+    sim4 = np.load(sim_path / 'rat_SOL_0.50mmm_force.npy')
+    sim5 = np.load(sim_path / 'rat_SOL_1.00mmm_force.npy')
+    sim6 = np.load(sim_path / 'rat_SOL_2.00mmm_force.npy')
 
     t_end = 2
     time_dt = np.arange(0, t_end, dt)
@@ -935,28 +935,29 @@ if benchmark == 'slow_M_max':  # Krylow & Sandercock 1997
     plt.show()
 
 
-elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
-
-    sim_path = base_path / 'slow_M' / 'sim'
-    exp_path = base_path / 'slow_M' / 'exp'
+elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
 
     # -------------------------------------------------------------------------
     # Load isometric trials
     # -------------------------------------------------------------------------
-    sim_iso_c_10 = np.load(sim_path / 'sub_iso_c_10.npy')
-    sim_iso_c_20 = np.load(sim_path / 'sub_iso_c_20.npy')
-    sim_iso_c_30 = np.load(sim_path / 'sub_iso_c_30.npy')
-    sim_iso_v_10 = np.load(sim_path / 'sub_iso_v_10.npy')
-    sim_iso_v_20 = np.load(sim_path / 'sub_iso_v_20.npy')
-    sim_iso_v_30 = np.load(sim_path / 'sub_iso_v_30.npy')
 
-    exp_iso_c_10 = np.load(exp_path / 'sub_iso_c_10.npy')
-    exp_iso_c_20 = np.load(exp_path / 'sub_iso_c_20.npy')
-    exp_iso_c_30 = np.load(exp_path / 'sub_iso_c_30.npy')
-    exp_iso_v_10 = np.load(exp_path / 'sub_iso_v_10.npy')
-    exp_iso_v_20 = np.load(exp_path / 'sub_iso_v_20.npy')
-    exp_iso_v_30 = np.load(exp_path / 'sub_iso_v_30.npy')
-    
+    sim_path_isof = base_path / 'Muscle' / 'slow_isof' / 'sim'
+    exp_path_isof = base_path / 'Muscle' / 'slow_isof' / 'exp'
+
+    sim_iso_c_10 = np.load(sim_path_isof / 'cat_SOL_10Hz_c_force.npy')
+    sim_iso_c_20 = np.load(sim_path_isof / 'cat_SOL_20Hz_c_force.npy')
+    sim_iso_c_30 = np.load(sim_path_isof / 'cat_SOL_30Hz_c_force.npy')
+    sim_iso_v_10 = np.load(sim_path_isof / 'cat_SOL_10Hz_v_force.npy')
+    sim_iso_v_20 = np.load(sim_path_isof / 'cat_SOL_20Hz_v_force.npy')
+    sim_iso_v_30 = np.load(sim_path_isof / 'cat_SOL_30Hz_v_force.npy')
+
+    exp_iso_c_10 = np.load(exp_path_isof / 'cat_SOL_10Hz_c_force.npy')
+    exp_iso_c_20 = np.load(exp_path_isof / 'cat_SOL_20Hz_c_force.npy')
+    exp_iso_c_30 = np.load(exp_path_isof / 'cat_SOL_30Hz_c_force.npy')
+    exp_iso_v_10 = np.load(exp_path_isof / 'cat_SOL_10Hz_v_force.npy')
+    exp_iso_v_20 = np.load(exp_path_isof / 'cat_SOL_20Hz_v_force.npy')
+    exp_iso_v_30 = np.load(exp_path_isof / 'cat_SOL_30Hz_v_force.npy')
+
     t_end = 2
     time_dt = np.arange(0, t_end, dt)
     MVC = 26.13
@@ -964,55 +965,60 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     # -------------------------------------------------------------------------
     # Load dynamic constant trials
     # -------------------------------------------------------------------------
-    sim_dyn_c_10_1 = np.load(sim_path / 'sub_dyn_c_10_1.npy')
-    sim_dyn_c_20_1 = np.load(sim_path / 'sub_dyn_c_20_1.npy')
-    sim_dyn_c_30_1 = np.load(sim_path / 'sub_dyn_c_30_1.npy')
-    sim_dyn_c_10_8 = np.load(sim_path / 'sub_dyn_c_10_8.npy')
-    sim_dyn_c_20_8 = np.load(sim_path / 'sub_dyn_c_20_8.npy')
-    sim_dyn_c_30_8 = np.load(sim_path / 'sub_dyn_c_30_8.npy')
 
-    sim_dyn_c_10_1_noy = np.load(sim_path / 'sub_dyn_c_10_1_noy.npy')
-    sim_dyn_c_20_1_noy = np.load(sim_path / 'sub_dyn_c_20_1_noy.npy')
-    sim_dyn_c_30_1_noy = np.load(sim_path / 'sub_dyn_c_30_1_noy.npy')
-    sim_dyn_c_10_8_noy = np.load(sim_path / 'sub_dyn_c_10_8_noy.npy')
-    sim_dyn_c_20_8_noy = np.load(sim_path / 'sub_dyn_c_20_8_noy.npy')
-    sim_dyn_c_30_8_noy = np.load(sim_path / 'sub_dyn_c_30_8_noy.npy')
+    sim_path_dyn1 = base_path / 'Muscle' / 'slow_dyn1' / 'sim'
+    exp_path_dyn1 = base_path / 'Muscle' / 'slow_dyn1' / 'exp'
 
-    exp_dyn_c_10_1 = np.load(exp_path / 'sub_dyn_c_10_1.npy')
-    exp_dyn_c_20_1 = np.load(exp_path / 'sub_dyn_c_20_1.npy')
-    exp_dyn_c_30_1 = np.load(exp_path / 'sub_dyn_c_30_1.npy')
-    exp_dyn_c_10_8 = np.load(exp_path / 'sub_dyn_c_10_8.npy')
-    exp_dyn_c_20_8 = np.load(exp_path / 'sub_dyn_c_20_8.npy')
-    exp_dyn_c_30_8 = np.load(exp_path / 'sub_dyn_c_30_8.npy')
+    sim_dyn_c_10_1 = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_1mm_force.npy') # with yielding
+    sim_dyn_c_20_1 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_1mm_force.npy')
+    sim_dyn_c_30_1 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_1mm_force.npy')
+    sim_dyn_c_10_8 = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_8mm_force.npy')
+    sim_dyn_c_20_8 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_8mm_force.npy')
+    sim_dyn_c_30_8 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_8mm_force.npy')
+
+    sim_dyn_c_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_1mm_force_noy.npy') # without yielding
+    sim_dyn_c_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_1mm_force_noy.npy')
+    sim_dyn_c_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_1mm_force_noy.npy')
+    sim_dyn_c_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_8mm_force_noy.npy')
+    sim_dyn_c_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_8mm_force_noy.npy')
+    sim_dyn_c_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_8mm_force_noy.npy')
+
+    exp_dyn_c_10_1 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_c_1mm_force.npy')
+    exp_dyn_c_20_1 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_c_1mm_force.npy')
+    exp_dyn_c_30_1 = np.load(exp_path_dyn1 / 'cat_SOL_30Hz_c_1mm_force.npy')
+    exp_dyn_c_10_8 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_c_8mm_force.npy')
+    exp_dyn_c_20_8 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_c_8mm_force.npy')
+    exp_dyn_c_30_8 = np.load(exp_path_dyn1 / 'cat_SOL_30Hz_c_8mm_force.npy')
 
     # -------------------------------------------------------------------------
     # Load dynamic random trials
     # -------------------------------------------------------------------------
-    sim_dyn_v_10_1 = np.load(sim_path / 'sub_dyn_v_10_1.npy')
-    sim_dyn_v_20_1 = np.load(sim_path / 'sub_dyn_v_20_1.npy')
-    sim_dyn_v_30_1 = np.load(sim_path / 'sub_dyn_v_30_1.npy')
-    sim_dyn_v_10_8 = np.load(sim_path / 'sub_dyn_v_10_8.npy')
-    sim_dyn_v_20_8 = np.load(sim_path / 'sub_dyn_v_20_8.npy')
-    sim_dyn_v_30_8 = np.load(sim_path / 'sub_dyn_v_30_8.npy')
 
-    sim_dyn_v_10_1_noy = np.load(sim_path / 'sub_dyn_v_10_1_noy.npy')
-    sim_dyn_v_20_1_noy = np.load(sim_path / 'sub_dyn_v_20_1_noy.npy')
-    sim_dyn_v_30_1_noy = np.load(sim_path / 'sub_dyn_v_30_1_noy.npy')
-    sim_dyn_v_10_8_noy = np.load(sim_path / 'sub_dyn_v_10_8_noy.npy')
-    sim_dyn_v_20_8_noy = np.load(sim_path / 'sub_dyn_v_20_8_noy.npy')
-    sim_dyn_v_30_8_noy = np.load(sim_path / 'sub_dyn_v_30_8_noy.npy')
+    sim_dyn_v_10_1 = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_1mm_force.npy')
+    sim_dyn_v_20_1 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_1mm_force.npy')
+    sim_dyn_v_30_1 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_1mm_force.npy')
+    sim_dyn_v_10_8 = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_8mm_force.npy')
+    sim_dyn_v_20_8 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_8mm_force.npy')
+    sim_dyn_v_30_8 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_8mm_force.npy')
 
-    exp_dyn_v_10_1 = np.load(exp_path / 'sub_dyn_v_10_1.npy')
-    exp_dyn_v_20_1 = np.load(exp_path / 'sub_dyn_v_20_1.npy')
-    exp_dyn_v_30_1 = np.load(exp_path / 'sub_dyn_v_30_1.npy')
-    exp_dyn_v_10_8 = np.load(exp_path / 'sub_dyn_v_10_8.npy')
-    exp_dyn_v_20_8 = np.load(exp_path / 'sub_dyn_v_20_8.npy')
-    exp_dyn_v_30_8 = np.load(exp_path / 'sub_dyn_v_30_8.npy')
+    sim_dyn_v_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_1mm_force_noy.npy')
+    sim_dyn_v_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_1mm_force_noy.npy')
+    sim_dyn_v_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_1mm_force_noy.npy')
+    sim_dyn_v_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_8mm_force_noy.npy')
+    sim_dyn_v_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_8mm_force_noy.npy')
+    sim_dyn_v_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_8mm_force_noy.npy')
 
+    exp_dyn_v_10_1 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_v_1mm_force.npy')
+    exp_dyn_v_20_1 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_v_1mm_force.npy')
+    exp_dyn_v_30_1 = np.load(exp_path_dyn1 / 'cat_SOL_30Hz_v_1mm_force.npy')
+    exp_dyn_v_10_8 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_v_8mm_force.npy')
+    exp_dyn_v_20_8 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_v_8mm_force.npy')
+    exp_dyn_v_30_8 = np.load(exp_path_dyn1 / 'cat_SOL_30Hz_v_8mm_force.npy')
 
     # -------------------------------------------------------------------------
     # Trial definitions
     # -------------------------------------------------------------------------
+
     print("\n=== Benchmark: slow_M_sub ===")
     print(f"MVC = {MVC:.2f} N\n")
 
@@ -1647,10 +1653,10 @@ elif benchmark == 'slow_M_sub':  # Perreault 2003 experiments
     plt.show()
 
 
-elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experiments
+elif benchmark == 'slow_isol':  # Kim et al. 2015 from Perreault 2003 experiments
 
-    sim_path = base_path / 'slow_M' / 'sim'
-    exp_path = base_path / 'slow_M' / 'exp'
+    sim_path = base_path / 'Muscle' / 'slow_M' / 'sim'
+    exp_path = base_path / 'Muscle' / 'slow_M' / 'exp'
 
     exp_twitch_0 = np.load(exp_path / 'len_iso_twitch_0.npy')
     exp_iso_0_10 = np.load(exp_path / 'len_iso_10_0.npy')
@@ -2094,49 +2100,51 @@ elif benchmark == 'slow_M_len':  # Kim et al. 2015 from Perreault 2003 experimen
 
 elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
 
-    sim_path = base_path / 'MU' / 'sim'
-    exp_path = base_path / 'MU' / 'exp'
+    sim_path_S = base_path / 'MU' / 'MU_S' / 'sim'
+    exp_path_S = base_path / 'MU' / 'MU_S' / 'exp'
+    sim_path_FR = base_path / 'MU' / 'MU_FR' / 'sim'
+    exp_path_FR = base_path / 'MU' / 'MU_FR' / 'exp'
 
     # -------------------------------------------------------------------------
     # Load experimental traces
     # -------------------------------------------------------------------------
-    exp_S_twitch = np.load(exp_path / 'slow_twitch.npy')
-    exp_S_unfused = np.load(exp_path / 'slow_unfused.npy')
-    exp_S_fused = np.load(exp_path / 'slow_fused.npy')
+    exp_S_twitch = np.load(exp_path_S / 'cat_LG_1Hz_force.npy')
+    exp_S_unfused = np.load(exp_path_S / 'cat_LG_12.5Hz_force.npy')
+    exp_S_fused = np.load(exp_path_S / 'cat_LG_40Hz_force.npy')
 
-    exp_F_twitch = np.load(exp_path / 'fast_twitch.npy')
-    exp_F_unfused = np.load(exp_path / 'fast_unfused.npy')
-    exp_F_fused = np.load(exp_path / 'fast_fused.npy')
+    exp_F_twitch = np.load(exp_path_FR / 'cat_MG_1Hz_force.npy')
+    exp_F_unfused = np.load(exp_path_FR / 'cat_MG_20Hz_force.npy')
+    exp_F_fused = np.load(exp_path_FR / 'cat_MG_40Hz_force.npy')
 
-    exp_F_25 = np.load(exp_path / 'fast_25.npy')
-    exp_F_30 = np.load(exp_path / 'fast_30.npy')
-    exp_F_35 = np.load(exp_path / 'fast_35.npy')
-    exp_F_40 = np.load(exp_path / 'fast_40.npy')
-    exp_F_150 = np.load(exp_path / 'fast_150.npy')
+    exp_F_25 = np.load(exp_path_FR / 'rat_MG_25Hz_force.npy')
+    exp_F_30 = np.load(exp_path_FR / 'rat_MG_30Hz_force.npy')
+    exp_F_35 = np.load(exp_path_FR / 'rat_MG_35Hz_force.npy')
+    exp_F_40 = np.load(exp_path_FR / 'rat_MG_40Hz_force.npy')
+    exp_F_150 = np.load(exp_path_FR / 'rat_MG_150Hz_force.npy')
 
     # -------------------------------------------------------------------------
     # Load simulated traces
     # -------------------------------------------------------------------------
-    sim_S_twitch = np.load(sim_path / 'slow_twitch.npy')
-    sim_S_unfused = np.load(sim_path / 'slow_unfused.npy')
-    sim_S_fused = np.load(sim_path / 'slow_fused.npy')
+    sim_S_twitch = np.load(sim_path_S / 'cat_LG_1Hz_force.npy')
+    sim_S_unfused = np.load(sim_path_S / 'cat_LG_12.5Hz_force.npy')
+    sim_S_fused = np.load(sim_path_S / 'cat_LG_40Hz_force.npy')
 
-    sim_F_twitch = np.load(sim_path / 'fast_twitch_nosag.npy')  # sag not active for twitch
-    sim_F_twitch_nosag = np.load(sim_path / 'fast_twitch_nosag.npy')
-    sim_F_unfused = np.load(sim_path / 'fast_unfused.npy')
-    sim_F_unfused_nosag = np.load(sim_path / 'fast_unfused_nosag.npy')
-    sim_F_fused = np.load(sim_path / 'fast_fused.npy')
+    sim_F_twitch = np.load(sim_path_FR / 'cat_MG_1Hz_force.npy')  # with sag
+    sim_F_twitch_nosag = np.load(sim_path_FR / 'cat_MG_1Hz_force_nosag.npy') # without sag
+    sim_F_unfused = np.load(sim_path_FR / 'cat_MG_20Hz_force.npy')
+    sim_F_unfused_nosag = np.load(sim_path_FR / 'cat_MG_20Hz_force_nosag.npy')
+    sim_F_fused = np.load(sim_path_FR / 'cat_MG_40Hz_force.npy')
 
-    sim_F_25 = np.load(sim_path / 'fast_25.npy')
-    sim_F_30 = np.load(sim_path / 'fast_30.npy')
-    sim_F_35 = np.load(sim_path / 'fast_35.npy')
-    sim_F_40 = np.load(sim_path / 'fast_40.npy')
-    sim_F_150 = np.load(sim_path / 'fast_150.npy')
+    sim_F_25 = np.load(sim_path_FR / 'cat_MG_25Hz_force.npy')
+    sim_F_30 = np.load(sim_path_FR / 'cat_MG_30Hz_force.npy')
+    sim_F_35 = np.load(sim_path_FR / 'cat_MG_35Hz_force.npy')
+    sim_F_40 = np.load(sim_path_FR / 'cat_MG_40Hz_force.npy')
+    sim_F_150 = np.load(sim_path_FR / 'cat_MG_150Hz_force.npy')
 
-    sim_F_25_nosag = np.load(sim_path / 'fast_25_nosag.npy')
-    sim_F_30_nosag = np.load(sim_path / 'fast_30_nosag.npy')
-    sim_F_35_nosag = np.load(sim_path / 'fast_35_nosag.npy')
-    sim_F_40_nosag = np.load(sim_path / 'fast_40_nosag.npy')
+    sim_F_25_nosag = np.load(sim_path_FR / 'cat_MG_25Hz_force_nosag.npy')
+    sim_F_30_nosag = np.load(sim_path_FR / 'cat_MG_30Hz_force_nosag.npy')
+    sim_F_35_nosag = np.load(sim_path_FR / 'cat_MG_35Hz_force_nosag.npy')
+    sim_F_40_nosag = np.load(sim_path_FR / 'cat_MG_40Hz_force_nosag.npy')
 
     # -------------------------------------------------------------------------
     # Time vectors and F0
@@ -2719,37 +2727,41 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     )
 
 
-elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
+elif benchmark == 'fast_iso':  # Millard 2025 experiments
 
-    sim_path = base_path / 'fast_M' / 'sim'
-    exp_path = base_path / 'fast_M' / 'exp'
+    sim_path_isof = base_path / 'Muscle' / 'fast_isof' / 'sim'
+    exp_path_isof = base_path / 'Muscle' / 'fast_isof' / 'exp'
+    sim_path_isol = base_path / 'Muscle' / 'fast_isol' / 'sim'
+    exp_path_isol = base_path / 'Muscle' / 'fast_isol' / 'exp'
 
     # -------------------------------------------------------------------------
     # Load FFR twitch (separate dataset)
     # -------------------------------------------------------------------------
-    exp_FFR_1 = np.load(exp_path / 'iso_FFR_twitch.npy')
-    sim_FFR_1 = np.load(sim_path / 'iso_FFR_twitch.npy')
+
+    exp_FFR_1 = np.load(exp_path_isof / 'rat_EDL_isof_1Hz_force.npy')
+    sim_FFR_1 = np.load(sim_path_isof / 'rat_EDL_isof_1Hz_force.npy')
 
     # -------------------------------------------------------------------------
     # Load FFR tetani
     # -------------------------------------------------------------------------
-    exp_FFR_30  = np.load(exp_path / 'iso_FFR_30.npy')
-    exp_FFR_50  = np.load(exp_path / 'iso_FFR_50.npy')
-    exp_FFR_60  = np.load(exp_path / 'iso_FFR_60.npy')
-    exp_FFR_70  = np.load(exp_path / 'iso_FFR_70.npy')
-    exp_FFR_80  = np.load(exp_path / 'iso_FFR_80.npy')
-    exp_FFR_90  = np.load(exp_path / 'iso_FFR_90.npy')
-    exp_FFR_100 = np.load(exp_path / 'iso_FFR_100.npy')
-    exp_FFR_120 = np.load(exp_path / 'iso_FFR_120.npy')
 
-    sim_FFR_30  = np.load(sim_path / 'iso_FFR_30.npy')
-    sim_FFR_50  = np.load(sim_path / 'iso_FFR_50.npy')
-    sim_FFR_60  = np.load(sim_path / 'iso_FFR_60.npy')
-    sim_FFR_70  = np.load(sim_path / 'iso_FFR_70.npy')
-    sim_FFR_80  = np.load(sim_path / 'iso_FFR_80.npy')
-    sim_FFR_90  = np.load(sim_path / 'iso_FFR_90.npy')
-    sim_FFR_100 = np.load(sim_path / 'iso_FFR_100.npy')
-    sim_FFR_120 = np.load(sim_path / 'iso_FFR_120.npy')
+    exp_FFR_30  = np.load(exp_path_isof / 'rat_EDL_isof_30Hz_force.npy')
+    exp_FFR_50  = np.load(exp_path_isof / 'rat_EDL_isof_50Hz_force.npy')
+    exp_FFR_60  = np.load(exp_path_isof / 'rat_EDL_isof_60Hz_force.npy')
+    exp_FFR_70  = np.load(exp_path_isof / 'rat_EDL_isof_70Hz_force.npy')
+    exp_FFR_80  = np.load(exp_path_isof / 'rat_EDL_isof_80Hz_force.npy')
+    exp_FFR_90  = np.load(exp_path_isof / 'rat_EDL_isof_90Hz_force.npy')
+    exp_FFR_100 = np.load(exp_path_isof / 'rat_EDL_isof_100Hz_force.npy')
+    exp_FFR_120 = np.load(exp_path_isof / 'rat_EDL_isof_120Hz_force.npy')
+
+    sim_FFR_30  = np.load(sim_path_isof / 'rat_EDL_isof_30Hz_force.npy')
+    sim_FFR_50  = np.load(sim_path_isof / 'rat_EDL_isof_50Hz_force.npy')
+    sim_FFR_60  = np.load(sim_path_isof / 'rat_EDL_isof_60Hz_force.npy')
+    sim_FFR_70  = np.load(sim_path_isof / 'rat_EDL_isof_70Hz_force.npy')
+    sim_FFR_80  = np.load(sim_path_isof / 'rat_EDL_isof_80Hz_force.npy')
+    sim_FFR_90  = np.load(sim_path_isof / 'rat_EDL_isof_90Hz_force.npy')
+    sim_FFR_100 = np.load(sim_path_isof / 'rat_EDL_isof_100Hz_force.npy')
+    sim_FFR_120 = np.load(sim_path_isof / 'rat_EDL_isof_120Hz_force.npy')
 
     freqs = [30, 50, 60, 70, 80, 90, 100, 120]
     exp_FFR_series = [
@@ -2764,23 +2776,23 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     # -------------------------------------------------------------------------
     # Load FLR
     # -------------------------------------------------------------------------
-    exp_FLR_050 = np.load(exp_path / 'iso_FLR_0.50.npy')
-    exp_FLR_100 = np.load(exp_path / 'iso_FLR_1.00.npy')
-    exp_FLR_150 = np.load(exp_path / 'iso_FLR_1.50.npy')
-    exp_FLR_200 = np.load(exp_path / 'iso_FLR_2.00.npy')
-    exp_FLR_250 = np.load(exp_path / 'iso_FLR_2.50.npy')
-    exp_FLR_300 = np.load(exp_path / 'iso_FLR_3.00.npy')
-    exp_FLR_350 = np.load(exp_path / 'iso_FLR_3.50.npy')
-    exp_FLR_400 = np.load(exp_path / 'iso_FLR_4.00.npy')
+    exp_FLR_050 = np.load(exp_path_isol / 'rat_EDL_isol_0.50.npy')
+    exp_FLR_100 = np.load(exp_path_isol / 'rat_EDL_isol_1.00.npy')
+    exp_FLR_150 = np.load(exp_path_isol / 'rat_EDL_isol_1.50.npy')
+    exp_FLR_200 = np.load(exp_path_isol / 'rat_EDL_isol_2.00.npy')
+    exp_FLR_250 = np.load(exp_path_isol / 'rat_EDL_isol_2.50.npy')
+    exp_FLR_300 = np.load(exp_path_isol / 'rat_EDL_isol_3.00.npy')
+    exp_FLR_350 = np.load(exp_path_isol / 'rat_EDL_isol_3.50.npy')
+    exp_FLR_400 = np.load(exp_path_isol / 'rat_EDL_isol_4.00.npy')
 
-    sim_FLR_050 = np.load(sim_path / 'iso_FLR_0.50.npy')
-    sim_FLR_100 = np.load(sim_path / 'iso_FLR_1.00.npy')
-    sim_FLR_150 = np.load(sim_path / 'iso_FLR_1.50.npy')
-    sim_FLR_200 = np.load(sim_path / 'iso_FLR_2.00.npy')
-    sim_FLR_250 = np.load(sim_path / 'iso_FLR_2.50.npy')
-    sim_FLR_300 = np.load(sim_path / 'iso_FLR_3.00.npy')
-    sim_FLR_350 = np.load(sim_path / 'iso_FLR_3.50.npy')
-    sim_FLR_400 = np.load(sim_path / 'iso_FLR_4.00.npy')
+    sim_FLR_050 = np.load(sim_path_isol / 'rat_EDL_isol_0.50.npy')
+    sim_FLR_100 = np.load(sim_path_isol / 'rat_EDL_isol_1.00.npy')
+    sim_FLR_150 = np.load(sim_path_isol / 'rat_EDL_isol_1.50.npy')
+    sim_FLR_200 = np.load(sim_path_isol / 'rat_EDL_isol_2.00.npy')
+    sim_FLR_250 = np.load(sim_path_isol / 'rat_EDL_isol_2.50.npy')
+    sim_FLR_300 = np.load(sim_path_isol / 'rat_EDL_isol_3.00.npy')
+    sim_FLR_350 = np.load(sim_path_isol / 'rat_EDL_isol_3.50.npy')
+    sim_FLR_400 = np.load(sim_path_isol / 'rat_EDL_isol_4.00.npy')
 
     disp_mm = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
     exp_FLR_series = [
@@ -3180,37 +3192,37 @@ elif benchmark == 'fast_M_iso':  # Millard 2025 experiments
     plt.show()
 
 
-elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
+elif benchmark == 'fast_dyn':  # Brown 1999 experiments
 
-    sim_path = base_path / 'fast_M' / 'sim'
-    exp_path = base_path / 'fast_M' / 'exp'
+    sim_path = base_path / 'Muscle' / benchmark / 'sim'
+    exp_path = base_path / 'Muscle' / benchmark / 'exp'
 
-    exp_dyn_120_095_s = np.load(exp_path / 'dyn_120_0.95_length.npy')
-    exp_dyn_120_095_l = np.load(exp_path / 'dyn_120_0.95_short.npy')
-    exp_dyn_20_095_s = np.load(exp_path / 'dyn_20_0.95_length.npy')
-    exp_dyn_20_095_l = np.load(exp_path / 'dyn_20_0.95_short.npy')
-    exp_dyn_40_08_s = np.load(exp_path / 'dyn_40_0.8_length.npy')
-    exp_dyn_40_08_l = np.load(exp_path / 'dyn_40_0.8_short.npy')
-    exp_dyn_40_11_s = np.load(exp_path / 'dyn_40_1.1_length.npy')
-    exp_dyn_40_11_l = np.load(exp_path / 'dyn_40_1.1_short.npy')
-    exp_dyn_60_095_s = np.load(exp_path / 'dyn_60_0.95_length.npy')
-    exp_dyn_60_095_l = np.load(exp_path / 'dyn_60_0.95_short.npy')
+    exp_dyn_120_095_s = np.load(exp_path / 'cat_CF_120Hz_0.95L0_length_force.npy')
+    exp_dyn_120_095_l = np.load(exp_path / 'cat_CF_120Hz_0.95L0_short_force.npy')
+    exp_dyn_20_095_s = np.load(exp_path / 'cat_CF_20Hz_0.95L0_length_force.npy')
+    exp_dyn_20_095_l = np.load(exp_path / 'cat_CF_20Hz_0.95L0_short_force.npy')
+    exp_dyn_40_08_s = np.load(exp_path / 'cat_CF_40Hz_0.8L0_length_force.npy')
+    exp_dyn_40_08_l = np.load(exp_path / 'cat_CF_40Hz_0.8L0_short_force.npy')
+    exp_dyn_40_11_s = np.load(exp_path / 'cat_CF_40Hz_1.1L0_length_force.npy')
+    exp_dyn_40_11_l = np.load(exp_path / 'cat_CF_40Hz_1.1L0_short_force.npy')
+    exp_dyn_60_095_s = np.load(exp_path / 'cat_CF_60Hz_0.95L0_length_force.npy')
+    exp_dyn_60_095_l = np.load(exp_path / 'cat_CF_60Hz_0.95L0_short_force.npy')
 
-    sim_dyn_120_095_s = np.load(sim_path / 'dyn_120_0.95_length.npy')
-    sim_dyn_120_095_l = np.load(sim_path / 'dyn_120_0.95_short.npy')
-    sim_dyn_20_095_s = np.load(sim_path / 'dyn_20_0.95_length.npy')
-    sim_dyn_20_095_l = np.load(sim_path / 'dyn_20_0.95_short.npy')
-    sim_dyn_40_08_s = np.load(sim_path / 'dyn_40_0.8_length.npy')
-    sim_dyn_40_08_l = np.load(sim_path / 'dyn_40_0.8_short.npy')
-    sim_dyn_40_11_s = np.load(sim_path / 'dyn_40_1.1_length.npy')
-    sim_dyn_40_11_l = np.load(sim_path / 'dyn_40_1.1_short.npy')
-    sim_dyn_60_095_s = np.load(sim_path / 'dyn_60_0.95_length.npy')
-    sim_dyn_60_095_l = np.load(sim_path / 'dyn_60_0.95_short.npy')
+    sim_dyn_120_095_s = np.load(sim_path / 'cat_CF_120Hz_0.95L0_length_force.npy')
+    sim_dyn_120_095_l = np.load(sim_path / 'cat_CF_120Hz_0.95L0_short_force.npy')
+    sim_dyn_20_095_s = np.load(sim_path / 'cat_CF_20Hz_0.95L0_length_force.npy')
+    sim_dyn_20_095_l = np.load(sim_path / 'cat_CF_20Hz_0.95L0_short_force.npy')
+    sim_dyn_40_08_s = np.load(sim_path / 'cat_CF_40Hz_0.8L0_length_force.npy')
+    sim_dyn_40_08_l = np.load(sim_path / 'cat_CF_40Hz_0.8L0_short_force.npy')
+    sim_dyn_40_11_s = np.load(sim_path / 'cat_CF_40Hz_1.1L0_length_force.npy')
+    sim_dyn_40_11_l = np.load(sim_path / 'cat_CF_40Hz_1.1L0_short_force.npy')
+    sim_dyn_60_095_s = np.load(sim_path / 'cat_CF_60Hz_0.95L0_length_force.npy')
+    sim_dyn_60_095_l = np.load(sim_path / 'cat_CF_60Hz_0.95L0_short_force.npy')
 
-    disp_sub_s = np.load(exp_path / 'disp_max_length_interp.npy')
-    disp_sub_l = np.load(exp_path / 'disp_max_short_interp.npy')
-    disp_max_s = np.load(exp_path / 'disp_sub_length_interp.npy')
-    disp_max_l = np.load(exp_path / 'disp_sub_short_interp.npy')
+    disp_sub_s = np.load(exp_path / 'cat_CF_120Hz_length_disp.npy')
+    disp_sub_l = np.load(exp_path / 'cat_CF_120Hz_short_disp.npy')
+    disp_max_s = np.load(exp_path / 'cat_CF_subfreq_length_interp.npy')
+    disp_max_l = np.load(exp_path / 'cat_CF_subfreq_short_interp.npy')
 
     t_end_max = 0.16
     t_end_sub = 0.17
@@ -3464,8 +3476,8 @@ elif benchmark == 'fast_M_dyn':  # Brown 1999 experiments
 
 elif benchmark == 'Ca_transients':  # Baylor, Hollingworth 1997, Rincon 2014, 2022
 
-    sim_path = base_path / 'Ca_transients' / 'sim'
-    exp_path = base_path / 'Ca_transients' / 'exp'
+    sim_path = base_path / benchmark / 'sim'
+    exp_path = base_path / benchmark / 'exp'
 
     exp_S_Ca = np.load(exp_path / 'slow_23_100Hz_Ca.npy')
     exp_F_Ca = np.load(exp_path / 'fast_35_125Hz_Ca.npy')
