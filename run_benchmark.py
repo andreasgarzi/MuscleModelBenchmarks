@@ -27,7 +27,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 from benchmark_Model import ModelConfig, benchmark_Model
-from benchmark_trials import BENCHMARK_TRIALS
+from benchmark_Trials import benchmark_trials
 
 
 base_path = Path() / "benchmark_Data" # benchmark input data path
@@ -220,7 +220,10 @@ def build_case(name: str, config: dict) -> dict:
     dt = 1e-4 # simulation time step
     time = None if t_end is None else np.arange(0, float(t_end), dt)# create time vector if final time is known
 
-    results_path = Path() / "benchmark_Results" / scale / benchmark
+    if scale != "Ca_transients":
+        results_path = Path() / "benchmark_Results" / scale / benchmark
+    else:
+        results_path = Path() / "benchmark_Results" / benchmark
 
     exp_force = None
     exp_ca = None
@@ -230,7 +233,7 @@ def build_case(name: str, config: dict) -> dict:
     normalise_dynamic_force = False
     mvc_sample = None
 
-    if scale == "Muscle" and benchmark == "dyn2" and muscle == "rat_SOL": # SLOW MUSCLE dynamic benchmark (Krylow, Sandercock 1997)
+    if scale == "Muscle" and benchmark == "slow_dyn2" and muscle == "rat_SOL": # SLOW MUSCLE dynamic benchmark (Krylow, Sandercock 1997)
 
         path = base_path / scale / benchmark
 
@@ -245,7 +248,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_force = interp_xy(exp_data, time, kind="quadratic") # interp exp force
         distimes = np.arange(0, t_end, 1/float(fs)) # create discharge times
 
-    elif scale == "Muscle" and benchmark == "isof" and muscle == "cat_SOL": # SLOW MUSCLE iso-f benchmark (Perreault et al. 2003)
+    elif scale == "Muscle" and benchmark == "slow_isof" and muscle == "cat_SOL": # SLOW MUSCLE iso-f benchmark (Perreault et al. 2003)
 
         path = base_path / scale / benchmark
 
@@ -257,7 +260,7 @@ def build_case(name: str, config: dict) -> dict:
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0 # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif scale == "Muscle" and benchmark == "isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
+    elif scale == "Muscle" and benchmark == "slow_isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
 
         path = base_path / scale / benchmark
 
@@ -270,7 +273,7 @@ def build_case(name: str, config: dict) -> dict:
         if int(fs) == 1: # twitch case
             distimes = np.round(distimes, 3)
 
-    elif scale == "Muscle" and benchmark == "dyn1" and muscle == "cat_SOL": # SLOW MUSCLE dyn1 benchmark (Perreault et al. 2003)
+    elif scale == "Muscle" and benchmark == "slow_dyn1" and muscle == "cat_SOL": # SLOW MUSCLE dyn1 benchmark (Perreault et al. 2003)
 
         path = base_path / scale / benchmark
 
@@ -286,7 +289,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_force = interp_xy(exp_data, time, kind="cubic") # interp exp force
         distimes = np.load(path / f"{muscle}_{fs}Hz_{stim}_stim.npy")  # load discharge times
 
-    elif scale == "Muscle" and benchmark == "isof" and muscle == "rat_EDL":
+    elif scale == "Muscle" and benchmark == "fast_isof" and muscle == "rat_EDL":
 
         path = base_path / scale / benchmark
 
@@ -300,7 +303,7 @@ def build_case(name: str, config: dict) -> dict:
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif scale == "Muscle" and benchmark == "isol" and muscle == "rat_EDL":
+    elif scale == "Muscle" and benchmark == "fast_isol" and muscle == "rat_EDL":
 
         path = base_path / scale / benchmark
 
@@ -312,7 +315,7 @@ def build_case(name: str, config: dict) -> dict:
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) + l # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
-    elif scale == "Muscle" and benchmark == "dyn" and muscle == "cat_CF":
+    elif scale == "Muscle" and benchmark == "fast_dyn" and muscle == "cat_CF":
 
         path = base_path / scale / benchmark
 
@@ -322,7 +325,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_force = np.load(force_file)[: len(time)] # load exp force
         l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
         
-        if fs == 120:
+        if fs == "120":
             disp_file = path / f"{muscle}_{fs}Hz_{trial}_disp.npy" 
             distimes = np.arange(0, t_end, 1.0/float(fs)) # create discharge times
             mvc_sample = 1083 if trial == "short" else 1090 # sample index corresponding to MVC (for normalisation)
@@ -347,11 +350,11 @@ def build_case(name: str, config: dict) -> dict:
             path = base_path / scale / benchmark
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
-            if fs == 1:
+            if fs == "1":
                 distimes = np.round([0], 3)
-            elif fs == 12.5:
+            elif fs == "12.5":
                 distimes = np.arange(0, 17*0.0813, 0.0813) 
-            elif fs == 40:
+            elif fs == "40":
                 distimes = np.arange(0, 13*0.025, 0.025)
 
         elif muscle == "cat_MG" or muscle == "rat_MG":
@@ -360,25 +363,27 @@ def build_case(name: str, config: dict) -> dict:
             #path = base_path / scale / "MU_FF"
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
-            if fs == 1 and muscle == "cat_MG":
+            if fs == "1" and muscle == "cat_MG":
                 distimes = np.round([0],3) # twitch (Burke 1974)
-            elif fs == 20 and muscle == "cat_MG":
+            elif fs == "20" and muscle == "cat_MG":
                 distimes = np.arange(0, 17*0.05, 0.05) # 20 Hz (Burke 1974)
-            elif fs == 40 and muscle == "cat_MG":
+            elif fs == "40" and muscle == "cat_MG":
                 distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz (Burke 1974)
-            else: 
+            elif muscle == "rat_MG":
                 distimes = np.load(path / f"{muscle}_{fs}Hz_stim.npy") # (Chelichowski 1999)
-                time_exp = np.arange(0, exp_force[-1,0], dt) # for rat GM, exp. force was interpolated to time_dt
-                exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='linear')(time_exp)
-                target_len = len(time)
-                if len(exp_force) < target_len:
-                    n_pad = target_len - len(exp_force)
-                    exp_force = np.concatenate([exp_force, np.zeros(n_pad)])
+        
+        if muscle != 'rat_MG':
+
+            time_exp = np.arange(0, exp_force[-1,0], dt) # for rat GM, exp. force was interpolated to time_dt
+            exp_force = sp.interpolate.interp1d(exp_force[:,0], exp_force[:,1], kind='linear')(time_exp)
+            target_len = len(time)
+            if len(exp_force) < target_len:
+                n_pad = target_len - len(exp_force)
+                exp_force = np.concatenate([exp_force, np.zeros(n_pad)])
 
     elif config["scale"] == "Ca_transients":
 
-        path = base_path / scale / benchmark
-        exp_ca = pd.read_csv(path / f"{benchmark}.csv", delimiter=' ').to_numpy()
+        exp_ca = pd.read_csv(base_path / scale / f"{benchmark}.csv", delimiter=' ').to_numpy()
         
         if muscle == "rat_SOL":
             l_MT = np.full(len(time), 1.0, dtype=float) # full MT length array
@@ -646,7 +651,7 @@ def plot_case(case: dict, out: dict, show: bool = True):
 
         plt.figure(figsize=(8, 4))
         plt.plot(time, force_sim, label="Simulated Force", linewidth=2)
-        plt.plot(time[: len(exp_force)], exp_force[: len(time)], "k", label="Experimental Force", linewidth=1.5)
+        plt.plot(time, exp_force, "k", label="Experimental Force", linewidth=1.5)
         plt.ylabel("Force [N]", fontsize=12)
         plt.xlabel("Time [s]", fontsize=12)
         plt.title(case["name"], weight="bold")
@@ -656,7 +661,7 @@ def plot_case(case: dict, out: dict, show: bool = True):
 
     elif scale == "Ca_transients":
         exp_ca = case["exp_ca"]
-        plt.figure(figsize=(5, 3), dpi=300)
+        plt.figure(figsize=(5, 3))
         plt.plot(time, out["Ca"] * 1e6, label="Simulated")
         plt.plot((exp_ca[:, 0] - exp_ca[0, 0]) * 1e-3, exp_ca[:, 1], "k--", label="Experimental")
         plt.xlabel("Time [s]", fontsize=12)
@@ -698,8 +703,8 @@ def save_case(case: dict, out: dict, results_path, opt_result=None):
         np.save(results_path / "sim" / f"{name}_force.npy", out["force"])
         np.save(results_path / "exp" / f"{name}_force.npy", case["exp_force"])
     else:
-        np.save(results_path / "sim" / f"{name}_Ca.npy", out["Ca"])
-        np.save(results_path / "exp" / f"{name}_Ca.npy", case["exp_ca"])
+        np.save(results_path / "sim" / f"{name}.npy", out["Ca"])
+        np.save(results_path / "exp" / f"{name}.npy", case["exp_ca"])
 
     if opt_result is not None: # if optimization was performed, save the optimized parameter values and objective value in a text file
         opt_config = case["config"].get("optimization", {}) # get optimization config for label and parameter names
@@ -744,7 +749,7 @@ def main():
 
     if args.list:
         print("Available benchmark trials:")
-        for key, cfg in BENCHMARK_TRIALS.items():
+        for key, cfg in benchmark_trials.items():
             if args.benchmark is not None and cfg.get("benchmark") != args.benchmark:
                 continue
             if args.scale is not None and cfg.get("scale") != args.scale:
@@ -754,7 +759,7 @@ def main():
 
     if args.list_opt:
         print("Trials with optimisation blocks:")
-        for key, cfg in BENCHMARK_TRIALS.items():
+        for key, cfg in benchmark_trials.items():
             if "optimization" in cfg:
                 label = cfg["optimization"].get("label", "")
                 print(f"  {key}: {label}")
@@ -763,10 +768,10 @@ def main():
     if args.trial is None:
         raise SystemExit("Please provide a trial name, or use --list / --list-opt.")
 
-    if args.trial not in BENCHMARK_TRIALS:
+    if args.trial not in benchmark_trials:
         raise SystemExit(f"Unknown trial '{args.trial}'. Use --list to see available trials.")
 
-    config = BENCHMARK_TRIALS[args.trial].copy()
+    config = benchmark_trials[args.trial].copy()
     case = build_case(args.trial, config) # build benchmark trial case
 
     if args.optimize:
