@@ -1,16 +1,12 @@
 """
-Author: Andrea Sgarzi
-a.sgarzi@ad.unsw.edu.au
-University of New South Wales, GSBME
-___________________________________
+Autonomous benchmark result and plotting script.
 
-Display MU-model benchmarks results among:
-Slow_M: ("slow_M_max", "slow_M_sub", slow_M_len) 
-Fast_M: (fast_M_iso, fast_M_len, fast_M_dyn)
-MU: (slow_MU, fast_MU)
-
+This file keeps the numerical logic and figure output names of benchmark_res&plots.py,
+but wraps each benchmark in a callable function so the old script can be deleted.
+Use the command-line argument to choose one benchmark, or use 'all'.
 """
 
+import argparse
 from pathlib import Path
 import numpy as np
 from matplotlib.gridspec import GridSpec
@@ -20,30 +16,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
 
-# Helper functions
-
-def summarize_trials(mae_list, maxae_list, label="", unit="% MVC"):
-    """
-    mae_list   : iterable di MAE (mean absolute error) per trial
-    maxae_list : iterable di MaxAE (max absolute error) per trial
-    """
-    mae_arr   = np.asarray(mae_list, dtype=float)
-    maxae_arr = np.asarray(maxae_list, dtype=float)
-
-    if mae_arr.size == 0 or maxae_arr.size == 0:
-        print(f"{label} (no trials)")
-        return
-
-    print(f"{label}")
-    print(
-        f"  MAE   = {mae_arr.mean():6.2f} ± {mae_arr.std(ddof=0):6.2f} {unit}   "
-        f"[{mae_arr.min():6.2f} – {mae_arr.max():6.2f}]"
-    )
-    print(
-        f"  MaxAE = {maxae_arr.mean():6.2f} ± {maxae_arr.std(ddof=0):6.2f} {unit}   "
-        f"[{maxae_arr.min():6.2f} – {maxae_arr.max():6.2f}]"
-    )
-    print()
+# Numerical and plotting helpers
 
 def load_series(folder: Path, names):
     return [np.load(folder / f"{name}.npy") for name in names]
@@ -801,31 +774,29 @@ def print_nontwitch_metric_summary(label: str, metrics_exp: dict, metrics_sim: d
     )
 
 
-"PLOT MU_model benchmark results and COMPUTE ERRORS & STATISTICS"
-"Files were kept separated to avoid confusion in error and statistics computation"
+# Benchmarks
 
-benchmark = 'fast_iso' # specify benchmark among [slow_dyn2, slow_isof_dyn1, slow_isol, fast_iso, fast_dyn, MU, Ca_transients]
-base_path = Path() / 'benchmark_Results'
-dt = 1e-4
+def run_slow_dyn2():
+    
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
-if benchmark == 'slow_dyn2':  # Krylow & Sandercock 1997
+    sim_path = base_path / 'Muscle' / 'slow_dyn2' / 'sim'
+    exp_path = base_path / 'Muscle' / 'slow_dyn2' / 'exp'
 
-    sim_path = base_path / 'Muscle' / benchmark / 'sim'
-    exp_path = base_path / 'Muscle' / benchmark / 'exp'
+    exp1 = np.load(exp_path / 'rat_SOL_0.05mm_force.npy')
+    exp2 = np.load(exp_path / 'rat_SOL_0.10mm_force.npy')
+    exp3 = np.load(exp_path / 'rat_SOL_0.25mm_force.npy')
+    exp4 = np.load(exp_path / 'rat_SOL_0.50mm_force.npy')
+    exp5 = np.load(exp_path / 'rat_SOL_1.00mm_force.npy')
+    exp6 = np.load(exp_path / 'rat_SOL_2.00mm_force.npy')
 
-    exp1 = np.load(exp_path / 'rat_SOL_0.05mmm_force.npy')
-    exp2 = np.load(exp_path / 'rat_SOL_0.10mmm_force.npy')
-    exp3 = np.load(exp_path / 'rat_SOL_0.25mmm_force.npy')
-    exp4 = np.load(exp_path / 'rat_SOL_0.50mmm_force.npy')
-    exp5 = np.load(exp_path / 'rat_SOL_1.00mmm_force.npy')
-    exp6 = np.load(exp_path / 'rat_SOL_2.00mmm_force.npy')
-
-    sim1 = np.load(sim_path / 'rat_SOL_0.05mmm_force.npy')
-    sim2 = np.load(sim_path / 'rat_SOL_0.10mmm_force.npy')
-    sim3 = np.load(sim_path / 'rat_SOL_0.25mmm_force.npy')
-    sim4 = np.load(sim_path / 'rat_SOL_0.50mmm_force.npy')
-    sim5 = np.load(sim_path / 'rat_SOL_1.00mmm_force.npy')
-    sim6 = np.load(sim_path / 'rat_SOL_2.00mmm_force.npy')
+    sim1 = np.load(sim_path / 'rat_SOL_0.05mm_force.npy')
+    sim2 = np.load(sim_path / 'rat_SOL_0.10mm_force.npy')
+    sim3 = np.load(sim_path / 'rat_SOL_0.25mm_force.npy')
+    sim4 = np.load(sim_path / 'rat_SOL_0.50mm_force.npy')
+    sim5 = np.load(sim_path / 'rat_SOL_1.00mm_force.npy')
+    sim6 = np.load(sim_path / 'rat_SOL_2.00mm_force.npy')
 
     t_end = 2
     time_dt = np.arange(0, t_end, dt)
@@ -931,15 +902,17 @@ if benchmark == 'slow_dyn2':  # Krylow & Sandercock 1997
     fig.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(0.88, 0.97), fontsize=11)
 
     plt.tight_layout()
-    plt.savefig('slow_M_max_summary.png', dpi=400, bbox_inches='tight')
+    # plt.savefig('slow_M_max_summary.png', dpi=400, bbox_inches='tight')
     plt.show()
 
-
-elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
+def run_slow_isof_dyn1():
 
     # -------------------------------------------------------------------------
     # Load isometric trials
     # -------------------------------------------------------------------------
+
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
     sim_path_isof = base_path / 'Muscle' / 'slow_isof' / 'sim'
     exp_path_isof = base_path / 'Muscle' / 'slow_isof' / 'exp'
@@ -976,12 +949,12 @@ elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
     sim_dyn_c_20_8 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_8mm_force.npy')
     sim_dyn_c_30_8 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_8mm_force.npy')
 
-    sim_dyn_c_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_1mm_force_noy.npy') # without yielding
-    sim_dyn_c_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_1mm_force_noy.npy')
-    sim_dyn_c_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_1mm_force_noy.npy')
-    sim_dyn_c_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_8mm_force_noy.npy')
-    sim_dyn_c_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_8mm_force_noy.npy')
-    sim_dyn_c_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_8mm_force_noy.npy')
+    sim_dyn_c_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_1mm_noy_force.npy') # without yielding
+    sim_dyn_c_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_1mm_noy_force.npy')
+    sim_dyn_c_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_1mm_noy_force.npy')
+    sim_dyn_c_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_c_8mm_noy_force.npy')
+    sim_dyn_c_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_c_8mm_noy_force.npy')
+    sim_dyn_c_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_c_8mm_noy_force.npy')
 
     exp_dyn_c_10_1 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_c_1mm_force.npy')
     exp_dyn_c_20_1 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_c_1mm_force.npy')
@@ -1001,12 +974,12 @@ elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
     sim_dyn_v_20_8 = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_8mm_force.npy')
     sim_dyn_v_30_8 = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_8mm_force.npy')
 
-    sim_dyn_v_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_1mm_force_noy.npy')
-    sim_dyn_v_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_1mm_force_noy.npy')
-    sim_dyn_v_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_1mm_force_noy.npy')
-    sim_dyn_v_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_8mm_force_noy.npy')
-    sim_dyn_v_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_8mm_force_noy.npy')
-    sim_dyn_v_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_8mm_force_noy.npy')
+    sim_dyn_v_10_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_1mm_noy_force.npy')
+    sim_dyn_v_20_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_1mm_noy_force.npy')
+    sim_dyn_v_30_1_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_1mm_noy_force.npy')
+    sim_dyn_v_10_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_10Hz_v_8mm_noy_force.npy')
+    sim_dyn_v_20_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_20Hz_v_8mm_noy_force.npy')
+    sim_dyn_v_30_8_noy = np.load(sim_path_dyn1 / 'cat_SOL_30Hz_v_8mm_noy_force.npy')
 
     exp_dyn_v_10_1 = np.load(exp_path_dyn1 / 'cat_SOL_10Hz_v_1mm_force.npy')
     exp_dyn_v_20_1 = np.load(exp_path_dyn1 / 'cat_SOL_20Hz_v_1mm_force.npy')
@@ -1356,7 +1329,7 @@ elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
         "— slow_M_sub summary: DYN NO YIELDING R² (all trials) —",
         ""
     )
-  
+      
     ####################################################################################
     # Plots
     ####################################################################################
@@ -1519,7 +1492,7 @@ elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
         frameon=True
     )
 
-    fig.savefig("slow_M_sub_isometric_summary.png", dpi=400, bbox_inches="tight")
+    #fig.savefig("slow_M_sub_isometric_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
 
@@ -1649,40 +1622,42 @@ elif benchmark == 'slow_isof_dyn1':  # Perreault 2003 experiments
         frameon=True
     )
 
-    fig.savefig("slow_M_sub_dynamic_summary.png", dpi=400, bbox_inches="tight")
+    #fig.savefig("slow_M_sub_dynamic_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
+def run_slow_isol():
+    
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
-elif benchmark == 'slow_isol':  # Kim et al. 2015 from Perreault 2003 experiments
+    sim_path = base_path / 'Muscle' / 'slow_isol' / 'sim'
+    exp_path = base_path / 'Muscle' / 'slow_isol' / 'exp'
 
-    sim_path = base_path / 'Muscle' / 'slow_M' / 'sim'
-    exp_path = base_path / 'Muscle' / 'slow_M' / 'exp'
+    exp_twitch_0 = np.load(exp_path / 'cat_SOL_1Hz_0mm_force.npy')
+    exp_iso_0_10 = np.load(exp_path / 'cat_SOL_10Hz_0mm_force.npy')
+    exp_iso_0_20 = np.load(exp_path / 'cat_SOL_20Hz_0mm_force.npy')
+    exp_iso_0_40 = np.load(exp_path / 'cat_SOL_40Hz_0mm_force.npy')
+    exp_twitch_8 = np.load(exp_path / 'cat_SOL_1Hz_8mm_force.npy')
+    exp_iso_8_10 = np.load(exp_path / 'cat_SOL_10Hz_8mm_force.npy')
+    exp_iso_8_20 = np.load(exp_path / 'cat_SOL_20Hz_8mm_force.npy')
+    exp_iso_8_40 = np.load(exp_path / 'cat_SOL_40Hz_8mm_force.npy')
+    exp_twitch_16 = np.load(exp_path / 'cat_SOL_1Hz_16mm_force.npy')
+    exp_iso_16_10 = np.load(exp_path / 'cat_SOL_10Hz_16mm_force.npy')
+    exp_iso_16_20 = np.load(exp_path / 'cat_SOL_20Hz_16mm_force.npy')
+    exp_iso_16_40 = np.load(exp_path / 'cat_SOL_40Hz_16mm_force.npy')
 
-    exp_twitch_0 = np.load(exp_path / 'len_iso_twitch_0.npy')
-    exp_iso_0_10 = np.load(exp_path / 'len_iso_10_0.npy')
-    exp_iso_0_20 = np.load(exp_path / 'len_iso_20_0.npy')
-    exp_iso_0_40 = np.load(exp_path / 'len_iso_40_0.npy')
-    exp_twitch_8 = np.load(exp_path / 'len_iso_twitch_8.npy')
-    exp_iso_8_10 = np.load(exp_path / 'len_iso_10_8.npy')
-    exp_iso_8_20 = np.load(exp_path / 'len_iso_20_8.npy')
-    exp_iso_8_40 = np.load(exp_path / 'len_iso_40_8.npy')
-    exp_twitch_16 = np.load(exp_path / 'len_iso_twitch_16.npy')
-    exp_iso_16_10 = np.load(exp_path / 'len_iso_10_16.npy')
-    exp_iso_16_20 = np.load(exp_path / 'len_iso_20_16.npy')
-    exp_iso_16_40 = np.load(exp_path / 'len_iso_40_16.npy')
-
-    sim_twitch_0 = np.load(sim_path / 'len_iso_twitch_0.npy')
-    sim_iso_0_10 = np.load(sim_path / 'len_iso_10_0.npy')
-    sim_iso_0_20 = np.load(sim_path / 'len_iso_20_0.npy')
-    sim_iso_0_40 = np.load(sim_path / 'len_iso_40_0.npy')
-    sim_twitch_8 = np.load(sim_path / 'len_iso_twitch_8.npy')
-    sim_iso_8_10 = np.load(sim_path / 'len_iso_10_8.npy')
-    sim_iso_8_20 = np.load(sim_path / 'len_iso_20_8.npy')
-    sim_iso_8_40 = np.load(sim_path / 'len_iso_40_8.npy')
-    sim_twitch_16 = np.load(sim_path / 'len_iso_twitch_16.npy')
-    sim_iso_16_10 = np.load(sim_path / 'len_iso_10_16.npy')
-    sim_iso_16_20 = np.load(sim_path / 'len_iso_20_16.npy')
-    sim_iso_16_40 = np.load(sim_path / 'len_iso_40_16.npy')
+    sim_twitch_0 = np.load(sim_path / 'cat_SOL_1Hz_0mm_force.npy')
+    sim_iso_0_10 = np.load(sim_path / 'cat_SOL_10Hz_0mm_force.npy')
+    sim_iso_0_20 = np.load(sim_path / 'cat_SOL_20Hz_0mm_force.npy')
+    sim_iso_0_40 = np.load(sim_path / 'cat_SOL_40Hz_0mm_force.npy')
+    sim_twitch_8 = np.load(sim_path / 'cat_SOL_1Hz_8mm_force.npy')
+    sim_iso_8_10 = np.load(sim_path / 'cat_SOL_10Hz_8mm_force.npy')
+    sim_iso_8_20 = np.load(sim_path / 'cat_SOL_20Hz_8mm_force.npy')
+    sim_iso_8_40 = np.load(sim_path / 'cat_SOL_40Hz_8mm_force.npy')
+    sim_twitch_16 = np.load(sim_path / 'cat_SOL_1Hz_16mm_force.npy')
+    sim_iso_16_10 = np.load(sim_path / 'cat_SOL_10Hz_16mm_force.npy')
+    sim_iso_16_20 = np.load(sim_path / 'cat_SOL_20Hz_16mm_force.npy')
+    sim_iso_16_40 = np.load(sim_path / 'cat_SOL_40Hz_16mm_force.npy')
 
     t_end = 1.4
     time_dt = np.arange(0, t_end, dt)
@@ -2094,11 +2069,13 @@ elif benchmark == 'slow_isol':  # Kim et al. 2015 from Perreault 2003 experiment
         frameon=True
     )
 
-    fig.savefig("slow_M_len_summary.png", dpi=400, bbox_inches="tight")
+    #fig.savefig("slow_M_len_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
+def run_MU():
 
-elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
     sim_path_S = base_path / 'MU' / 'MU_S' / 'sim'
     exp_path_S = base_path / 'MU' / 'MU_S' / 'exp'
@@ -2130,21 +2107,21 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
     sim_S_fused = np.load(sim_path_S / 'cat_LG_40Hz_force.npy')
 
     sim_F_twitch = np.load(sim_path_FR / 'cat_MG_1Hz_force.npy')  # with sag
-    sim_F_twitch_nosag = np.load(sim_path_FR / 'cat_MG_1Hz_force_nosag.npy') # without sag
+    sim_F_twitch_nosag = np.load(sim_path_FR / 'cat_MG_1Hz_force.npy') # without sag
     sim_F_unfused = np.load(sim_path_FR / 'cat_MG_20Hz_force.npy')
     sim_F_unfused_nosag = np.load(sim_path_FR / 'cat_MG_20Hz_force_nosag.npy')
     sim_F_fused = np.load(sim_path_FR / 'cat_MG_40Hz_force.npy')
 
-    sim_F_25 = np.load(sim_path_FR / 'cat_MG_25Hz_force.npy')
-    sim_F_30 = np.load(sim_path_FR / 'cat_MG_30Hz_force.npy')
-    sim_F_35 = np.load(sim_path_FR / 'cat_MG_35Hz_force.npy')
-    sim_F_40 = np.load(sim_path_FR / 'cat_MG_40Hz_force.npy')
-    sim_F_150 = np.load(sim_path_FR / 'cat_MG_150Hz_force.npy')
+    sim_F_25 = np.load(sim_path_FR / 'rat_MG_25Hz_force.npy')
+    sim_F_30 = np.load(sim_path_FR / 'rat_MG_30Hz_force.npy')
+    sim_F_35 = np.load(sim_path_FR / 'rat_MG_35Hz_force.npy')
+    sim_F_40 = np.load(sim_path_FR / 'rat_MG_40Hz_force.npy')
+    sim_F_150 = np.load(sim_path_FR / 'rat_MG_150Hz_force.npy')
 
-    sim_F_25_nosag = np.load(sim_path_FR / 'cat_MG_25Hz_force_nosag.npy')
-    sim_F_30_nosag = np.load(sim_path_FR / 'cat_MG_30Hz_force_nosag.npy')
-    sim_F_35_nosag = np.load(sim_path_FR / 'cat_MG_35Hz_force_nosag.npy')
-    sim_F_40_nosag = np.load(sim_path_FR / 'cat_MG_40Hz_force_nosag.npy')
+    sim_F_25_nosag = np.load(sim_path_FR / 'rat_MG_25Hz_force_nosag.npy')
+    sim_F_30_nosag = np.load(sim_path_FR / 'rat_MG_30Hz_force_nosag.npy')
+    sim_F_35_nosag = np.load(sim_path_FR / 'rat_MG_35Hz_force_nosag.npy')
+    sim_F_40_nosag = np.load(sim_path_FR / 'rat_MG_40Hz_force_nosag.npy')
 
     # -------------------------------------------------------------------------
     # Time vectors and F0
@@ -2282,7 +2259,7 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
             axs_bot[i].set_xlabel('Time [s]', weight='bold', fontsize=14)
 
     plt.tight_layout()
-    fig.savefig("MU_summary.png", dpi=400, bbox_inches="tight")
+    # fig.savefig("MU_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
     print("\n=== Benchmark: MU (Burke 1974 & Celichowski 1999) ===")
@@ -2726,8 +2703,10 @@ elif benchmark == 'MU':  # Burke 1974 & Celichowski 1999 experiments
         unit="% F0"
     )
 
+def run_fast_iso():
 
-elif benchmark == 'fast_iso':  # Millard 2025 experiments
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
     sim_path_isof = base_path / 'Muscle' / 'fast_isof' / 'sim'
     exp_path_isof = base_path / 'Muscle' / 'fast_isof' / 'exp'
@@ -3188,14 +3167,16 @@ elif benchmark == 'fast_iso':  # Millard 2025 experiments
 
     plt.subplots_adjust(hspace=0.5, wspace=0.3)
     #plt.tight_layout(rect=[0.02, 0, 1, 0.97])
-    plt.savefig('fast_M_iso_summary.png', dpi=400, bbox_inches='tight')
+    # plt.savefig('fast_M_iso_summary.png', dpi=400, bbox_inches='tight')
     plt.show()
 
+def run_fast_dyn():
 
-elif benchmark == 'fast_dyn':  # Brown 1999 experiments
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
-    sim_path = base_path / 'Muscle' / benchmark / 'sim'
-    exp_path = base_path / 'Muscle' / benchmark / 'exp'
+    sim_path = base_path / 'Muscle' / 'fast_dyn' / 'sim'
+    exp_path = base_path / 'Muscle' / 'fast_dyn' / 'exp'
 
     exp_dyn_120_095_s = np.load(exp_path / 'cat_CF_120Hz_0.95L0_length_force.npy')
     exp_dyn_120_095_l = np.load(exp_path / 'cat_CF_120Hz_0.95L0_short_force.npy')
@@ -3221,8 +3202,8 @@ elif benchmark == 'fast_dyn':  # Brown 1999 experiments
 
     disp_sub_s = np.load(exp_path / 'cat_CF_120Hz_length_disp.npy')
     disp_sub_l = np.load(exp_path / 'cat_CF_120Hz_short_disp.npy')
-    disp_max_s = np.load(exp_path / 'cat_CF_subfreq_length_interp.npy')
-    disp_max_l = np.load(exp_path / 'cat_CF_subfreq_short_interp.npy')
+    disp_max_s = np.load(exp_path / 'cat_CF_subfreq_length_interp_disp.npy')
+    disp_max_l = np.load(exp_path / 'cat_CF_subfreq_short_interp_disp.npy')
 
     t_end_max = 0.16
     t_end_sub = 0.17
@@ -3321,7 +3302,7 @@ elif benchmark == 'fast_dyn':  # Brown 1999 experiments
 
     fig.legend(handles=legend_handles, loc='center right', bbox_to_anchor=(0.9, 0.5), fontsize=11)
 
-    plt.savefig('fast_M_dynamic_summary.png', dpi=400, bbox_inches='tight')
+    # plt.savefig('fast_M_dynamic_summary.png', dpi=400, bbox_inches='tight')
     plt.tight_layout()
     plt.show()
 
@@ -3473,11 +3454,13 @@ elif benchmark == 'fast_dyn':  # Brown 1999 experiments
     plt.tight_layout()
     plt.show()
 
+def run_Ca_transients():
 
-elif benchmark == 'Ca_transients':  # Baylor, Hollingworth 1997, Rincon 2014, 2022
+    base_path = Path() / 'benchmark_Results'
+    dt = 1e-4
 
-    sim_path = base_path / benchmark / 'sim'
-    exp_path = base_path / benchmark / 'exp'
+    sim_path = base_path / 'Ca_transients' / 'sim'
+    exp_path = base_path / 'Ca_transients' / 'exp'
 
     exp_S_Ca = np.load(exp_path / 'slow_23_100Hz_Ca.npy')
     exp_F_Ca = np.load(exp_path / 'fast_35_125Hz_Ca.npy')
@@ -3517,5 +3500,36 @@ elif benchmark == 'Ca_transients':  # Baylor, Hollingworth 1997, Rincon 2014, 20
 
     plt.tight_layout()
 
-    fig.savefig("Ca_transients.png", dpi=400, bbox_inches="tight")
+    # fig.savefig("Ca_transients.png", dpi=400, bbox_inches="tight")
     plt.show()
+
+
+BENCHMARKS = {
+    'slow_dyn2': run_slow_dyn2,
+    'slow_isof_dyn1': run_slow_isof_dyn1,
+    'slow_isol': run_slow_isol,
+    'MU': run_MU,
+    'fast_iso': run_fast_iso,
+    'fast_dyn': run_fast_dyn,
+    'Ca_transients': run_Ca_transients
+}
+
+def main(argv=None): # default runs fast_iso benchmark, otherwise select from command line
+    parser = argparse.ArgumentParser(description="Plot muscle benchmark results from benchmark_Results.")
+    parser.add_argument(
+        "benchmark",
+        nargs="?",
+        default="fast_iso",
+        choices=['slow_dyn2', 'slow_isof_dyn1', 'slow_isol', 'MU', 'fast_iso', 'fast_dyn', 'Ca_transients', "all"],
+        help="Benchmark to run. Default: fast_iso.",
+    )
+    args = parser.parse_args(argv)
+
+    selected = BENCHMARKS if args.benchmark == "all" else {args.benchmark: BENCHMARKS[args.benchmark]}
+    for name, runner in selected.items():
+        print(f"\n--- Running {name} ---")
+        runner()
+
+
+if __name__ == "__main__":
+    main()

@@ -460,7 +460,7 @@ benchmark_trials = {
     "cat_MG_20Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 20, "benchmark": "MU_FR",
         "MVC": 0.4, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
-        "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
+        "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
         },
     "cat_MG_40Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 40, "benchmark": "MU_FR",
