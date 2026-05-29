@@ -7,7 +7,7 @@
 *.csv
 *.dat
 *.ddf
-#*.npy
+*.npy
 
 
 git-filter-repo
