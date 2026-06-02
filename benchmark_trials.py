@@ -426,7 +426,7 @@ benchmark_trials = {
         "t_end": 1.8, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         "optimization": {
             "label": "MU S isof: optimise active state parameters on 40 Hz catMG isometric trial",
-            "parameters": ["MVC","Ca_max_s_MU_catLG", "k1_s_MU_catLG", "k2_s_MU_catLG"],
+            "parameters": ["MVC","Ca_max_s_MU", "k1_s_MU", "k2_s_MU"],
             "x0": [0.078, 5e5, 10, 10],
             "bounds": [[0.06, 0.08], [1e5, 1e6], [10, 20], [10, 20]],
             "method": "Nelder-Mead",
@@ -510,8 +510,8 @@ benchmark_trials = {
         "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
         "optimization": {
-            "label": "MU FR (F) isof: optimise MVC, Ca_max_f_MU_ratGM, k1_f_MU_ratGM, k2_f_MU_ratGM on 150 Hz tetanic trial",
-            "parameters": ["MVC", "Ca_max_f_MU_ratGM", "k1_f_MU_ratGM", "k2_f_MU_ratGM"],
+            "label": "MU FR (F) isof: optimise MVC, Ca_max_f_MU_ratMG, k1_f_MU_ratMG, k2_f_MU_ratMG on 150 Hz tetanic trial",
+            "parameters": ["MVC", "Ca_max_f_MU_ratMG", "k1_f_MU_ratMG", "k2_f_MU_ratMG"],
             "x0": [0.078, 5e5, 10.0, 10.0],
             "bounds": [[0.06, 0.08], [1e5, 1e6], [10.0, 100.0], [10.0, 100.0]],
             "method": "Nelder-Mead",

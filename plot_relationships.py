@@ -163,17 +163,17 @@ for j, eps0 in enumerate(eps0_vals):
         color=cg_green[j],
         label=rf'$\epsilon_0^T$ = {eps0*100:.1f}%'
     )
-ax.set_xlabel(r'$\epsilon^T$ [%]', fontsize=11)
-ax.set_ylabel(r'$\overline{F}^{T}$', fontsize=11)
+ax.set_xlabel(r'$\epsilon^T$ [%]', fontsize=13)
+ax.set_ylabel(r'$\overline{F}^{T}$', fontsize=13)
 ax.set_title('SE', fontweight='bold')
 ax.grid(True)
-ax.legend(fontsize=9)
+ax.legend(fontsize=10)
 
 # Passive PE
 ax = axs[0, 0]
 ax.plot(l_M_PE, f_PE, color='#7a1fa2', linewidth=2)
-ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=11)
-ax.set_ylabel(r'$\overline{F}_{PE}$', fontsize=11)
+ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=13)
+ax.set_ylabel(r'$\overline{F}_{PE}$', fontsize=13)
 ax.set_title('PE', fontweight='bold')
 ax.set_xlim(0.8, 1.8)
 ax.set_ylim(-0.1, 2.2)
@@ -190,12 +190,12 @@ for a_idx, act in enumerate(act_vals):
         v_norm, FV_fast[a_idx, :],
         color=cg_red[a_idx],
     )
-ax.set_xlabel(r'$\overline{V}^{M}$', fontsize=11)
-ax.set_ylabel(r'$\overline{f}_{FV}$', fontsize=11)
+ax.set_xlabel(r'$\overline{V}^{M}$', fontsize=13)
+ax.set_ylabel(r'$\overline{f}_{FV}$', fontsize=13)
 ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', fontweight='bold')
 ax.set_xlim(-1.2, 1.2)
 ax.grid(True)
-ax.legend(fontsize=8, loc='lower right')
+ax.legend(fontsize=10, loc='lower right')
 
 handles = []
 
@@ -206,7 +206,7 @@ for a_idx, act in enumerate(act_vals):
             [0], [0],
             color=cg_blue[a_idx],
             lw=1,
-            label=f'act = {act:.1f}, slow'
+            label=f'a = {act:.1f}, slow'
         )
     )
 
@@ -217,7 +217,7 @@ for a_idx, act in enumerate(act_vals):
             [0], [0],
             color=cg_red[a_idx],
             lw=1,
-            label=f'act = {act:.1f}, fast'
+            label=f'a = {act:.1f}, fast'
         )
     )
 
@@ -230,13 +230,13 @@ for a_idx, act in enumerate(act_vals):
         l_M,
         FL_scaled[a_idx, :],
         color=cg_blue[a_idx],
-        label=f'act = {act:.1f}'
+        label=f'a = {act:.1f}'
     )
-ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=11)
-ax.set_ylabel(r'$\overline{f}_{FL}$', fontsize=11)
+ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=13)
+ax.set_ylabel(r'$\overline{f}_{FL}$', fontsize=13)
 ax.set_title('CE - FL', fontweight='bold')
 ax.grid(True)
-ax.legend(fontsize=9)
+ax.legend(fontsize=10)
 
 
 fig.savefig("relationships_plot.png", dpi=400, bbox_inches="tight")
@@ -246,7 +246,7 @@ plt.show()
 # Ca2+ experimental digitized data from Blinks and Konishi
 #####################################################################################################
 
-base_path = Path('..') / 'benchmarkData' / 'Ca_transients'
+base_path = Path() / 'benchmark_Data' / 'Ca_transients'
 
 # Load digitized datasets
 konishi_peak = pd.read_csv(base_path / "Konishi_l_Capeak.csv", delimiter=' ').to_numpy()

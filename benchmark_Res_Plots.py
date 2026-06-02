@@ -15,6 +15,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
+save_figures = False # option to save figures in benchmark_Figures
+figures_path = Path() / "benchmark_Figures" # figures folder
 
 # Numerical and plotting helpers
 
@@ -902,7 +904,9 @@ def run_slow_dyn2():
     fig.legend(handles=legend_handles, loc='upper right', bbox_to_anchor=(0.88, 0.97), fontsize=11)
 
     plt.tight_layout()
-    # plt.savefig('slow_M_max_summary.png', dpi=400, bbox_inches='tight')
+    if save_figures == True:
+        plt.savefig(figures_path / 'slow_M_max_summary.png', dpi=500, bbox_inches='tight')
+        
     plt.show()
 
 def run_slow_isof_dyn1():
@@ -1492,7 +1496,9 @@ def run_slow_isof_dyn1():
         frameon=True
     )
 
-    #fig.savefig("slow_M_sub_isometric_summary.png", dpi=400, bbox_inches="tight")
+    if save_figures == True:
+        fig.savefig(figures_path / "slow_M_sub_isometric_summary.png", dpi=500, bbox_inches="tight")
+
     plt.show()
 
 
@@ -1622,7 +1628,8 @@ def run_slow_isof_dyn1():
         frameon=True
     )
 
-    #fig.savefig("slow_M_sub_dynamic_summary.png", dpi=400, bbox_inches="tight")
+    if save_figures == True:
+        fig.savefig(figures_path / "slow_M_sub_dynamic_summary.png", dpi=500, bbox_inches="tight")
     plt.show()
 
 def run_slow_isol():
@@ -2069,7 +2076,9 @@ def run_slow_isol():
         frameon=True
     )
 
-    #fig.savefig("slow_M_len_summary.png", dpi=400, bbox_inches="tight")
+    if save_figures == True:
+        fig.savefig(figures_path / "slow_M_len_summary.png", dpi=500, bbox_inches="tight")
+
     plt.show()
 
 def run_MU():
@@ -2175,7 +2184,7 @@ def run_MU():
     axs_top[0, 0].plot(time_dt_S, sim_S_twitch, 'r')
     axs_top[0, 0].text(0.8, 0.95, '1 Hz', transform=axs_top[0, 0].transAxes,
                        ha='left', va='top', weight='bold')
-    axs_top[0, 0].set_ylabel('Cat LG (S) \nMU Force [N]', weight='bold', fontsize=14)
+    axs_top[0, 0].set_ylabel('Cat LG (Slow) \nMU Force [N]', weight='bold', fontsize=14)
     axs_top[0, 0].set_ylim((0, MVC_S + 0.01))
 
     axs_top[0, 1].plot(time_dt_S, exp_S_unfused, 'k')
@@ -2209,7 +2218,7 @@ def run_MU():
     axs_top[1, 0].plot(time_dt_F1, sim_F_twitch, 'r')
     axs_top[1, 0].text(0.8, 0.95, '1 Hz', transform=axs_top[1, 0].transAxes,
                        ha='left', va='top', weight='bold')
-    axs_top[1, 0].set_ylabel('Cat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+    axs_top[1, 0].set_ylabel('Cat MG (Fast) \nMU Force [N]', weight='bold', fontsize=14)
     axs_top[1, 0].set_ylim((0, MVC_F1 + 0.04))
 
     axs_top[1, 1].plot(time_dt_F1, exp_F_unfused, 'k')
@@ -2251,7 +2260,7 @@ def run_MU():
         axs_bot[i].set_ylim((0, MVC_F2 + 0.012))
 
         if i == 0:
-            axs_bot[i].set_ylabel('Rat MG (F) \nMU Force [N]', weight='bold', fontsize=14)
+            axs_bot[i].set_ylabel('Rat MG (Fast) \nMU Force [N]', weight='bold', fontsize=14)
         else:
             axs_bot[i].tick_params(axis='y', which='both', labelleft=False)
 
@@ -2259,7 +2268,9 @@ def run_MU():
             axs_bot[i].set_xlabel('Time [s]', weight='bold', fontsize=14)
 
     plt.tight_layout()
-    # fig.savefig("MU_summary.png", dpi=400, bbox_inches="tight")
+    if save_figures == True:
+        fig.savefig(figures_path / "MU_summary.png", dpi=500, bbox_inches="tight")
+
     plt.show()
 
     print("\n=== Benchmark: MU (Burke 1974 & Celichowski 1999) ===")
@@ -3166,8 +3177,9 @@ def run_fast_iso():
     fig.text(0.68, 0.47, 'D', fontsize=15, fontweight='bold', ha='right', va='top')
 
     plt.subplots_adjust(hspace=0.5, wspace=0.3)
-    #plt.tight_layout(rect=[0.02, 0, 1, 0.97])
-    # plt.savefig('fast_M_iso_summary.png', dpi=400, bbox_inches='tight')
+    if save_figures == True:
+        plt.savefig(figures_path / 'fast_M_iso_summary.png', dpi=500, bbox_inches='tight')
+
     plt.show()
 
 def run_fast_dyn():
@@ -3302,7 +3314,9 @@ def run_fast_dyn():
 
     fig.legend(handles=legend_handles, loc='center right', bbox_to_anchor=(0.9, 0.5), fontsize=11)
 
-    # plt.savefig('fast_M_dynamic_summary.png', dpi=400, bbox_inches='tight')
+    if save_figures == True:
+        plt.savefig(figures_path / 'fast_M_dynamic_summary.png', dpi=500, bbox_inches='tight')
+
     plt.tight_layout()
     plt.show()
 
@@ -3500,7 +3514,9 @@ def run_Ca_transients():
 
     plt.tight_layout()
 
-    # fig.savefig("Ca_transients.png", dpi=400, bbox_inches="tight")
+    if save_figures == True:
+        fig.savefig(figures_path / "Ca_transients.png", dpi=500, bbox_inches="tight")
+
     plt.show()
 
 

@@ -40,7 +40,7 @@ class Params:
     # Required
     time: np.ndarray            # time vector
     dt: float                   # time resolution (s)
-    muscle: str                 # e.g. 'rat_SOL', 'rat_EDL', 'cat_SOL', 'cat_GM', 'cat_CF'
+    muscle: str                 # e.g. 'rat_SOL', 'rat_EDL', 'cat_SOL', 'cat_MG', 'cat_CF'
     scale: str                  # 'Muscle', 'MU', 'Ca'
     MVC: float                  # maximum isometric force [N]
     vmax: float                 # maximum contraction velocity [l0/s] (later scaled by l_M_opt)
@@ -57,14 +57,14 @@ class Params:
     k1_s_MU: float = 16.7       # activation kinetics
     k2_s_MU: float = 18.3       # activation kinetics 
     Ca_max_f_M: float = 192770  # activation (fast, muscle scale)
-    Ca_max_f_MU_catGM: float = 592607 # activation (fast, MU scale, cat GM)
-    Ca_max_f_MU_ratGM: float = 627772 # activation (fast, MU scale, rat GM)
+    Ca_max_f_MU_catMG: float = 592607 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 627772 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
     k2_f_M: float = 10.28       # activation kinetics 
-    k1_f_MU_catGM: float = 11.02       # activation kinetics
-    k2_f_MU_catGM: float = 12.92      # activation kinetics
-    k1_f_MU_ratGM: float = 10       # activation kinetics
-    k2_f_MU_ratGM: float = 63.82      # activation kinetics
+    k1_f_MU_catMG: float = 11.02       # activation kinetics
+    k2_f_MU_catMG: float = 12.92      # activation kinetics
+    k1_f_MU_ratMG: float = 10       # activation kinetics
+    k2_f_MU_ratMG: float = 63.82      # activation kinetics
     c1_s: float = 30605         # calcium kinetics (slow)
     c2_s: float = 896181        # calcium kinetics (slow)
     c3_s: float = 2.0           # calcium kinetics (slow)
@@ -404,11 +404,11 @@ class Ephys:
             Ca_norm = Ca * P.Ca_max_s_MU  
             k1, k2 = P.k1_s_MU, P.k2_s_MU  
         elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "cat_MG":  # fast MU scale
-            Ca_norm = Ca * P.Ca_max_f_MU_catGM  
-            k1, k2 = P.k1_f_MU_catGM, P.k2_f_MU_catGM  
+            Ca_norm = Ca * P.Ca_max_f_MU_catMG  
+            k1, k2 = P.k1_f_MU_catMG, P.k2_f_MU_catMG  
         elif fibre_type == "fast" and P.scale == "MU" and P.muscle == "rat_MG":  # fast MU scale
-            Ca_norm = Ca * P.Ca_max_f_MU_ratGM  
-            k1, k2 = P.k1_f_MU_ratGM, P.k2_f_MU_ratGM      
+            Ca_norm = Ca * P.Ca_max_f_MU_ratMG  
+            k1, k2 = P.k1_f_MU_ratMG, P.k2_f_MU_ratMG      
         else:  
             raise ValueError("No scale-type combination")  
 
