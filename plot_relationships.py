@@ -359,7 +359,7 @@ axes[1].plot(l_smttp, Ca_smttp, 'k', label='Fit')
 axes[1].plot(l_left, left_smttp, 'k')
 axes[1].plot(l_right, right_smttp, 'k')
 axes[1].set_xlim([0.8, 2.1])
-axes[1].set_xlabel('Normalized sarcomere length', fontweight='bold')
+axes[1].set_xlabel(r'$\overline{\mathbf{l}^{CE}}$')
 axes[1].set_ylabel(r'$\overline{\mathbf{f_2}}$')
 axes[1].grid()
 
