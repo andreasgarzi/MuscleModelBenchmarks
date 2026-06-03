@@ -16,10 +16,10 @@ The model represents excitation, calcium-mediated activation, and contraction dy
 ├── benchmark_Data/          # Raw or digitized benchmark input data
 ├── benchmark_Figures/       # Paper and benchmark summary figures
 ├── benchmark_Results/       # Saved experimental/simulated traces used for plots
-├── benchmark_Model.py       # Multiscale Hill-type actuator implementation
+├── benchmark_model.py       # Multiscale Hill-type actuator implementation
 ├── benchmark_trials.py      # Benchmark trial definitions and parameters
 ├── run_benchmark.py         # Run, optimise, plot, and save individual trials
-├── benchmark_Res_Plots.py   # Recreate paper summary plots and error metrics
+├── benchmark_res_plots.py   # Recreate paper summary plots and error metrics
 ├── plot_relationships.py    # Plot constitutive model relationships
 ├── requirements.txt         # Python dependencies
 └── requirements.txt         # Python dependencies

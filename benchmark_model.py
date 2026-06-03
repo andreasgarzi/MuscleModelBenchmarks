@@ -18,9 +18,9 @@ Key features of the model include:
 - Flexible configuration via a ModelConfig object
 
 The model supports simulations at different scales:
-- Muscle scale ("M")
+- Muscle scale ("Muscle")
 - Motor-unit scale ("MU")
-- Calcium-transient scale ("Ca")
+- Calcium-transient scale ("Ca_transients")
 """
 
 from __future__ import annotations  

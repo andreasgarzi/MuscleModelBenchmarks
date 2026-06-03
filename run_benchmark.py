@@ -3,7 +3,7 @@ Author: Andrea Sgarzi
 Email: a.sgarzi@ad.unsw.edu.au
 Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
-Run, plot, save, or optimise one benchmark trial for the MU-driven muscle model.
+Run, plot, save, or optimise one benchmark trial for the multiscale muscle model.
 
 The trial-specific information is stored in benchmark_trials.py. This driver mainly:
 - loads the appropriate experimental data and stimulation input;

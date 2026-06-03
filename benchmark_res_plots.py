@@ -1,8 +1,9 @@
 """
-Autonomous benchmark result and plotting script.
+Author: Andrea Sgarzi
+Email: a.sgarzi@ad.unsw.edu.au
+Affiliation: University of New South Wales (UNSW), Graduate School of Biomedical Engineering (GSBE)
 
-This file keeps the numerical logic and figure output names of benchmark_res&plots.py,
-but wraps each benchmark in a callable function so the old script can be deleted.
+Autonomous benchmark result and plotting script.
 Use the command-line argument to choose one benchmark, or use 'all'.
 """
 
