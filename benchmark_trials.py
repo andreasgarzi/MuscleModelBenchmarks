@@ -9,7 +9,7 @@ Benchmark trial definitions used by run_benchmark.py.
 
 import numpy as np
 
-benchmark_trials = {
+benchmark_Trials = {
     # _____________________________________________________________________
     # Muscle scale - slow muscle
     # _____________________________________________________________________

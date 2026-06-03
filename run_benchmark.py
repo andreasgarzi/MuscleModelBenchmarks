@@ -26,8 +26,8 @@ from scipy import signal
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from benchmark_Model import ModelConfig, benchmark_Model
-from benchmark_Trials import benchmark_trials
+from benchmark_model import ModelConfig, benchmark_Model
+from benchmark_trials import benchmark_Trials
 
 
 base_path = Path() / "benchmark_Data" # benchmark input data path
