@@ -812,7 +812,7 @@ class MuscleModel:  # main model object
 
 # =============================================================================
 
-def benchmark_Model(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  
+def benchmark_musclemodel(parameters: dict, states: dict, distimes, model_config: ModelConfig) -> MuscleModel:  
 
     """
     Constructor that builds Params/States from dictionaries and returns a MuscleModel.

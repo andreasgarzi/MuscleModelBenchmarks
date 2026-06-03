@@ -26,8 +26,8 @@ from scipy import signal
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from benchmark_model import ModelConfig, benchmark_Model
-from benchmark_trials import benchmark_Trials
+from benchmark_model import ModelConfig, benchmark_musclemodel
+from benchmark_trials import all_trials
 
 
 base_path = Path() / "benchmark_Data" # benchmark input data path
@@ -452,7 +452,7 @@ def run_case(case: dict) -> dict:
     - out: dict
         Model outputs (force, Ca, activation, etc.).
     """
-    model = benchmark_Model(case["parameters"], case["states"], case["distimes"], case["model_config"])
+    model = benchmark_musclemodel(case["parameters"], case["states"], case["distimes"], case["model_config"])
     return model.run(output_force=case["output_force"])
 
 
@@ -749,7 +749,7 @@ def main():
 
     if args.list:
         print("Available benchmark trials:")
-        for key, cfg in benchmark_trials.items():
+        for key, cfg in all_trials.items():
             if args.benchmark is not None and cfg.get("benchmark") != args.benchmark:
                 continue
             if args.scale is not None and cfg.get("scale") != args.scale:
@@ -759,7 +759,7 @@ def main():
 
     if args.list_opt:
         print("Trials with optimisation blocks:")
-        for key, cfg in benchmark_trials.items():
+        for key, cfg in all_trials.items():
             if "optimization" in cfg:
                 label = cfg["optimization"].get("label", "")
                 print(f"  {key}: {label}")
@@ -768,10 +768,10 @@ def main():
     if args.trial is None:
         raise SystemExit("Please provide a trial name, or use --list / --list-opt.")
 
-    if args.trial not in benchmark_trials:
+    if args.trial not in all_trials:
         raise SystemExit(f"Unknown trial '{args.trial}'. Use --list to see available trials.")
 
-    config = benchmark_trials[args.trial].copy()
+    config = all_trials[args.trial].copy()
     case = build_case(args.trial, config) # build benchmark trial case
 
     if args.optimize:
