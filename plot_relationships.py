@@ -190,7 +190,7 @@ for a_idx, act in enumerate(act_vals):
         v_norm, FV_fast[a_idx, :],
         color=cg_red[a_idx],
     )
-ax.set_xlabel(r'$\overline{V}^{M}$', fontsize=13)
+ax.set_xlabel(r'$\overline{v}$', fontsize=13)
 ax.set_ylabel(r'$\overline{f}_{FV}$', fontsize=13)
 ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', fontweight='bold')
 ax.set_xlim(-1.2, 1.2)
@@ -341,7 +341,7 @@ axes[0].plot(konishi_peak[:, 0], konishi_peak[:, 1], 'gx', label='Konishi 1991')
 axes[0].plot(l_sm, Ca_sm, 'k', label='Fit')
 axes[0].set_xlim([0.8, 2.1])
 axes[0].set_ylim([0, 1.2])
-axes[0].set_ylabel('Normalized f1', fontweight='bold')
+axes[0].set_ylabel(r'$\overline{\mathbf{f_1}}$')
 axes[0].grid()
 axes[0].set_xticklabels([])
 
@@ -360,7 +360,7 @@ axes[1].plot(l_left, left_smttp, 'k')
 axes[1].plot(l_right, right_smttp, 'k')
 axes[1].set_xlim([0.8, 2.1])
 axes[1].set_xlabel('Normalized sarcomere length', fontweight='bold')
-axes[1].set_ylabel('Normalized f2', fontweight='bold')
+axes[1].set_ylabel(r'$\overline{\mathbf{f_2}}$')
 axes[1].grid()
 
 axes[1].text(
@@ -371,5 +371,5 @@ axes[1].text(
     va='top'
 )
 
-fig.savefig("calcium_fit.png", dpi=400, bbox_inches="tight")
+fig.savefig("calcium_fit.png", dpi=500, bbox_inches="tight")
 plt.show()
