@@ -906,7 +906,7 @@ def run_slow_dyn2():
 
     plt.tight_layout()
     if save_figures == True:
-        plt.savefig(figures_path / 'slow_M_max_summary.png', dpi=500, bbox_inches='tight')
+        plt.savefig(figures_path / 'slow_M_max_summary.tif', dpi=500, bbox_inches='tight')
         
     plt.show()
 
@@ -1498,7 +1498,7 @@ def run_slow_isof_dyn1():
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_sub_isometric_summary.png", dpi=500, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_sub_isometric_summary.tif", dpi=500, bbox_inches="tight")
 
     plt.show()
 
@@ -1630,7 +1630,7 @@ def run_slow_isof_dyn1():
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_sub_dynamic_summary.png", dpi=500, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_sub_dynamic_summary.tif", dpi=500, bbox_inches="tight")
     plt.show()
 
 def run_slow_isol():
@@ -2078,7 +2078,7 @@ def run_slow_isol():
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_len_summary.png", dpi=500, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_len_summary.tif", dpi=500, bbox_inches="tight")
 
     plt.show()
 
@@ -2270,7 +2270,7 @@ def run_MU():
 
     plt.tight_layout()
     if save_figures == True:
-        fig.savefig(figures_path / "MU_summary.png", dpi=500, bbox_inches="tight")
+        fig.savefig(figures_path / "MU_summary.tif", dpi=500, bbox_inches="tight")
 
     plt.show()
 
@@ -3179,7 +3179,7 @@ def run_fast_iso():
 
     plt.subplots_adjust(hspace=0.5, wspace=0.3)
     if save_figures == True:
-        plt.savefig(figures_path / 'fast_M_iso_summary.png', dpi=500, bbox_inches='tight')
+        plt.savefig(figures_path / 'fast_M_iso_summary.tif', dpi=500, bbox_inches='tight')
 
     plt.show()
 
@@ -3316,7 +3316,7 @@ def run_fast_dyn():
     fig.legend(handles=legend_handles, loc='center right', bbox_to_anchor=(0.9, 0.5), fontsize=11)
 
     if save_figures == True:
-        plt.savefig(figures_path / 'fast_M_dynamic_summary.png', dpi=500, bbox_inches='tight')
+        plt.savefig(figures_path / 'fast_M_dynamic_summary.tif', dpi=500, bbox_inches='tight')
 
     plt.tight_layout()
     plt.show()
@@ -3516,7 +3516,7 @@ def run_Ca_transients():
     plt.tight_layout()
 
     if save_figures == True:
-        fig.savefig(figures_path / "Ca_transients.png", dpi=500, bbox_inches="tight")
+        fig.savefig(figures_path / "Ca_transients.tif", dpi=500, bbox_inches="tight")
 
     plt.show()
 

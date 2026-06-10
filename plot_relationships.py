@@ -239,7 +239,7 @@ ax.grid(True)
 ax.legend(fontsize=10)
 
 
-fig.savefig("relationships_plot.png", dpi=400, bbox_inches="tight")
+fig.savefig("relationships_plot.tif", dpi=500, bbox_inches="tight")
 plt.show()
 
 #####################################################################################################
@@ -371,5 +371,5 @@ axes[1].text(
     va='top'
 )
 
-fig.savefig("calcium_fit.png", dpi=500, bbox_inches="tight")
+fig.savefig("calcium_fit.tif", dpi=500, bbox_inches="tight")
 plt.show()
