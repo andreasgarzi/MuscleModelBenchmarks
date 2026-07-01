@@ -241,53 +241,53 @@ all_trials = {
     # Rat EDL muscle, isof (experiments ad hoc for the study)
     "rat_EDL_isof_1Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 1,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_30Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 30,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_50Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 50,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_60Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 60,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_70Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 70,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_80Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },    
     "rat_EDL_isof_90Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 90,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_100Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 100,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_120Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 120,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 4.73, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,       
         "optimization": {
             "label": "Muscle fast isof: optimise l_M_0 on 120 Hz isometric trial",
             "parameters": ["l_M_0"],
             "x0": [3.0],
-            "bounds": [[1.0, 6.6]],
+            "bounds": [[1.0, 8.38]],
             "method": "Nelder-Mead",
             "target": "force",
             "rebuild_par": True,
@@ -295,52 +295,52 @@ all_trials = {
     },
 
     # Rat EDL muscle, isol (experiments ad hoc for the study)
-    "rat_EDL_isol_0.50mm": {
+    "rat_EDL_isol_0.50": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "0.5", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,               
         "optimization": {
             "label": "Muscle fast isol: optimise MVC, Ca_max_f_M, k1_f_M, k2_f_M on 80 Hz isometric length trial",
             "parameters": ["MVC", "Ca_max_f_M", "k1_f_M", "k2_f_M"],
             "x0": [2.0, 5e5, 10.0, 10.0],
-            "bounds": [[1.9, 2.9], [1e5, 1e6], [10.0, 15.0], [10.0, 15.0]],
+            "bounds": [[1.9, 2.49], [1e5, 1e6], [10.0, 15.0], [10.0, 15.0]],
             "method": "Nelder-Mead",
             "target": "force",
         },
     },
-    "rat_EDL_isol_1.00mm": {
+    "rat_EDL_isol_1.00": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "1.0", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_1.50mm": {
+    "rat_EDL_isol_1.50": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "1.5", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_2.00mm": {
+    "rat_EDL_isol_2.00": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "2.0", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_2.50mm": {
+    "rat_EDL_isol_2.50": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "2.5", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_3.00mm": {
+    "rat_EDL_isol_3.00": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "3.0", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_3.50mm": {
+    "rat_EDL_isol_3.50": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "3.5", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
-    "rat_EDL_isol_4.00mm": {
+    "rat_EDL_isol_4.00": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isol", "length_mm": "4.0", "freq": 80,
-        "MVC": 2.49, "l_T_slack": 5, "l_M_opt": 6.6, "l_M_0": 6.6, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 8.38, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,                  
     },
 
