@@ -346,7 +346,7 @@ all_trials = {
 
     # Cat CF muscle, dyn (Brown et al. 1999)
     "cat_CF_120Hz_0.95L0_short": {
-        "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "freq": 120, "t_end": 0.16,
+        "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "0.95", "freq": 120, "t_end": 0.16,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
         "optimization": {

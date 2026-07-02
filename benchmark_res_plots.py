@@ -16,7 +16,7 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
-save_figures = False # option to save figures in benchmark_Figures
+save_figures = True # option to save figures in benchmark_Figures
 figures_path = Path() / "benchmark_Figures" # figures folder
 
 # Numerical and plotting helpers
