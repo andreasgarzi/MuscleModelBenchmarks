@@ -364,11 +364,11 @@ def build_case(name: str, config: dict) -> dict:
             exp_force = np.load(path / f"{muscle}_{fs}Hz_force.npy")
 
             if fs == "1" and muscle == "cat_MG":
-                distimes = np.round([0],3) # twitch (Burke 1974)
+                distimes = np.round([0],3) # twitch (Burke 1973)
             elif fs == "20" and muscle == "cat_MG":
-                distimes = np.arange(0, 17*0.05, 0.05) # 20 Hz (Burke 1974)
+                distimes = np.arange(0, 17*0.05, 0.05) # 20 Hz (Burke 1973)
             elif fs == "40" and muscle == "cat_MG":
-                distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz (Burke 1974)
+                distimes = np.arange(0, 13*0.025, 0.025) # 40 Hz (Burke 1973)
             elif muscle == "rat_MG":
                 distimes = np.load(path / f"{muscle}_{fs}Hz_stim.npy") # (Chelichowski 1999)
         

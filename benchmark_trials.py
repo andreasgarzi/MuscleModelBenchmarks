@@ -460,7 +460,7 @@ all_trials = {
     "cat_MG_20Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 20, "benchmark": "MU_FR",
         "MVC": 0.4, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
-        "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
+        "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "cat_MG_40Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 40, "benchmark": "MU_FR",
@@ -486,14 +486,6 @@ all_trials = {
         "scale": "MU", "muscle": "rat_MG", "freq": 30, "benchmark": "MU_FR",
         "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
-        "optimization": {
-            "label": "MU FR (F) isof: optimise sag parameters on 30 Hz ratMG isometric trial",
-            "parameters": ["As_peak", "As_decay", "Ts"],
-            "x0": [1.2, 0.9, 0.1],
-            "bounds": [[1.0, 3.0], [0.1, 1.0], [0.01, 2.0]],
-            "method": "Nelder-Mead",
-            "target": "force",
-            },
         },
     "rat_MG_35Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 35, "benchmark": "MU_FR",

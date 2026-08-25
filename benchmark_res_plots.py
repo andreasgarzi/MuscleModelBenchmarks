@@ -16,7 +16,7 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
-save_figures = True # option to save figures in benchmark_Figures
+save_figures = False # option to save figures in benchmark_Figures
 figures_path = Path() / "benchmark_Figures" # figures folder
 
 # Numerical and plotting helpers
@@ -2225,7 +2225,7 @@ def run_MU():
     axs_top[1, 1].plot(time_dt_F1, exp_F_unfused, 'k')
     axs_top[1, 1].plot(time_dt_F1, sim_F_unfused, 'r')
     axs_top[1, 1].plot(time_dt_F1, sim_F_unfused_nosag, 'r--')
-    axs_top[1, 1].text(0.8, 0.95, '25 Hz', transform=axs_top[1, 1].transAxes,
+    axs_top[1, 1].text(0.8, 0.95, '20 Hz', transform=axs_top[1, 1].transAxes,
                        ha='left', va='top', weight='bold')
     axs_top[1, 1].set_xlabel('Time [s]', weight='bold', fontsize=14)
     axs_top[1, 1].tick_params(axis='y', which='both', labelleft=False)
@@ -2270,7 +2270,7 @@ def run_MU():
 
     plt.tight_layout()
     if save_figures == True:
-        fig.savefig(figures_path / "MU_summary.png", dpi=300, bbox_inches="tight")
+        fig.savefig(figures_path / "MU_summary.png", dpi=400, bbox_inches="tight")
 
     plt.show()
 
@@ -2288,7 +2288,7 @@ def run_MU():
 
     fast_cat_trials = [
         ("Fast Twitch  (1 Hz)",    "twitch",    exp_F_twitch,   sim_F_twitch,   MVC_F1, time_dt_F1),
-        ("Fast Unfused (25 Hz)",   "nontwitch", exp_F_unfused,  sim_F_unfused,  MVC_F1, time_dt_F1),
+        ("Fast Unfused (20 Hz)",   "nontwitch", exp_F_unfused,  sim_F_unfused,  MVC_F1, time_dt_F1),
         ("Fast Fused   (40 Hz)",   "nontwitch", exp_F_fused,    sim_F_fused,    MVC_F1, time_dt_F1),
     ]
 

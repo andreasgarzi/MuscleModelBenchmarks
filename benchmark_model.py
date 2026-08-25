@@ -59,12 +59,12 @@ class Params:
     Ca_max_f_M: float = 145112  # activation (fast, muscle scale)
     Ca_max_f_MU_catMG: float = 592607 # activation (fast, MU scale, cat MG)
     Ca_max_f_MU_ratMG: float = 627772 # activation (fast, MU scale, rat MG)
-    k1_f_M: float = 14.98          # activation kinetics
+    k1_f_M: float = 14.98       # activation kinetics
     k2_f_M: float = 11.67       # activation kinetics 
-    k1_f_MU_catMG: float = 11.02       # activation kinetics
-    k2_f_MU_catMG: float = 12.92      # activation kinetics
+    k1_f_MU_catMG: float = 11.02    # activation kinetics
+    k2_f_MU_catMG: float = 12.92    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 63.82      # activation kinetics
+    k2_f_MU_ratMG: float = 63.82    # activation kinetics
     c1_s: float = 30605         # calcium kinetics (slow)
     c2_s: float = 896181        # calcium kinetics (slow)
     c3_s: float = 2.0           # calcium kinetics (slow)
@@ -73,9 +73,10 @@ class Params:
     c3_f: float = 0.435         # calcium kinetics (fast)
     af_s: float = 0.419         # FV curvature (slow)
     af_f: float = 0.361         # FV curvature (fast)
-    As_peak: float = 1.6        # sag peak
-    As_decay: float = 0.87       # sag decay
-    Ts: float = 0.097            # sag time constant
+    As_peak: float = 1.64      # sag peak
+    As_decay: float = 1.0       # sag decay
+    Ts: float = 0.109           # sag time constant
+    tp: float = 0.140           # sag onset (boost peak time)
 
     def __post_init__(self):  
 
@@ -445,13 +446,8 @@ class Ephys:
         Outputs:
         - dsag: float, sag derivative.
         """
-        P = self.P
-        if P.muscle == "cat_MG":
-            tp = 0.262
-        else:
-            tp = 0.1
 
-        if 0 < t < tp:  # early phase
+        if 0 < t < self.P.tp:  # early phase
             As = self.P.As_peak  # peak value
         else:  # later phase
             As = self.P.As_decay  # decay value
