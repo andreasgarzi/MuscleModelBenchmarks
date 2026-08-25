@@ -49,7 +49,7 @@ class Params:
     l_M_opt: float              # optimal fibre length (same units as l_MT)
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
-    # Optional defaults
+    # Activation (calibrated via optimization)
     Ca_max_s_M: float = 324382  # activation (slow, muscle scale)
     Ca_max_s_MU: float = 276339 # activation (slow, MU scale)
     k1_s_M: float = 10.6        # activation kinetics
@@ -65,14 +65,51 @@ class Params:
     k2_f_MU_catMG: float = 12.92    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
     k2_f_MU_ratMG: float = 63.82    # activation kinetics
+
+    # Calcium kinetics (calibrated via optimization)
     c1_s: float = 30605         # calcium kinetics (slow)
     c2_s: float = 896181        # calcium kinetics (slow)
     c3_s: float = 2.0           # calcium kinetics (slow)
     c1_f: float = 2056          # calcium kinetics (fast)
     c2_f: float = 467405        # calcium kinetics (fast)
     c3_f: float = 0.435         # calcium kinetics (fast)
+
+    # Calcium kinetics length-dependence (from literature)
+    r1: float = 1.0             # amplitude scaling region 1
+    r2: float = 1.1379          # amplitude scaling region 2
+    r3: float = 1.239           # amplitude scaling region 3
+    p2_1: float = 0.3783        # width polynomial coefficient
+    p2_2: float = -0.8320       # width polynomial coefficient
+    p2_3: float = 1.1885        # width polynomial coefficient
+
+    # MUAP state beta (from literature)
+    b1: float = 2e4              # MUAP ODE coefficient
+    b2: float = 5e7              # MUAP ODE coefficient
+    b3: float = 9e7              # MUAP ODE coefficient
+
+    # FV relationship (calibrated via optimization)
     af_s: float = 0.419         # FV curvature (slow)
     af_f: float = 0.361         # FV curvature (fast)
+
+    # FV parameters (from literature)
+    fmax: float = 1.4             # max eccentric factor
+    fv1: float = 0.25             # FV activation-dependent scaling (fv2 = 1-fv1)
+    kMUs: float = 0.2             # FV curvature scaling (slow)
+    kMUf: float = 1.0             # FV curvature scaling (fast)
+
+    # FL relationship (from literature)
+    a: float = 0.45     # width parameter
+    shift: float = 0.15 # shift parameter 
+
+    # Tendon stiffness (from literature)
+    eps_0_s: float = 0.06         # tendon reference strain (species/muscle dependent)
+    eps_0_f: float = 0.04         # tendon reference strain (species/muscle dependent)
+
+    # PE parameters (from literature)
+    kPE: float = 5.0             # PE shape parameter
+    eps0: float = 0.6            # PE shape parameter
+
+    # Yielding and sag parameters (from literature)
     cy: float = 0.35            # yielding parameter
     Vy: float = 0.1             # yielding parameter
     Ty: float = 0.2             # yielding parameter
@@ -86,11 +123,11 @@ class Params:
         self.vmax = self.vmax * self.l_M_opt  # convert vmax from l0/s to length units per second
 
         if self.muscle in {"cat_SOL", "rat_SOL"}:  # tendon stiffness is muscle-specific
-            self.eps_0 = 0.06  # Soleus literature (see paper)
+            self.eps_0 = self.P.eps_0_s  # Soleus literature (see paper)
         elif self.muscle in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # other muscle group
-            self.eps_0 = 0.04  # Thelen-type stiffness (see paper notes)
+            self.eps_0 = self.P.eps_0_f  # Thelen-type stiffness (see paper notes)
         else:  
-            self.eps_0 = 0.06  # animal soleus literature
+            self.eps_0 = self.P.eps_0_s  # animal soleus literature
 
 
 @dataclass  
@@ -145,9 +182,7 @@ class Mechanics:
         else:  # slack
             return 0.001 * (1 + eps) 
         
-
-    @staticmethod
-    def passive_pe(l_M_norm: float) -> float:  
+    def passive_pe(self, l_M_norm: float) -> float:  
 
         """
         Computes normalized passive force-length contribution (PE) from normalized fibre length (from Thelen 2003).
@@ -157,10 +192,9 @@ class Mechanics:
            - f_PE: float, normalized passive force (dimensionless) 
         """
         
-        kPE, eps0 = 5.0, 0.6  # shape parameters
         if l_M_norm < 1.0:  # below optimal length
             return 0.0  # no passive force
-        return (np.exp((kPE * (l_M_norm - 1)) / eps0) - 1) / (np.exp(kPE) - 1)  
+        return (np.exp((self.P.kPE * (l_M_norm - 1)) / self.P.eps0) - 1) / (np.exp(self.P.kPE) - 1)  
     
 
     @staticmethod
@@ -182,8 +216,7 @@ class Mechanics:
         return float(np.arcsin(sin_alpha)) # compute alpha
 
 
-    @staticmethod
-    def force_length(act: float, l_M_norm: float) -> float:  
+    def force_length(self, act: float, l_M_norm: float) -> float:  
 
         """
         Computes the active force-length scaling factor FL(act, l_M_norm) (from Lloyd Besier 2003).
@@ -194,9 +227,8 @@ class Mechanics:
         - FL: float, force-length scaling factor (dimensionless).
         """
         
-        a = 0.45  # width
-        b = (0.15 * (1 - act)) + 1  # activation-dependent shift
-        return float(np.exp(-((l_M_norm - b) / a) ** 2))  
+        b = (self.P.shift * (1 - act)) + 1  # activation-dependent shift
+        return float(np.exp(-((l_M_norm - b) / self.P.a) ** 2))  
 
 
     def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, fibre_type, vmax) -> float:  
@@ -214,14 +246,14 @@ class Mechanics:
         - v_M: float, fibre velocity in absolute units per second.
         """
         
-        fmax = 1.4  # max eccentric factor
-        fv = 0.25 + 0.75 * act  # activation-dependent scaling
+        fmax = self.P.fmax  # max eccentric factor
+        fv = self.P.fv1 + (1 - self.P.fv1) * act  # activation-dependent scaling
 
         if fibre_type == "slow":  # slow fibres curvature
-            kMU = 0.2  # curvature scaling
+            kMU = self.P.kMUs  # curvature scaling
             af = self.P.af_s  # slow af
         else:  # fast fibres curvature
-            kMU = 1.0  # curvature scaling
+            kMU = self.P.kMUf  # curvature scaling
             af = self.P.af_f  # fast af
 
         g = FL if l_M_norm < 1 else 1.0  # length dependence for shortening
@@ -255,14 +287,14 @@ class Mechanics:
         - FV: float, force-velocity scaling factor (dimensionless).
         """
         
-        fmax = 1.4  # max eccentric factor
-        fv = 0.25 + 0.75 * act  # activation-dependent scaling
+        fmax = self.P.fmax  # max eccentric factor
+        fv = self.P.fv1 + (1 - self.P.fv1) * act  # activation-dependent scaling
 
         if fibre_type == "slow":  # slow curvature
-            kMU = 0.2  # curvature scaling
+            kMU = self.P.kMUs  # curvature scaling
             af = self.P.af_s  # slow af
         else:  # fast curvature
-            kMU = 1.0  # curvature scaling
+            kMU = self.P.kMUf  # curvature scaling
             af = self.P.af_f  # fast af
 
         g = FL if l_M_norm < 1 else 1.0  # length dependence for shortening
@@ -339,8 +371,7 @@ class Ephys:
         - DDbeta: float, MUAP second derivative.
         """
         
-        b1, b2, b3 = 2e4, 5e7, 9e7  # coefficients
-        return b3 * self.MN_AP(t, AP_times) - b2 * beta - b1 * dbeta + 1e-50  # ODE
+        return self.P.b3 * self.MN_AP(t, AP_times) - self.P.b2 * beta - self.P.b1 * dbeta + 1e-50  # ODE
 
 
     def Ca_2nd(self, l_norm: float, fibre_type: str, beta: float, Ca: float, dCa: float) -> float:  
@@ -363,16 +394,16 @@ class Ephys:
         else:  # select fast coefficients
             c1, c2, c3 = self.P.c1_f, self.P.c2_f, self.P.c3_f 
 
-        if l_norm < 1:  # amplitude fit region 1
+        if l_norm < self.P.r1:  # amplitude fit region 1
             amp = 0.8  
-        elif l_norm <= 1.1379:  # amplitude fit region 2
+        elif l_norm <= self.P.r2:  # amplitude fit region 2
             amp = 1.3947 * l_norm - 0.5871  
-        elif l_norm < 1.239:  # amplitude fit region 3
+        elif l_norm < self.P.r3:  # amplitude fit region 3
             amp = 1.0  # plateau
         else:  # amplitude fit region 4
-            amp = 1 - 0.4623 * (l_norm - 1.239)  
+            amp = 1 - 0.4623 * (l_norm - self.P.r3)  
 
-        p2 = [0.3783, -0.8320, 1.1885]  # polynomial coefficients for width
+        p2 = [self.P.p2_1, self.P.p2_2, self.P.p2_3]  # polynomial coefficients for width
         width = (l_norm ** 2) * p2[0] + l_norm * p2[1] + p2[2]  # compute width
 
         if l_norm < 1.23:  
