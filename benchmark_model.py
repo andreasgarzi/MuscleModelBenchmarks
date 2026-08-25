@@ -73,7 +73,10 @@ class Params:
     c3_f: float = 0.435         # calcium kinetics (fast)
     af_s: float = 0.419         # FV curvature (slow)
     af_f: float = 0.361         # FV curvature (fast)
-    As_peak: float = 1.64      # sag peak
+    cy: float = 0.35            # yielding parameter
+    Vy: float = 0.1             # yielding parameter
+    Ty: float = 0.2             # yielding parameter
+    As_peak: float = 1.64       # sag peak
     As_decay: float = 1.0       # sag decay
     Ts: float = 0.109           # sag time constant
     tp: float = 0.140           # sag onset (boost peak time)
@@ -420,7 +423,7 @@ class Ephys:
 
 
     @staticmethod
-    def yield_dot(y_val: float, V_norm: float) -> float:  
+    def yield_dot(self, y_val: float, V_norm: float) -> float:  
         
         """
         Computes yielding state derivative as a function of normalized velocity (from Brown et al. 1999).
@@ -431,8 +434,7 @@ class Ephys:
         - dyield: float, yielding derivative.
         """
 
-        cy, Vy, Ty = 0.35, 0.1, 0.2  # yielding parameters
-        return (1 - cy * (1 - np.exp((-abs(V_norm)) / Vy)) - y_val) / Ty  # ODE
+        return (1 - self.P.cy * (1 - np.exp((-abs(V_norm)) / self.P.Vy)) - y_val) / self.P.Ty  # ODE
         
 
 
