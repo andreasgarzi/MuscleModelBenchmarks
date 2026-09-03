@@ -176,62 +176,62 @@ all_trials = {
     "cat_SOL_10Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 10, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 10, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 20, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 20, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 30, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 30, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 10, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 10, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 20, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 20, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 30, "displacement_mm": "1", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 30, "displacement_mm": "8", "t_end": 2.0,
         "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
 
     # ____________________________________________________________________________
@@ -348,7 +348,7 @@ all_trials = {
     "cat_CF_120Hz_0.95L0_short": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "0.95", "freq": 120, "t_end": 0.16,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
         "optimization": {
             "label": "Muscle fast dyn: optimise af_f on -3 l0/s shortening trial at 120 Hz",
             "parameters": ["af_f"],
@@ -361,48 +361,48 @@ all_trials = {
     "cat_CF_120Hz_0.95L0_length": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "length", "l_M_0_scale": "0.95", "freq": 120, "t_end": 0.16,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_20Hz_0.95L0_short": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "0.95", "freq": 20, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_20Hz_0.95L0_length": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "length", "l_M_0_scale": "0.95", "freq": 20, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_40Hz_0.8L0_short": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "0.8", "freq": 40, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.80, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_40Hz_0.8L0_length": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "length", "l_M_0_scale": "0.8", "freq": 40, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.80, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_40Hz_1.1L0_short": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "1.1", "freq": 40, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "1.1", "freq": 40, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*1.10, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
     },
     "cat_CF_40Hz_1.1L0_length": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "length", "l_M_0_scale": "1.1", "freq": 40, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*1.10, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_60Hz_0.95L0_short": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "short", "l_M_0_scale": "0.95", "freq": 60, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
     "cat_CF_60Hz_0.95L0_length": {
         "scale": "Muscle", "muscle": "cat_CF", "benchmark": "fast_dyn", "trial": "length", "l_M_0_scale": "0.95", "freq": 60, "t_end": 0.17,
         "MVC": 15.4, "l_T_slack": 24.3, "l_M_opt": 21.84, "l_M_0": 21.84*0.95, "alpha_0": 0,
-        "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
+        "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
     },
 
     # __________________________________________________________________

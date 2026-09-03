@@ -75,12 +75,21 @@ class Params:
     c3_f: float = 0.435         # calcium kinetics (fast)
 
     # Calcium kinetics length-dependence (from literature)
-    r1: float = 1.0             # amplitude scaling region 1
-    r2: float = 1.1379          # amplitude scaling region 2
-    r3: float = 1.239           # amplitude scaling region 3
-    p2_1: float = 0.3783        # width polynomial coefficient
-    p2_2: float = -0.8320       # width polynomial coefficient
-    p2_3: float = 1.1885        # width polynomial coefficient
+    r1: float = 1.0                    # f1: end of the low-length constant region
+    r2: float = 1.1379                 # f1: start of the amplitude plateau
+    r3: float = 1.239                  # f1: end of the amplitude plateau
+    f1_amp_low: float = 0.8            # f1: amplitude below r1
+    f1_slope_left: float = 1.3947      # f1: slope between r1 and r2
+    f1_intercept_left: float = -0.5871 # f1: intercept between r1 and r2
+    f1_amp_plateau: float = 1.0        # f1: amplitude between r2 and r3
+    f1_decay_slope: float = 0.4623     # f1: positive decay slope above r3
+    p2_1: float = 0.3783               # f2: quadratic coefficient
+    p2_2: float = -0.8320              # f2: linear coefficient
+    p2_3: float = 1.1885               # f2: intercept
+    f2_l_min: float = 1.23             # f2: lower limit of the fitted region
+    f2_l_max: float = 2.04             # f2: upper limit of the fitted region
+    f2_width_min: float = 0.738        # f2: constant extrapolation below f2_l_min
+    f2_width_max: float = 1.072        # f2: constant extrapolation above f2_l_max
 
     # MUAP state beta (from literature)
     b1: float = 2e4              # MUAP ODE coefficient
@@ -123,11 +132,11 @@ class Params:
         self.vmax = self.vmax * self.l_M_opt  # convert vmax from l0/s to length units per second
 
         if self.muscle in {"cat_SOL", "rat_SOL"}:  # tendon stiffness is muscle-specific
-            self.eps_0 = self.P.eps_0_s  # Soleus literature (see paper)
+            self.eps_0 = self.eps_0_s  # Soleus literature (see paper)
         elif self.muscle in {"rat_EDL", "cat_MG", "cat_CF", "rat_MG"}:  # other muscle group
-            self.eps_0 = self.P.eps_0_f  # Thelen-type stiffness (see paper notes)
+            self.eps_0 = self.eps_0_f  # Thelen-type stiffness (see paper notes)
         else:  
-            self.eps_0 = self.P.eps_0_s  # animal soleus literature
+            self.eps_0 = self.eps_0_s  # animal soleus literature
 
 
 @dataclass  
@@ -395,21 +404,21 @@ class Ephys:
             c1, c2, c3 = self.P.c1_f, self.P.c2_f, self.P.c3_f 
 
         if l_norm < self.P.r1:  # amplitude fit region 1
-            amp = 0.8  
+            amp = self.P.f1_amp_low
         elif l_norm <= self.P.r2:  # amplitude fit region 2
-            amp = 1.3947 * l_norm - 0.5871  
+            amp = self.P.f1_slope_left * l_norm + self.P.f1_intercept_left
         elif l_norm < self.P.r3:  # amplitude fit region 3
-            amp = 1.0  # plateau
+            amp = self.P.f1_amp_plateau
         else:  # amplitude fit region 4
-            amp = 1 - 0.4623 * (l_norm - self.P.r3)  
+            amp = self.P.f1_amp_plateau - self.P.f1_decay_slope * (l_norm - self.P.r3)
 
         p2 = [self.P.p2_1, self.P.p2_2, self.P.p2_3]  # polynomial coefficients for width
         width = (l_norm ** 2) * p2[0] + l_norm * p2[1] + p2[2]  # compute width
 
-        if l_norm < 1.23:  
-            width = 0.738  
-        elif l_norm > 2.04: 
-            width = 1.072 
+        if l_norm < self.P.f2_l_min:
+            width = self.P.f2_width_min
+        elif l_norm > self.P.f2_l_max:
+            width = self.P.f2_width_max
 
         return amp * c3 * beta - width * c1 * dCa - (c2 * width**2) * Ca  # ODE
 
@@ -453,7 +462,6 @@ class Ephys:
             return (k1 * Ca_norm - k2 * act)  # not limited to 1
 
 
-    @staticmethod
     def yield_dot(self, y_val: float, V_norm: float) -> float:  
         
         """

@@ -539,7 +539,7 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
         return sim[:n] - exp[:n]
 
     n = min(len(sim), len(exp))
-    return sim[:n] - exp[:n]
+    return (np.abs(sim[:n] - exp[:n]))/n # mean absolute error
 
 
 def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
@@ -560,7 +560,7 @@ def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
     trial_case = apply_values(case, opt_config["parameters"], x, opt_config) # apply current parameter values to case
     out = run_case(trial_case)
     residuals = residual_vector(trial_case, out, opt_config) # compute residuals
-    return float(np.sum(residuals ** 2))
+    return float(np.mean(residuals)) # minimising mAE
 
 
 def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, Any]:
