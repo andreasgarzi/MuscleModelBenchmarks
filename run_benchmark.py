@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import scipy as sp
 from scipy import signal
 from scipy.optimize import minimize
@@ -383,7 +382,7 @@ def build_case(name: str, config: dict) -> dict:
 
     elif config["scale"] == "Ca_transients":
 
-        exp_ca = pd.read_csv(base_path / scale / f"{benchmark}.csv", delimiter=' ').to_numpy()
+        exp_ca = np.loadtxt(base_path / scale / f"{benchmark}_corrected.csv")
         
         if muscle == "rat_SOL":
             l_MT = np.full(len(time), 1.0, dtype=float) # full MT length array
@@ -521,12 +520,10 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
 
     if target == "calcium":
         exp_data = case["exp_ca"]
-        t_exp = (exp_data[:, 0] - exp_data[0, 0]) * 1e-3 # convert exp time from ms to s and align to model time
-        idx = np.isin(np.round(case["time"], 4), np.round(t_exp, 4)).nonzero()[0] # find indices in model time that correspond to exp time (rounded to 4 decimals to avoid floating point issues)
-        sim = out["Ca"][idx] * 1e6 # convert simulated Ca from M to uM for comparison with exp data
-        exp = exp_data[:, 1] # exp Ca in uM
-        n = min(len(sim), len(exp)) # ensure same length for residuals
-        return sim[:n] - exp[:n] # residuals for calcium transient optimization
+        t_exp = (exp_data[:, 0] - exp_data[0, 0]) * 1e-3 # convert experimental time from ms to s and align it to model time
+        sim = np.interp(t_exp, case["time"], out["Ca"]) * 1e6 # interpolate simulated Ca at the original experimental times and convert it to uM
+        exp = exp_data[:, 1] # experimental Ca in uM
+        return np.mean(np.abs(sim - exp)) # mean absolute error over the entire calcium transient
 
     sim = out["force"]
     exp = case["exp_force"]
@@ -536,7 +533,7 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
         sim = sim[i:] / sim[i] # normalise simulated force to MVC
         exp = exp[i:]
         n = min(len(sim), len(exp)) 
-        return sim[:n] - exp[:n]
+        return np.mean(np.abs(sim[:n] - exp[:n]))
 
     n = min(len(sim), len(exp))
     return np.mean(np.abs(sim[:n] - exp[:n])) # mean absolute error

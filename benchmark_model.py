@@ -67,12 +67,12 @@ class Params:
     k2_f_MU_ratMG: float = 63.82    # activation kinetics
 
     # Calcium kinetics (calibrated via optimization)
-    c1_s: float = 30605         # calcium kinetics (slow)
-    c2_s: float = 896181        # calcium kinetics (slow)
-    c3_s: float = 2.0           # calcium kinetics (slow)
+    c1_s: float = 6930        # calcium kinetics (slow)
+    c2_s: float = 186872        # calcium kinetics (slow)
+    c3_s: float = 0.436           # calcium kinetics (slow)
     c1_f: float = 2056          # calcium kinetics (fast)
     c2_f: float = 467405        # calcium kinetics (fast)
-    c3_f: float = 0.435         # calcium kinetics (fast)
+    c3_f: float = 0.436        # calcium kinetics (fast)
 
     # Calcium kinetics length-dependence (from literature)
     r1: float = 1.0                    # f1: end of the low-length constant region
