@@ -9,6 +9,10 @@
 *.ddf
 *.npy
 
+# For GSA
+*.json
+*.png
+
 
 git-filter-repo
 # PYTHON GITIGNORE FROM GITHUB
@@ -67,7 +71,7 @@ coverage.xml
 .pytest_cache/
 cover/
 *.cpp
-*.csv
+
 
 
 # Translations

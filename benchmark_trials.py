@@ -17,7 +17,7 @@ all_trials = {
     # Rat SOL, slow_dyn2 benchmarks (Krylow, Sandercock et al. 1997)
     "rat_SOL_0.05mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "0.05", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,        
         "optimization": {
             "label": "Muscle slow dyn2: optimise MVC on 0.05 mm dynamic trial",
@@ -30,27 +30,27 @@ all_trials = {
     },
     "rat_SOL_0.10mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "0.10", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },
     "rat_SOL_0.25mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "0.25", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },
     "rat_SOL_0.50mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "0.50", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },    
     "rat_SOL_1.00mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "1.00", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,  
     },    
     "rat_SOL_2.00mm": {
         "scale": "Muscle", "muscle": "rat_SOL", "benchmark": "slow_dyn2", "amplitude_mm": "2.00", "freq": 70, "t_end": 2.0,
-        "MVC": 1.32, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
+        "MVC": 1.33, "l_T_slack": 17.1, "l_M_opt": 17.1, "l_M_0": 17.1, "alpha_0": 6*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,         
         "optimization": {
             "label": "Muscle slow dyn2: optimise af_s on 2.00 mm dynamic trial",
@@ -65,17 +65,17 @@ all_trials = {
     # Cat SOL, isof benchmarks (Perreault et al. 2003)
     "cat_SOL_10Hz_c": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "c", "freq": 10, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
     },
     "cat_SOL_20Hz_c": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "c", "freq": 20, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
     },
     "cat_SOL_30Hz_c": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "c", "freq": 30, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
         "optimization": {
             "label": "Muscle slow isof: optimise MVC, Ca_max_s_M, k1_s_M, k2_s_M on 30 Hz (constant) isometric trial",
@@ -88,59 +88,59 @@ all_trials = {
     },
     "cat_SOL_10Hz_v": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "v", "freq": 10, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
     },
     "cat_SOL_20Hz_v": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "v", "freq": 20, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
     },    
     "cat_SOL_30Hz_v": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isof", "stim": "v", "freq": 30, "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False, 
     },
 
     # Cat SOL, isol benchmarks (Perreault et al. 2003, Kim et al. 2015)
     "cat_SOL_1Hz_0mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "0", "freq": 1, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_10Hz_0mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "0", "freq": 10, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_20Hz_0mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "0", "freq": 20, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_40Hz_0mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "0", "freq": 40, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_1Hz_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "8", "freq": 1, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },    
     "cat_SOL_10Hz_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "8", "freq": 10, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_20Hz_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "8", "freq": 20, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_40Hz_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "8", "freq": 40, "t_end": 1.4, 
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,          
         "optimization": {
             "label": "Muscle slow isol: optimise MVC on 40 Hz isometric (0 mm offset) length trial",
@@ -153,84 +153,84 @@ all_trials = {
     },
     "cat_SOL_1Hz_16mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "16", "freq": 1, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_10Hz_16mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "16", "freq": 10, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_20Hz_16mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "16", "freq": 20, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
     "cat_SOL_40Hz_16mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_isol", "length": "16", "freq": 40, "t_end": 1.4,
-        "MVC": 30.25, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 29.6, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,        
     },
 
     # Cat SOL, slow_dyn1 benchmarks (Perreault et al. 2003)
     "cat_SOL_10Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 10, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 10, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 20, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 20, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_c_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 30, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_c_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "c", "freq": 30, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 10, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_10Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 10, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 20, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_20Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 20, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_v_1mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 30, "displacement_mm": "1", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
     "cat_SOL_30Hz_v_8mm": {
         "scale": "Muscle", "muscle": "cat_SOL", "benchmark": "slow_dyn1", "stim": "v", "freq": 30, "displacement_mm": "8", "t_end": 2.0,
-        "MVC": 26.13, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
+        "MVC": 26.09, "l_T_slack": 65, "l_M_opt": 30, "l_M_0": 30, "alpha_0": 7.5*np.pi/180,
         "use_SE": True, "use_PE": False, "use_FL": True, "use_FV": True, "use_yielding": True, "use_sag": False,     
     },
 
@@ -246,42 +246,42 @@ all_trials = {
         },
     "rat_EDL_isof_30Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 30,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_50Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 50,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_60Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 60,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_70Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 70,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_80Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 80,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },    
     "rat_EDL_isof_90Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 90,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_100Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 100,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,
         },
     "rat_EDL_isof_120Hz": {
         "scale": "Muscle", "muscle": "rat_EDL", "benchmark": "fast_isof", "freq": 120,
-        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.92, "alpha_0": 10*np.pi/180,
+        "MVC": 2.48, "l_T_slack": 5, "l_M_opt": 8.38, "l_M_0": 5.97, "alpha_0": 10*np.pi/180,
         "use_SE": True, "use_PE": True, "use_FL": True, "use_FV": True, "use_yielding": False, "use_sag": False,       
         "optimization": {
             "label": "Muscle fast isof: optimise l_M_0 on 120 Hz isometric trial",
@@ -427,8 +427,8 @@ all_trials = {
         "optimization": {
             "label": "MU S isof: optimise active state parameters on 40 Hz catMG isometric trial",
             "parameters": ["MVC","Ca_max_s_MU", "k1_s_MU", "k2_s_MU"],
-            "x0": [0.078, 5e5, 10, 10],
-            "bounds": [[0.06, 0.08], [1e5, 1e6], [10, 20], [10, 20]],
+            "x0": [0.04, 5e5, 10, 10],
+            "bounds": [[0.03, 0.05], [1e5, 1e6], [10, 20], [10, 20]],
             "method": "Nelder-Mead",
             "target": "force",
         },
@@ -454,17 +454,17 @@ all_trials = {
     # FR MU, cat MG (Celichowski et al. 1974)
     "cat_MG_1Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 1, "benchmark": "MU_FR",
-        "MVC": 0.4, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
+        "MVC": 0.39, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
         "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
         },
     "cat_MG_20Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 20, "benchmark": "MU_FR",
-        "MVC": 0.4, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
+        "MVC": 0.39, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
         "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "cat_MG_40Hz": {
         "scale": "MU", "muscle": "cat_MG", "freq": 40, "benchmark": "MU_FR",
-        "MVC": 0.4, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
+        "MVC": 0.39, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 9.2*np.pi/180,
         "t_end": 1.2, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
         "optimization": {
             "label": "MU FR isof (F): optimise sag parameters on 40 Hz ratMG isometric trial",
@@ -479,27 +479,27 @@ all_trials = {
     # FR MU, rat MG (Celichowski et al. 1999)
     "rat_MG_25Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 25, "benchmark": "MU_FR",
-        "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
+        "MVC": 0.074, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "rat_MG_30Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 30, "benchmark": "MU_FR",
-        "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
+        "MVC": 0.074, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "rat_MG_35Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 35, "benchmark": "MU_FR",
-        "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
+        "MVC": 0.074, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "rat_MG_40Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 40, "benchmark": "MU_FR",
-        "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
+        "MVC": 0.074, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": True,
         },
     "rat_MG_150Hz": {
         "scale": "MU", "muscle": "rat_MG", "freq": 150, "benchmark": "MU_FR",
-        "MVC": 0.073, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
+        "MVC": 0.074, "l_T_slack": 0, "l_M_opt": 20, "l_M_0": 20, "alpha_0": 20*np.pi/180,
         "t_end": 0.7, "use_SE": False, "use_PE": False, "use_FL": True, "use_FV": False, "use_yielding": False, "use_sag": False,
         "optimization": {
             "label": "MU FR (F) isof: optimise MVC, Ca_max_f_MU_ratMG, k1_f_MU_ratMG, k2_f_MU_ratMG on 150 Hz tetanic trial",

@@ -50,29 +50,29 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 324382  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 276339 # activation (slow, MU scale)
-    k1_s_M: float = 10.6        # activation kinetics
-    k2_s_M: float = 15.6        # activation kinetics
-    k1_s_MU: float = 16.7       # activation kinetics
-    k2_s_MU: float = 18.3       # activation kinetics 
-    Ca_max_f_M: float = 145112  # activation (fast, muscle scale)
-    Ca_max_f_MU_catMG: float = 592607 # activation (fast, MU scale, cat MG)
-    Ca_max_f_MU_ratMG: float = 627772 # activation (fast, MU scale, rat MG)
-    k1_f_M: float = 14.98       # activation kinetics
-    k2_f_M: float = 11.67       # activation kinetics 
-    k1_f_MU_catMG: float = 11.02    # activation kinetics
-    k2_f_MU_catMG: float = 12.92    # activation kinetics
+    Ca_max_s_M: float = 389747  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 227079 # activation (slow, MU scale)
+    k1_s_M: float = 10          # activation kinetics
+    k2_s_M: float = 18.96       # activation kinetics
+    k1_s_MU: float = 19.98       # activation kinetics
+    k2_s_MU: float = 20       # activation kinetics 
+    Ca_max_f_M: float = 280096  # activation (fast, muscle scale)
+    Ca_max_f_MU_catMG: float = 713841 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 811485 # activation (fast, MU scale, rat MG)
+    k1_f_M: float = 10       # activation kinetics
+    k2_f_M: float = 14.63       # activation kinetics 
+    k1_f_MU_catMG: float = 11.38    # activation kinetics
+    k2_f_MU_catMG: float = 15.10    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 63.82    # activation kinetics
+    k2_f_MU_ratMG: float = 92.05    # activation kinetics
 
     # Calcium kinetics (calibrated via optimization)
-    c1_s: float = 6930        # calcium kinetics (slow)
-    c2_s: float = 186872        # calcium kinetics (slow)
-    c3_s: float = 0.436           # calcium kinetics (slow)
-    c1_f: float = 2056          # calcium kinetics (fast)
-    c2_f: float = 467405        # calcium kinetics (fast)
-    c3_f: float = 0.436        # calcium kinetics (fast)
+    c1_s: float = 7028        # calcium kinetics (slow)
+    c2_s: float = 184978        # calcium kinetics (slow)
+    c3_s: float = 0.432         # calcium kinetics (slow)
+    c1_f: float = 4304          # calcium kinetics (fast)
+    c2_f: float = 973422        # calcium kinetics (fast)
+    c3_f: float = 0.79        # calcium kinetics (fast)
 
     # Calcium kinetics length-dependence (from literature)
     r1: float = 1.0                    # f1: end of the low-length constant region
@@ -98,7 +98,7 @@ class Params:
 
     # FV relationship (calibrated via optimization)
     af_s: float = 0.419         # FV curvature (slow)
-    af_f: float = 0.361         # FV curvature (fast)
+    af_f: float = 0.34         # FV curvature (fast)
 
     # FV parameters (from literature)
     fmax: float = 1.4             # max eccentric factor
