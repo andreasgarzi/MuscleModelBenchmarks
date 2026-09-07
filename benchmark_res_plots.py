@@ -11,6 +11,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 from matplotlib.gridspec import GridSpec
+from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
@@ -906,7 +907,7 @@ def run_slow_dyn2():
 
     plt.tight_layout()
     if save_figures == True:
-        plt.savefig(figures_path / 'slow_M_max_summary.tif', dpi=400, bbox_inches='tight')
+        plt.savefig(figures_path / 'slow_M_max_summary.png', dpi=400, bbox_inches='tight')
         
     plt.show()
 
@@ -921,6 +922,7 @@ def run_slow_isof_dyn1():
 
     sim_path_isof = base_path / 'Muscle' / 'slow_isof' / 'sim'
     exp_path_isof = base_path / 'Muscle' / 'slow_isof' / 'exp'
+    stim_path_isof = Path() / 'benchmark_Data' / 'Muscle' / 'slow_isof'
 
     sim_iso_c_10 = np.load(sim_path_isof / 'cat_SOL_10Hz_c_force.npy')
     sim_iso_c_20 = np.load(sim_path_isof / 'cat_SOL_20Hz_c_force.npy')
@@ -936,9 +938,22 @@ def run_slow_isof_dyn1():
     exp_iso_v_20 = np.load(exp_path_isof / 'cat_SOL_20Hz_v_force.npy')
     exp_iso_v_30 = np.load(exp_path_isof / 'cat_SOL_30Hz_v_force.npy')
 
+    stim_iso_c_10 = np.load(stim_path_isof / 'cat_SOL_10Hz_c_stim.npy')
+    stim_iso_c_20 = np.load(stim_path_isof / 'cat_SOL_20Hz_c_stim.npy')
+    stim_iso_c_30 = np.load(stim_path_isof / 'cat_SOL_30Hz_c_stim.npy')
+    stim_iso_v_10 = np.load(stim_path_isof / 'cat_SOL_10Hz_v_stim.npy')
+    stim_iso_v_20 = np.load(stim_path_isof / 'cat_SOL_20Hz_v_stim.npy')
+    stim_iso_v_30 = np.load(stim_path_isof / 'cat_SOL_30Hz_v_stim.npy')
+
     t_end = 2
     time_dt = np.arange(0, t_end, dt)
     MVC = 26.13
+
+    disp_path_dyn1 = Path() / 'benchmark_Data' / 'Muscle' / 'slow_dyn1'
+    disp_1mm_raw = np.loadtxt(disp_path_dyn1 / 'cat_SOL_1mm_disp.dat', delimiter='\t', skiprows=18)
+    disp_8mm_raw = np.loadtxt(disp_path_dyn1 / 'cat_SOL_8mm_disp.dat', delimiter='\t', skiprows=18)
+    disp_1mm = interp1d(disp_1mm_raw[:, 0], disp_1mm_raw[:, 1], kind='cubic')(time_dt) + 8.0
+    disp_8mm = interp1d(disp_8mm_raw[:, 0], disp_8mm_raw[:, 1], kind='cubic')(time_dt) + 8.0
 
     # -------------------------------------------------------------------------
     # Load dynamic constant trials
@@ -1419,38 +1434,104 @@ def run_slow_isof_dyn1():
         ax.tick_params(axis='both', labelsize=8)
 
 
+    def plot_discharge_panel(ax, discharge_times):
+        discharge_times = np.asarray(discharge_times, dtype=float).ravel()
+        ax.vlines(discharge_times, 0.0, 1.0, color='k', linewidth=0.65)
+        ax.set_ylim(0.0, 1.0)
+        ax.set_yticks([])
+        ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['bottom'].set_linewidth(0.6)
+
+
+    def plot_displacement_panel(ax, time, displacement, amplitude):
+        displacement_ax = ax.inset_axes([0.0, 0.50, 1.0, 0.50])
+        displacement_ax.plot(time, displacement, color='0.55', linewidth=0.8)
+        displacement_ax.set_xlim(time[0], t_end)
+        displacement_ax.set_ylim(-amplitude, amplitude)
+        displacement_ax.set_yticks([-amplitude, 0.0, amplitude])
+        displacement_ax.yaxis.tick_right()
+        displacement_ax.tick_params(
+            axis='y',
+            colors='0.55',
+            labelsize=7,
+            length=2.5,
+            width=0.7,
+            pad=2,
+        )
+        displacement_ax.tick_params(axis='x', bottom=False, labelbottom=False)
+        displacement_ax.set_facecolor('none')
+        displacement_ax.spines['left'].set_visible(False)
+        displacement_ax.spines['bottom'].set_visible(False)
+        displacement_ax.spines['top'].set_visible(False)
+        displacement_ax.spines['right'].set_color('0.55')
+        displacement_ax.spines['right'].set_linewidth(0.7)
+        displacement_ax.spines['right'].set_position(('outward', 2))
+        return displacement_ax
+
+
     # ============================================================
     # ISOMETRIC FIGURE
     # ============================================================
 
     fig = plt.figure(figsize=(7, 8))
 
-    gs = GridSpec(5, 2, height_ratios=[1, 1, 1, 0.12, 0.9], hspace=0.28, wspace=0.25, figure=fig)
+    gs = GridSpec(5, 2, height_ratios=[1, 1, 1, 0.12, 0.9], hspace=0.34, wspace=0.25, figure=fig)
     fig.text(0.09, 0.92, "A", fontsize=14, fontweight="bold", ha="left", va="top")
     fig.text(0.09, 0.26, "B", fontsize=14, fontweight="bold", ha="left", va="bottom")
 
     iso_force_data = [
-        (exp_iso_c_10, sim_iso_c_10, "10 Hz"),
-        (exp_iso_v_10, sim_iso_v_10, "10 Hz"),
-        (exp_iso_c_20, sim_iso_c_20, "20 Hz"),
-        (exp_iso_v_20, sim_iso_v_20, "20 Hz"),
-        (exp_iso_c_30, sim_iso_c_30, "30 Hz"),
-        (exp_iso_v_30, sim_iso_v_30, "30 Hz"),
+        (exp_iso_c_10, sim_iso_c_10, stim_iso_c_10, "10 Hz"),
+        (exp_iso_v_10, sim_iso_v_10, stim_iso_v_10, "10 Hz"),
+        (exp_iso_c_20, sim_iso_c_20, stim_iso_c_20, "20 Hz"),
+        (exp_iso_v_20, sim_iso_v_20, stim_iso_v_20, "20 Hz"),
+        (exp_iso_c_30, sim_iso_c_30, stim_iso_c_30, "30 Hz"),
+        (exp_iso_v_30, sim_iso_v_30, stim_iso_v_30, "30 Hz"),
     ]
 
     iso_axes = []
+    iso_discharge_axes = []
 
-    for i, (exp, sim, freq_label) in enumerate(iso_force_data):
+    for i, (exp, sim, discharge_times, freq_label) in enumerate(iso_force_data):
         r, c = divmod(i, 2)
-        ax = fig.add_subplot(gs[r, c])
+        panel_gs = gs[r, c].subgridspec(
+            2, 1,
+            height_ratios=[1.0, 0.10],
+            hspace=0.12 if r < 2 else 0.34,
+        )
+        ax = fig.add_subplot(panel_gs[0, 0])
+        discharge_ax = fig.add_subplot(panel_gs[1, 0], sharex=ax)
         iso_axes.append(ax)
+        iso_discharge_axes.append(discharge_ax)
 
         plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 30), label_text=freq_label, label_inside=True)
+        plot_discharge_panel(discharge_ax, discharge_times)
+        ax.set_xlim(time_dt[0], t_end)
 
         if r < 2:
-            ax.set_xticklabels([])
+            ax.tick_params(axis='x', labelbottom=False)
         else:
-            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=8)
+            ax.tick_params(axis='x', labelbottom=False)
+            discharge_ax.set_xticks(np.arange(0.0, t_end + dt, 0.5))
+            discharge_ax.tick_params(axis='x', bottom=True, labelbottom=True, labelsize=8, pad=1)
+            discharge_ax.set_xlabel("Time [s]", fontweight="bold", fontsize=8, labelpad=5)
+
+    reference_gaps = [
+        iso_axes[4 + c].get_position().y0 - iso_discharge_axes[4 + c].get_position().y1
+        for c in range(2)
+    ]
+    for i in range(4):
+        force_position = iso_axes[i].get_position()
+        discharge_position = iso_discharge_axes[i].get_position()
+        new_y0 = force_position.y0 - reference_gaps[i % 2] - discharge_position.height
+        iso_discharge_axes[i].set_position([
+            discharge_position.x0,
+            new_y0,
+            discharge_position.width,
+            discharge_position.height,
+        ])
 
     iso_axes[0].set_title("Constant frequency", fontweight="bold", fontsize=10)
     iso_axes[1].set_title("Random frequency", fontweight="bold", fontsize=10)
@@ -1498,7 +1579,7 @@ def run_slow_isof_dyn1():
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_sub_isometric_summary.tif", dpi=400, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_sub_isometric_summary.png", dpi=400, bbox_inches="tight")
 
     plt.show()
 
@@ -1508,59 +1589,125 @@ def run_slow_isof_dyn1():
     # ============================================================
 
     fig = plt.figure(figsize=(14.5, 8.2))
-    gs = GridSpec(5, 4, height_ratios=[1, 1, 1, 0.12, 0.9], hspace=0.32, wspace=0.25, figure=fig)
+    gs = GridSpec(5, 4, height_ratios=[1, 1, 1, 0.30, 0.9], hspace=0.34, wspace=0.25, figure=fig)
     fig.text(0.099, 0.92, "A", fontsize=15, fontweight="bold", ha="left", va="top")
-    fig.text(0.099, 0.26, "C", fontsize=15, fontweight="bold", ha="left", va="bottom")
+    fig.text(0.099, 0.245, "C", fontsize=15, fontweight="bold", ha="left", va="bottom")
     fig.text(0.52, 0.92, "B", fontsize=15, fontweight="bold", ha="center", va="top")
-    fig.text(0.52, 0.26, "D", fontsize=15, fontweight="bold", ha="center", va="bottom")
+    fig.text(0.52, 0.245, "D", fontsize=15, fontweight="bold", ha="center", va="bottom")
 
     dyn_const_force_data = [
-        (exp_dyn_c_10_1, sim_dyn_c_10_1, sim_dyn_c_10_1_noy, "10 Hz, ±1 mm"),
-        (exp_dyn_c_10_8, sim_dyn_c_10_8, sim_dyn_c_10_8_noy, "10 Hz, ±8 mm"),
-        (exp_dyn_c_20_1, sim_dyn_c_20_1, sim_dyn_c_20_1_noy, "20 Hz, ±1 mm"),
-        (exp_dyn_c_20_8, sim_dyn_c_20_8, sim_dyn_c_20_8_noy, "20 Hz, ±8 mm"),
-        (exp_dyn_c_30_1, sim_dyn_c_30_1, sim_dyn_c_30_1_noy, "30 Hz, ±1 mm"),
-        (exp_dyn_c_30_8, sim_dyn_c_30_8, sim_dyn_c_30_8_noy, "30 Hz, ±8 mm"),
+        (exp_dyn_c_10_1, sim_dyn_c_10_1, sim_dyn_c_10_1_noy, stim_iso_c_10, "10 Hz, ±1 mm"),
+        (exp_dyn_c_10_8, sim_dyn_c_10_8, sim_dyn_c_10_8_noy, stim_iso_c_10, "10 Hz, ±8 mm"),
+        (exp_dyn_c_20_1, sim_dyn_c_20_1, sim_dyn_c_20_1_noy, stim_iso_c_20, "20 Hz, ±1 mm"),
+        (exp_dyn_c_20_8, sim_dyn_c_20_8, sim_dyn_c_20_8_noy, stim_iso_c_20, "20 Hz, ±8 mm"),
+        (exp_dyn_c_30_1, sim_dyn_c_30_1, sim_dyn_c_30_1_noy, stim_iso_c_30, "30 Hz, ±1 mm"),
+        (exp_dyn_c_30_8, sim_dyn_c_30_8, sim_dyn_c_30_8_noy, stim_iso_c_30, "30 Hz, ±8 mm"),
     ]
 
     dyn_rand_force_data = [
-        (exp_dyn_v_10_1, sim_dyn_v_10_1, sim_dyn_v_10_1_noy, "10 Hz, ±1 mm"),
-        (exp_dyn_v_10_8, sim_dyn_v_10_8, sim_dyn_v_10_8_noy, "10 Hz, ±8 mm"),
-        (exp_dyn_v_20_1, sim_dyn_v_20_1, sim_dyn_v_20_1_noy, "20 Hz, ±1 mm"),
-        (exp_dyn_v_20_8, sim_dyn_v_20_8, sim_dyn_v_20_8_noy, "20 Hz, ±8 mm"),
-        (exp_dyn_v_30_1, sim_dyn_v_30_1, sim_dyn_v_30_1_noy, "30 Hz, ±1 mm"),
-        (exp_dyn_v_30_8, sim_dyn_v_30_8, sim_dyn_v_30_8_noy, "30 Hz, ±8 mm"),
+        (exp_dyn_v_10_1, sim_dyn_v_10_1, sim_dyn_v_10_1_noy, stim_iso_v_10, "10 Hz, ±1 mm"),
+        (exp_dyn_v_10_8, sim_dyn_v_10_8, sim_dyn_v_10_8_noy, stim_iso_v_10, "10 Hz, ±8 mm"),
+        (exp_dyn_v_20_1, sim_dyn_v_20_1, sim_dyn_v_20_1_noy, stim_iso_v_20, "20 Hz, ±1 mm"),
+        (exp_dyn_v_20_8, sim_dyn_v_20_8, sim_dyn_v_20_8_noy, stim_iso_v_20, "20 Hz, ±8 mm"),
+        (exp_dyn_v_30_1, sim_dyn_v_30_1, sim_dyn_v_30_1_noy, stim_iso_v_30, "30 Hz, ±1 mm"),
+        (exp_dyn_v_30_8, sim_dyn_v_30_8, sim_dyn_v_30_8_noy, stim_iso_v_30, "30 Hz, ±8 mm"),
     ]
 
     dyn_axes = []
+    dyn_discharge_axes = []
+    dyn_panel_axes = []
 
-    for i, (exp, sim, sim_noy, label_text) in enumerate(dyn_const_force_data):
+    for i, (exp, sim, sim_noy, discharge_times, label_text) in enumerate(dyn_const_force_data):
         r, c = divmod(i, 2)
-        ax = fig.add_subplot(gs[r, c])
+        panel_gs = gs[r, c].subgridspec(
+            2, 1,
+            height_ratios=[1.0, 0.10],
+            hspace=0.12 if r < 2 else 0.34,
+        )
+        ax = fig.add_subplot(panel_gs[0, 0])
+        discharge_ax = fig.add_subplot(panel_gs[1, 0], sharex=ax)
         dyn_axes.append(ax)
+        dyn_discharge_axes.append(discharge_ax)
+        dyn_panel_axes.append((r, c, ax, discharge_ax))
 
         plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+        plot_discharge_panel(discharge_ax, discharge_times)
+        ax.set_xlim(time_dt[0], t_end)
 
         ax.set_title(label_text, fontweight='bold', fontsize=9, pad=3)
 
         if r < 2:
-            ax.set_xticklabels([])
+            ax.tick_params(axis='x', labelbottom=False)
         else:
-            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9)
+            ax.tick_params(axis='x', labelbottom=False)
+            discharge_ax.set_xticks(np.arange(0.0, t_end + dt, 0.5))
+            discharge_ax.tick_params(axis='x', bottom=True, labelbottom=True, labelsize=8, pad=1)
+            discharge_ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9, labelpad=5)
 
-    for i, (exp, sim, sim_noy, label_text) in enumerate(dyn_rand_force_data):
+    for i, (exp, sim, sim_noy, discharge_times, label_text) in enumerate(dyn_rand_force_data):
         r, c = divmod(i, 2)
-        ax = fig.add_subplot(gs[r, c + 2])
+        figure_column = c + 2
+        panel_gs = gs[r, figure_column].subgridspec(
+            2, 1,
+            height_ratios=[1.0, 0.10],
+            hspace=0.12 if r < 2 else 0.34,
+        )
+        ax = fig.add_subplot(panel_gs[0, 0])
+        discharge_ax = fig.add_subplot(panel_gs[1, 0], sharex=ax)
         dyn_axes.append(ax)
+        dyn_discharge_axes.append(discharge_ax)
+        dyn_panel_axes.append((r, figure_column, ax, discharge_ax))
 
         plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+        plot_discharge_panel(discharge_ax, discharge_times)
+        ax.set_xlim(time_dt[0], t_end)
 
         ax.set_title(label_text, fontweight='bold', fontsize=9, pad=3)
 
         if r < 2:
-            ax.set_xticklabels([])
+            ax.tick_params(axis='x', labelbottom=False)
         else:
-            ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9)
+            ax.tick_params(axis='x', labelbottom=False)
+            discharge_ax.set_xticks(np.arange(0.0, t_end + dt, 0.5))
+            discharge_ax.tick_params(axis='x', bottom=True, labelbottom=True, labelsize=8, pad=1)
+            discharge_ax.set_xlabel("Time [s]", fontweight="bold", fontsize=9, labelpad=5)
+
+    reference_gaps = {
+        c: force_ax.get_position().y0 - discharge_ax.get_position().y1
+        for r, c, force_ax, discharge_ax in dyn_panel_axes
+        if r == 2
+    }
+    for r, c, force_ax, discharge_ax in dyn_panel_axes:
+        if r >= 2:
+            continue
+        force_position = force_ax.get_position()
+        discharge_position = discharge_ax.get_position()
+        new_y0 = force_position.y0 - reference_gaps[c] - discharge_position.height
+        discharge_ax.set_position([
+            discharge_position.x0,
+            new_y0,
+            discharge_position.width,
+            discharge_position.height,
+        ])
+
+    for r, c, force_ax, _ in dyn_panel_axes:
+        if r != 0:
+            continue
+        if c % 2 == 0:
+            displacement, amplitude = disp_1mm, 1.0
+        else:
+            displacement, amplitude = disp_8mm, 8.0
+        displacement_ax = plot_displacement_panel(force_ax, time_dt, displacement, amplitude)
+        if c == 3:
+            displacement_ax.yaxis.set_label_position('right')
+            displacement_ax.set_ylabel(
+                "Length (mm)",
+                color='0.55',
+                fontsize=7,
+                rotation=270,
+                labelpad=4,
+                va='bottom',
+            )
 
     fig.text(
         0.097, 0.61,
@@ -1588,6 +1735,18 @@ def run_slow_isof_dyn1():
         ax_err_v, x_dyn, dyn_labels,
         mean_rand, max_rand, std_rand, xlabel="Trial", title="Random frequency"
     )
+    ax_err_c.set_ylim([0, 50])
+    ax_err_v.set_ylim([0, 50])
+
+    error_panel_shift = 0.012
+    for error_ax in (ax_err_c, ax_err_v):
+        position = error_ax.get_position()
+        error_ax.set_position([
+            position.x0,
+            position.y0 - error_panel_shift,
+            position.width,
+            position.height,
+        ])
 
     ax_err_c.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
 
@@ -1617,20 +1776,25 @@ def run_slow_isof_dyn1():
         fontsize=11
     )
 
-    dyn_axes[0].legend(
-        loc='upper left',
+    legend_ax = fig.add_subplot(gs[3, :])
+    legend_ax.axis('off')
+    legend_ax.legend(
+        handles=[
+            Line2D([0], [0], color='k', lw=1, label='Experimental'),
+            Line2D([0], [0], color='r', lw=1, label='Simulated'),
+            Line2D([0], [0], color='r', lw=1, linestyle='--', label='Simulated no yielding'),
+        ],
+        loc='center',
+        bbox_to_anchor=(0.5, 0.38),
+        ncol=3,
         fontsize=8,
-        frameon=True
-    )
-
-    dyn_axes[6].legend(
-        loc='upper left',
-        fontsize=8,
-        frameon=True
+        frameon=True,
+        handlelength=2.5,
+        columnspacing=1.8,
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_sub_dynamic_summary.tif", dpi=400, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_sub_dynamic_summary.png", dpi=400, bbox_inches="tight")
     plt.show()
 
 def run_slow_isol():
@@ -2078,7 +2242,7 @@ def run_slow_isol():
     )
 
     if save_figures == True:
-        fig.savefig(figures_path / "slow_M_len_summary.tif", dpi=400, bbox_inches="tight")
+        fig.savefig(figures_path / "slow_M_len_summary.png", dpi=400, bbox_inches="tight")
 
     plt.show()
 
@@ -2270,7 +2434,7 @@ def run_MU():
 
     plt.tight_layout()
     if save_figures == True:
-        fig.savefig(figures_path / "MU_summary.tif", dpi=400, bbox_inches="tight")
+        fig.savefig(figures_path / "MU_summary.png", dpi=400, bbox_inches="tight")
 
     plt.show()
 
@@ -2767,23 +2931,23 @@ def run_fast_iso():
     # -------------------------------------------------------------------------
     # Load FLR
     # -------------------------------------------------------------------------
-    exp_FLR_050 = np.load(exp_path_isol / 'rat_EDL_isol_0.50.npy')
-    exp_FLR_100 = np.load(exp_path_isol / 'rat_EDL_isol_1.00.npy')
-    exp_FLR_150 = np.load(exp_path_isol / 'rat_EDL_isol_1.50.npy')
-    exp_FLR_200 = np.load(exp_path_isol / 'rat_EDL_isol_2.00.npy')
-    exp_FLR_250 = np.load(exp_path_isol / 'rat_EDL_isol_2.50.npy')
-    exp_FLR_300 = np.load(exp_path_isol / 'rat_EDL_isol_3.00.npy')
-    exp_FLR_350 = np.load(exp_path_isol / 'rat_EDL_isol_3.50.npy')
-    exp_FLR_400 = np.load(exp_path_isol / 'rat_EDL_isol_4.00.npy')
+    exp_FLR_050 = np.load(exp_path_isol / 'rat_EDL_isol_0.50_force.npy')
+    exp_FLR_100 = np.load(exp_path_isol / 'rat_EDL_isol_1.00_force.npy')
+    exp_FLR_150 = np.load(exp_path_isol / 'rat_EDL_isol_1.50_force.npy')
+    exp_FLR_200 = np.load(exp_path_isol / 'rat_EDL_isol_2.00_force.npy')
+    exp_FLR_250 = np.load(exp_path_isol / 'rat_EDL_isol_2.50_force.npy')
+    exp_FLR_300 = np.load(exp_path_isol / 'rat_EDL_isol_3.00_force.npy')
+    exp_FLR_350 = np.load(exp_path_isol / 'rat_EDL_isol_3.50_force.npy')
+    exp_FLR_400 = np.load(exp_path_isol / 'rat_EDL_isol_4.00_force.npy')
 
-    sim_FLR_050 = np.load(sim_path_isol / 'rat_EDL_isol_0.50.npy')
-    sim_FLR_100 = np.load(sim_path_isol / 'rat_EDL_isol_1.00.npy')
-    sim_FLR_150 = np.load(sim_path_isol / 'rat_EDL_isol_1.50.npy')
-    sim_FLR_200 = np.load(sim_path_isol / 'rat_EDL_isol_2.00.npy')
-    sim_FLR_250 = np.load(sim_path_isol / 'rat_EDL_isol_2.50.npy')
-    sim_FLR_300 = np.load(sim_path_isol / 'rat_EDL_isol_3.00.npy')
-    sim_FLR_350 = np.load(sim_path_isol / 'rat_EDL_isol_3.50.npy')
-    sim_FLR_400 = np.load(sim_path_isol / 'rat_EDL_isol_4.00.npy')
+    sim_FLR_050 = np.load(sim_path_isol / 'rat_EDL_isol_0.50_force.npy')
+    sim_FLR_100 = np.load(sim_path_isol / 'rat_EDL_isol_1.00_force.npy')
+    sim_FLR_150 = np.load(sim_path_isol / 'rat_EDL_isol_1.50_force.npy')
+    sim_FLR_200 = np.load(sim_path_isol / 'rat_EDL_isol_2.00_force.npy')
+    sim_FLR_250 = np.load(sim_path_isol / 'rat_EDL_isol_2.50_force.npy')
+    sim_FLR_300 = np.load(sim_path_isol / 'rat_EDL_isol_3.00_force.npy')
+    sim_FLR_350 = np.load(sim_path_isol / 'rat_EDL_isol_3.50_force.npy')
+    sim_FLR_400 = np.load(sim_path_isol / 'rat_EDL_isol_4.00_force.npy')
 
     disp_mm = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
     exp_FLR_series = [
@@ -3131,7 +3295,7 @@ def run_fast_iso():
     ax_ffr_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     ax_ffr_err.set_ylim([0, 50])
     ax_ffr_err.set_title("Experimental vs. Simulated", weight='bold', fontsize=10)
-    ax_ffr_err.legend(loc='upper left', fontsize=7)
+    ax_ffr_err.legend(loc='upper right', fontsize=7)
 
     # -------------------------------------------------------------------------
     # Panel B: FLR
@@ -3169,7 +3333,7 @@ def run_fast_iso():
     ax_flr_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
     ax_flr_err.set_ylim([0, 40])
     ax_flr_err.set_title("Experimental vs. Simulated", weight='bold', fontsize=10)
-    ax_flr_err.legend(loc='upper left', fontsize=7)
+    ax_flr_err.legend(loc='upper right', fontsize=7)
 
     # Panel labels
     fig.text(0.09, 0.95, 'A', fontsize=15, fontweight='bold', ha='left', va='top')
@@ -3179,7 +3343,7 @@ def run_fast_iso():
 
     plt.subplots_adjust(hspace=0.5, wspace=0.3)
     if save_figures == True:
-        plt.savefig(figures_path / 'fast_M_iso_summary.tif', dpi=400, bbox_inches='tight')
+        plt.savefig(figures_path / 'fast_M_iso_summary.png', dpi=400, bbox_inches='tight')
 
     plt.show()
 
@@ -3316,7 +3480,7 @@ def run_fast_dyn():
     fig.legend(handles=legend_handles, loc='center right', bbox_to_anchor=(0.9, 0.5), fontsize=11)
 
     if save_figures == True:
-        plt.savefig(figures_path / 'fast_M_dynamic_summary.tif', dpi=400, bbox_inches='tight')
+        plt.savefig(figures_path / 'fast_M_dynamic_summary.png', dpi=400, bbox_inches='tight')
 
     plt.tight_layout()
     plt.show()
@@ -3516,7 +3680,7 @@ def run_Ca_transients():
     plt.tight_layout()
 
     if save_figures == True:
-        fig.savefig(figures_path / "Ca_transients.tif", dpi=400, bbox_inches="tight")
+        fig.savefig(figures_path / "Ca_transients.png", dpi=400, bbox_inches="tight")
 
     plt.show()
 

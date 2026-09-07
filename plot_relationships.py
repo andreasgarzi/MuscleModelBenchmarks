@@ -19,8 +19,8 @@ from matplotlib.lines import Line2D
 class Relationships:
     def __init__(self, fibre_type='slow'):
         self.fmax = 1.4
-        self.af_s = 0.419
-        self.af_f = 0.361
+        self.af_s = 0.49
+        self.af_f = 0.34
         self.set_fibre_type(fibre_type)
 
     def set_fibre_type(self, fibre_type):
@@ -166,7 +166,7 @@ for j, eps0 in enumerate(eps0_vals):
 ax.set_xlabel(r'$\epsilon^T$ [%]', fontsize=13)
 ax.set_ylabel(r'$\overline{F}^{T}$', fontsize=13)
 ax.set_title('SE', fontweight='bold')
-ax.grid(True)
+#ax.grid(True)
 ax.legend(fontsize=10)
 
 # Passive PE
@@ -177,7 +177,7 @@ ax.set_ylabel(r'$\overline{F}_{PE}$', fontsize=13)
 ax.set_title('PE', fontweight='bold')
 ax.set_xlim(0.8, 1.8)
 ax.set_ylim(-0.1, 2.2)
-ax.grid(True)
+#ax.grid(True)
 
 # Force-velocity: slow + fast overlapped
 ax = axs[1, 1]
@@ -194,7 +194,7 @@ ax.set_xlabel(r'$\overline{v}$', fontsize=13)
 ax.set_ylabel(r'$\overline{f}_{FV}$', fontsize=13)
 ax.set_title(r'CE - FV ($\overline{L}^{CE}=1$)', fontweight='bold')
 ax.set_xlim(-1.2, 1.2)
-ax.grid(True)
+#ax.grid(True)
 ax.legend(fontsize=10, loc='lower right')
 
 handles = []
@@ -235,11 +235,11 @@ for a_idx, act in enumerate(act_vals):
 ax.set_xlabel(r'$\overline{L}^{M}$', fontsize=13)
 ax.set_ylabel(r'$\overline{f}_{FL}$', fontsize=13)
 ax.set_title('CE - FL', fontweight='bold')
-ax.grid(True)
+#ax.grid(True)
 ax.legend(fontsize=10)
 
 
-fig.savefig("relationships_plot.tif", dpi=500, bbox_inches="tight")
+fig.savefig("relationships_plot.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 #####################################################################################################
@@ -342,7 +342,7 @@ axes[0].plot(l_sm, Ca_sm, 'k', label='Fit')
 axes[0].set_xlim([0.8, 2.1])
 axes[0].set_ylim([0, 1.2])
 axes[0].set_ylabel(r'$\overline{\mathbf{f_1}}$')
-axes[0].grid()
+#axes[0].grid()
 axes[0].set_xticklabels([])
 
 axes[0].text(
@@ -361,7 +361,7 @@ axes[1].plot(l_right, right_smttp, 'k')
 axes[1].set_xlim([0.8, 2.1])
 axes[1].set_xlabel(r'$\overline{\mathbf{l}^{CE}}$')
 axes[1].set_ylabel(r'$\overline{\mathbf{f_2}}$')
-axes[1].grid()
+#axes[1].grid()
 
 axes[1].text(
     0.02, 0.95, 'B',
@@ -371,5 +371,5 @@ axes[1].text(
     va='top'
 )
 
-fig.savefig("calcium_fit.tif", dpi=500, bbox_inches="tight")
+fig.savefig("calcium_fit.png", dpi=300, bbox_inches="tight")
 plt.show()

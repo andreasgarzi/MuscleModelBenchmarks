@@ -620,6 +620,34 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
 # Plot and save
 # _____________________________________________________________________
 
+def force_arrays_for_comparison(case: dict, out: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Return force arrays using the normalisation required by the benchmark."""
+
+    force_sim = np.asarray(out["force"], dtype=float).copy()
+    exp_force = np.asarray(case["exp_force"], dtype=float).copy()
+
+    if case["normalise_dynamic_force"]:
+        i = int(case["mvc_sample"]) # sample at which the imposed displacement starts
+        if not 0 <= i < force_sim.size:
+            raise IndexError(f"Normalisation sample {i} is outside the simulated force array.")
+
+        sim_reference = force_sim[i]
+        if not np.isfinite(sim_reference) or np.isclose(sim_reference, 0.0):
+            raise ValueError(f"Invalid simulated-force normalisation value at sample {i}: {sim_reference}")
+        force_sim /= sim_reference
+
+        if not np.isclose(float(case["config"]["freq"]), 120.0):
+            # The experimental 120 Hz traces are already normalised in the source data.
+            if not 0 <= i < exp_force.size:
+                raise IndexError(f"Normalisation sample {i} is outside the experimental force array.")
+            exp_reference = exp_force[i]
+            if not np.isfinite(exp_reference) or np.isclose(exp_reference, 0.0):
+                raise ValueError(f"Invalid experimental-force normalisation value at sample {i}: {exp_reference}")
+            exp_force /= exp_reference
+
+    return force_sim, exp_force
+
+
 def plot_case(case: dict, out: dict, show: bool = True):
     """
     Plot simulated vs experimental results.
@@ -639,14 +667,7 @@ def plot_case(case: dict, out: dict, show: bool = True):
     time = case["time"]
 
     if scale in {"Muscle", "MU"}:
-        force_sim = out["force"].copy()
-        exp_force = np.asarray(case["exp_force"], dtype=float).copy()
-
-        if case["normalise_dynamic_force"]:
-            i = int(case["mvc_sample"]) # sample index corresponding to MVC (for normalisation)
-            force_sim = force_sim / force_sim[i] # normalise simulated force to MVC
-            if not np.isclose(float(case["config"]["freq"]), 120.0): # for the 120Hz dynamic trials, exp force is already normalised to MVC, so only normalise if not 120Hz
-                exp_force = exp_force / exp_force[i]
+        force_sim, exp_force = force_arrays_for_comparison(case, out)
 
         plt.figure(figsize=(8, 4))
         plt.plot(time, force_sim, label="Simulated Force", linewidth=2)
@@ -699,8 +720,9 @@ def save_case(case: dict, out: dict, results_path, opt_result=None):
     (results_path / "optimisation").mkdir(exist_ok=True)
 
     if case["config"]["scale"] in {"Muscle", "MU"}:
-        np.save(results_path / "sim" / f"{name}_force.npy", out["force"])
-        np.save(results_path / "exp" / f"{name}_force.npy", case["exp_force"])
+        force_sim, exp_force = force_arrays_for_comparison(case, out)
+        np.save(results_path / "sim" / f"{name}_force.npy", force_sim)
+        np.save(results_path / "exp" / f"{name}_force.npy", exp_force)
     else:
         np.save(results_path / "sim" / f"{name}.npy", out["Ca"])
         np.save(results_path / "exp" / f"{name}.npy", case["exp_ca"])
