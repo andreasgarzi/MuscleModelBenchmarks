@@ -324,17 +324,20 @@ def _time_summary(
     }
 
 
-def _effect_profile(signal: np.ndarray, samples: np.ndarray, n: int, m: int) -> np.ndarray:
-    """Compute a signed temporal fingerprint for each parameter.
+def _effect_profile(signal: np.ndarray, unit_samples: np.ndarray, n: int, m: int) -> np.ndarray:
+    """Compute a signed temporal effect profile for each parameter.
 
     For parameter ``i``, paired B and ``C_i`` simulations differ only in that
-    input.  Their waveform difference divided by the physical parameter
-    difference is therefore a global finite-difference slope.  The median over
-    all N pairs gives a robust signed fingerprint through time.
+    input.  Their waveform difference is divided by the corresponding change
+    in the unit-hypercube coordinate rather than by the physical parameter
+    change.  The resulting profiles are dimensionless with respect to input
+    scaling, so their norms can be compared across parameters expressed in
+    different units.  The median over all N pairs gives a robust signed effect
+    profile through time.
     """
 
-    ya_x = samples[:n]
-    yb_x = samples[n : 2 * n]
+    ya_x = unit_samples[:n]
+    yb_x = unit_samples[n : 2 * n]
     yb = np.asarray(signal[n : 2 * n], dtype=float)
     yc = np.asarray(signal[2 * n :], dtype=float).reshape(m, n, signal.shape[1])
     profiles = np.full((m, signal.shape[1]), np.nan)
@@ -349,12 +352,13 @@ def _effect_profile(signal: np.ndarray, samples: np.ndarray, n: int, m: int) -> 
 
 
 def _identifiability_proxy(profiles: np.ndarray, labels: list[str]) -> dict[str, Any]:
-    """Flag influential parameters with nearly collinear fingerprints.
+    """Flag influential parameters with nearly collinear effect profiles.
 
     This is a practical confounding screen, not a structural-identifiability
     proof.  Parameters below 1% of the largest profile norm are excluded so
     that correlations between two negligible numerical signals are not
-    reported as meaningful.
+    reported as meaningful.  Profile norms are comparable here because input
+    changes are expressed on the common unit-hypercube scale.
     """
 
     norms = np.linalg.norm(np.nan_to_num(profiles, nan=0.0), axis=1)
@@ -373,7 +377,8 @@ def _identifiability_proxy(profiles: np.ndarray, labels: list[str]) -> dict[str,
     return {
         "description": (
             "Screening proxy based on correlations between median global finite-difference "
-            "waveform fingerprints; high correlation suggests possible practical confounding, "
+            "effect profiles computed on the unit-hypercube input scale; high correlation "
+            "suggests possible practical confounding, "
             "not formal proof of non-identifiability."
         ),
         "potentially_confounded_pairs": pairs,
@@ -418,7 +423,7 @@ def analyse_run(run_dir: Path, n_bootstrap: int = 500, make_plots: bool = True) 
     indices_root.mkdir(exist_ok=True)
     if make_plots:
         figures_root.mkdir(exist_ok=True)
-    physical_samples = np.load(run_dir / "samples.npy", mmap_mode="r")
+    unit_samples = np.load(run_dir / "unit_samples.npy", mmap_mode="r")
     effect_profiles: list[np.ndarray] = []
 
     for trial in metadata["trials"]:
@@ -458,10 +463,10 @@ def analyse_run(run_dir: Path, n_bootstrap: int = 500, make_plots: bool = True) 
         trial_report["time_resolved_normalized"] = _time_summary(
             time_sti_norm, time, signal_norm, n, labels
         )
-        # Concatenating trial fingerprints later makes the confounding screen
+        # Concatenating trial effect profiles later makes the confounding screen
         # require two parameters to look alike across the entire block, rather
         # than during only one contraction.
-        effect_profiles.append(_effect_profile(signal_norm, physical_samples, n, m))
+        effect_profiles.append(_effect_profile(signal_norm, unit_samples, n, m))
         report["trials"][trial] = trial_report
 
         if make_plots:

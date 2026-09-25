@@ -861,12 +861,38 @@ def run_slow_dyn2():
     mean_err_list = []
     max_err_list = []
     std_err_list = []
+    r2_list = []
 
-    for exp, sim in zip(exp_all, sim_all):
+    print("\n=== Benchmark: slow_dyn2 ===")
+    print(f"F0 = {MVC:.2f} N\n")
+
+    for exp, sim, disp in zip(exp_all, sim_all, displacements):
         mae, maxae, stde = pct_errors(exp, sim, MVC)
+        r2 = compute_r2(exp, sim)
+
         mean_err_list.append(mae)
         max_err_list.append(maxae)
         std_err_list.append(stde)
+        r2_list.append(r2)
+
+        print(
+            f"Displacement ±{disp:.2f} mm:  "
+            f"mAE = {mae:6.2f}% F0  (std = {stde:6.2f})   "
+            f"MAE = {maxae:6.2f}% F0   R² = {r2:.4f}"
+        )
+
+    print()
+    summarize_trials(
+        mean_err_list,
+        max_err_list,
+        label="— slow_dyn2 summary (all displacements) —",
+        unit="% F0",
+    )
+    summarize_metric_list(
+        r2_list,
+        label="— slow_dyn2 summary: R² (all displacements) —",
+    )
+    print()
 
     x = np.arange(1, len(displacements) + 1)
 
@@ -2076,6 +2102,64 @@ def run_slow_isol():
     print()
 
     # -------------------------------------------------------------------------
+    # Combined slow-isometric summary: iso-f + iso-l
+    # -------------------------------------------------------------------------
+    isof_names = [
+        "cat_SOL_10Hz_c_force",
+        "cat_SOL_10Hz_v_force",
+        "cat_SOL_20Hz_c_force",
+        "cat_SOL_20Hz_v_force",
+        "cat_SOL_30Hz_c_force",
+        "cat_SOL_30Hz_v_force",
+    ]
+    exp_path_isof = base_path / "Muscle" / "slow_isof" / "exp"
+    sim_path_isof = base_path / "Muscle" / "slow_isof" / "sim"
+    exp_isof_series = load_series(exp_path_isof, isof_names)
+    sim_isof_series = load_series(sim_path_isof, isof_names)
+    time_isof = np.arange(0, 2.0, dt)
+    F0_isof = 26.13
+
+    isof_peak_err = []
+    isof_delta_fi = []
+    for exp_isof, sim_isof in zip(exp_isof_series, sim_isof_series):
+        metrics_exp = compute_isometric_trial_metrics(
+            force=exp_isof,
+            time=time_isof,
+            F0=F0_isof,
+            trial_type="nontwitch",
+        )
+        metrics_sim = compute_isometric_trial_metrics(
+            force=sim_isof,
+            time=time_isof,
+            F0=F0_isof,
+            trial_type="nontwitch",
+        )
+        metric_errors = compute_isometric_metric_errors(metrics_exp, metrics_sim, F0_isof)
+        isof_peak_err.append(metric_errors["peak_force_err_pctF0"])
+        isof_delta_fi.append(metric_errors["fusion_index_ratio_err"])
+
+    # Each iso-l result group is ordered as twitch, 10 Hz, 20 Hz, 40 Hz.
+    isol_delta_fi = (
+        res_0["fusion_index_ratio_err"][1:]
+        + res_8["fusion_index_ratio_err"][1:]
+        + res_16["fusion_index_ratio_err"][1:]
+    )
+    isol_peak_err_no_40hz = (
+        res_0["peak_err_pctF0"][1:3]
+        + res_8["peak_err_pctF0"][1:3]
+        + res_16["peak_err_pctF0"][1:3]
+    )
+
+    print("— Slow isometric combined summary: iso-f + iso-l —")
+    summarize_metric_list(isof_delta_fi + isol_delta_fi, "ΔFI (twitch excluded)", "")
+    summarize_metric_list(
+        isof_peak_err + isol_peak_err_no_40hz,
+        "Peak error (twitch and 40 Hz excluded)",
+        "%F0",
+    )
+    print()
+
+    # -------------------------------------------------------------------------
     # Error panels 
     # -------------------------------------------------------------------------
     def build_len_err(exp_list, sim_list, MVC):
@@ -3206,6 +3290,26 @@ def run_fast_iso():
     summarize_metric_list(flr_res["tau_rise_1st_err_s"], "FLR tetanus tau_rise absolute error", "s")
     summarize_metric_list(flr_res["tau_decay_1st_err_s"], "FLR tetanus tau_decay absolute error", "s")
     summarize_metric_list(flr_res["fusion_index_ratio_err"], "FLR fusion index absolute error", "")
+    print()
+
+    # -------------------------------------------------------------------------
+    # Combined unfused-tetanus summary
+    # iso-f: 30--100 Hz (exclude the 1 Hz twitch and fused 120 Hz tetanus)
+    # iso-l: all trials are stimulated at 80 Hz
+    # -------------------------------------------------------------------------
+    unfused_ffr_indices = [i for i, freq in enumerate(freqs) if freq <= 100]
+    unfused_peak_err = (
+        [ffr_res["peak_err_pctF0"][i] for i in unfused_ffr_indices]
+        + flr_res["peak_err_pctF0"]
+    )
+    unfused_delta_fi = (
+        [ffr_res["fusion_index_ratio_err"][i] for i in unfused_ffr_indices]
+        + flr_res["fusion_index_ratio_err"]
+    )
+
+    print("— fast_M_iso unfused tetani: iso-f + iso-l —")
+    summarize_metric_list(unfused_peak_err, "Peak error", "%F0")
+    summarize_metric_list(unfused_delta_fi, "ΔFI", "")
     print()
 
     summarize_trials(
