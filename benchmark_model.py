@@ -804,9 +804,9 @@ class MuscleModel:  # main model object
         y0[state_index_local["dbeta"]] = self.S.MUAP_0  # initial dbeta (as in your original)
         y0[state_index_local["Ca"]] = self.S.Ca_0  # initial Ca
         y0[state_index_local["dCa"]] = self.S.Ca_0  # initial dCa
-        # Elastic-tendon trials use a_min because activation appears in the
-        # denominator of the FV inversion. Muscle-only trials retain act_0.
-        initial_activation = float(np.clip(self.S.act_0, self.sys.activation_floor, 1.0))
+        # Use the same resting activation in every simulation. The lower
+        # bound is enforced after t=0 only when the tendon is elastic.
+        initial_activation = float(np.clip(self.S.act_0, self.P.a_min, 1.0))
 
         if self.model_config.use_SE:  # tendon requires l_M state
             # Start from force equilibrium instead of imposing the nominal fibre length.
