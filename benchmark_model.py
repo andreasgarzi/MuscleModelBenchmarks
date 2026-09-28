@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Any  
 import numpy as np  
 from scipy.integrate import solve_ivp  
+from scipy.optimize import brentq
 
 # =============================================================================
 # Data containers
@@ -567,6 +568,14 @@ class ODESystem:  # ODE assembly and consistent force computations
         self.state_index = build_state_index(self.state_names)  # compute name to index mapping
         self._v_lMT = np.gradient(np.asarray(self.P.l_MT, dtype=float), self.P.dt)  # dl_MT/dt for no-tendon FV case
 
+        # Keep the fibres above both the lower end of the FL domain and the
+        # length corresponding to the maximum permitted pennation angle.
+        muscle_width = float(self.S.l_M_0 * np.sin(self.P.alpha_0))
+        self.minimum_fibre_length = max(
+            0.05 * self.P.l_M_opt,
+            1.000001 * muscle_width / np.sin(1.4706289),
+        )
+
 
     def active_force_factor(self, y: np.ndarray, fibre_type: str) -> float:
         """Return the yielding/sag multiplier applied to active force."""
@@ -578,7 +587,14 @@ class ODESystem:  # ODE assembly and consistent force computations
         return 1.0
 
 
-    def compute_forces(self, time_index: int, y: np.ndarray, fibre_type: str) -> Dict[str, float]:
+    def compute_forces(
+        self,
+        time_index: int,
+        y: np.ndarray,
+        fibre_type: str,
+        l_MT_value: float | None = None,
+        v_lMT_value: float | None = None,
+    ) -> Dict[str, float]:
 
         """
         Computes all mechanical quantities (l_T, eps_T, f_SE, f_PE, f_CE, FL, FV, v_M, alpha)
@@ -587,6 +603,8 @@ class ODESystem:  # ODE assembly and consistent force computations
         - time_index: int, index into P.time / P.l_MT.
         - y: np.ndarray, ODE state vector at this time (size = n_states).
         - fibre_type: str, "slow" or "fast".
+        - l_MT_value: optional continuously interpolated musculotendon length.
+        - v_lMT_value: optional continuously interpolated musculotendon velocity.
         Outputs:
         - forces: Dict[str, float], dictionary of mechanical variables.
         """
@@ -595,18 +613,21 @@ class ODESystem:  # ODE assembly and consistent force computations
         model_config = self.model_config  # local configuration
         state_index_local = self.state_index  # local alias for state index mapping
         time_index = max(0, min(time_index, len(P.time) - 1))  # clamp time index to valid range
+        # ODE evaluations pass interpolated values; sampled values are used
+        # when the output traces are reconstructed after integration.
+        l_MT = float(P.l_MT[time_index]) if l_MT_value is None else float(l_MT_value)
         act = float(np.clip(y[state_index_local["act"]], self.activation_floor, 1.0))  # bounded activation
         phi = self.active_force_factor(y, fibre_type)  # yielding/sag active-force multiplier
 
         if model_config.use_SE:  # tendon system: l_M is dynamic
             l_M = float(y[state_index_local["l_M"]])  # read muscle fibre length from state
             alpha = self.mech.pennation(l_M, self.S.l_M_0, P.alpha_0) # pick current pennation
-            l_T = float(P.l_MT[time_index] - l_M * np.cos(alpha))  # compute tendon length from geometry
+            l_T = float(l_MT - l_M * np.cos(alpha))  # compute tendon length from geometry
             eps_T = float((l_T - P.l_T_slack) / P.l_T_slack)  # tendon strain
             f_SE = float(self.mech.tendon_force(eps_T))  # tendon force
             lM_norm = float(l_M / P.l_M_opt)  # normalized fibre length
         else:  # muscle-only system: l_M == l_MT
-            l_M = float(P.l_MT[time_index])  # fibre length equals MT length
+            l_M = l_MT  # fibre length equals MT length
             l_T, eps_T, f_SE = 0.0, 0.0, 0.0  # no tendon quantities
             lM_norm = float(l_M / P.l_M_opt)  # normalized fibre length
             alpha = float(P.alpha_0)  # pick current pennation
@@ -628,7 +649,7 @@ class ODESystem:  # ODE assembly and consistent force computations
                 v_M = float(self.mech.fv_velocity(act, lM_norm, fv_target, FL, fibre_type, P.vmax))  # fibre velocity
                 FV = float(self.mech.fv_force(act, v_M / P.vmax, FL, lM_norm, fibre_type))  # FV factor
             else:  # no tendon: v_M from imposed MT kinematics
-                v_M = float(self._v_lMT[time_index])  # imposed fibre velocity
+                v_M = float(self._v_lMT[time_index]) if v_lMT_value is None else float(v_lMT_value)
                 v_norm = float(v_M / P.vmax)  # normalized velocity
                 FV = float(self.mech.fv_force(act, v_norm, FL, lM_norm, fibre_type))  # FV factor
         else:  # FV disabled
@@ -636,8 +657,13 @@ class ODESystem:  # ODE assembly and consistent force computations
             if model_config.use_SE:  # tendon case with FV disabled
                 v_M = 0.0  # neutral choice (no FV inversion available)
             else:  # no tendon case: velocity is imposed by l_MT regardless of FV usage
-                v_M = float(self._v_lMT[time_index])  # imposed fibre velocity
+                v_M = float(self._v_lMT[time_index]) if v_lMT_value is None else float(v_lMT_value)
             FV = 1.0  # neutral FV
+
+        # Do not allow further shortening once the lower fibre-length limit is reached.
+        if model_config.use_SE and l_M <= self.minimum_fibre_length and v_M < 0.0:
+            v_M = 0.0
+            FV = 1.0
 
         return dict(l_M=l_M, l_T=l_T, eps_T=eps_T,  
             f_SE=f_SE, f_PE=f_PE, f_CE=f_CE,  
@@ -663,6 +689,10 @@ class ODESystem:  # ODE assembly and consistent force computations
         model_config = self.model_config  # local config
         state_index_local = self.state_index  # local state-index mapping
         time_index = max(0, min(int(t / P.dt), len(P.time) - 1))  # convert time to nearest index and clamp
+        # The adaptive solver evaluates between samples. Interpolating here
+        # avoids presenting the prescribed displacement as a staircase.
+        l_MT_at_t = float(np.interp(t, P.time, P.l_MT))
+        v_lMT_at_t = float(np.interp(t, P.time, self._v_lMT))
         dydt = np.zeros_like(y)  # allocate derivative vector
 
         beta = float(y[state_index_local["beta"]])  # MUAP state
@@ -677,7 +707,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         if model_config.use_SE:  # if tendon system use fibre length state for Ca kinetics
             l_norm_for_Ca = float(y[state_index_local["l_M"]]) / P.l_M_opt  # normalized fibre length
         else:  # otherwise use imposed MT length for Ca kinetics
-            l_norm_for_Ca = float(P.l_MT[time_index] / P.l_M_opt)  # normalized imposed length
+            l_norm_for_Ca = float(l_MT_at_t / P.l_M_opt)  # normalized imposed length
 
         DDCa = self.eph.Ca_2nd(l_norm_for_Ca, fibre_type, beta, Ca, dCa)  # Ca second derivative
         dact = self.eph.activation_dot_from(Ca, act, fibre_type)  # activation derivative
@@ -697,7 +727,13 @@ class ODESystem:  # ODE assembly and consistent force computations
             dydt[state_index_local["sag"]] = self.eph.sag_dot(sag_val, t)  # sag derivative
 
         # compute forces/velocity consistently (needed for tendon dynamics AND yielding even without tendon)
-        forces = self.compute_forces(time_index, y, fibre_type)  # compute consistent forces
+        forces = self.compute_forces(
+            time_index,
+            y,
+            fibre_type,
+            l_MT_value=l_MT_at_t,
+            v_lMT_value=v_lMT_at_t,
+        )  # compute consistent forces
 
         # yielding can be applied even without tendon (depends on velocity)
         if model_config.use_yielding:  # if yielding enabled
@@ -768,10 +804,15 @@ class MuscleModel:  # main model object
         y0[state_index_local["dbeta"]] = self.S.MUAP_0  # initial dbeta (as in your original)
         y0[state_index_local["Ca"]] = self.S.Ca_0  # initial Ca
         y0[state_index_local["dCa"]] = self.S.Ca_0  # initial dCa
-        y0[state_index_local["act"]] = np.clip(self.S.act_0, self.sys.activation_floor, 1.0)  # bounded initial activation
+        # Elastic-tendon trials use a_min because activation appears in the
+        # denominator of the FV inversion. Muscle-only trials retain act_0.
+        initial_activation = float(np.clip(self.S.act_0, self.sys.activation_floor, 1.0))
 
         if self.model_config.use_SE:  # tendon requires l_M state
-            y0[state_index_local["l_M"]] = self.S.l_M_0  # initial fibre length
+            # Start from force equilibrium instead of imposing the nominal fibre length.
+            y0[state_index_local["l_M"]] = self._initial_fibre_equilibrium(initial_activation)
+
+        y0[state_index_local["act"]] = initial_activation
 
         # yielding can be applied even without tendon (depends on velocity)
         if self.model_config.use_yielding:  # yielding optional
@@ -781,6 +822,117 @@ class MuscleModel:  # main model object
             y0[state_index_local["sag"]] = self.S.s_0  # initial sag state
 
         return y0  # return initial condition vector
+
+
+    def _initial_fibre_equilibrium(self, activation: float) -> float:
+        """Find the initial fibre length from force equilibrium and local compliance."""
+
+        P = self.P
+        fibre_type = self.fibre_type
+        # Yielding and sag multiply active force, so their initial values also
+        # enter the force balance used to initialise the fibre length.
+        phi = 1.0
+        if self.model_config.use_yielding and fibre_type == "slow" and self.fs < 37:
+            phi = float(self.S.y_0)
+        elif self.model_config.use_sag and fibre_type == "fast" and 5 < self.fs < 100:
+            phi = float(self.S.s_0)
+
+        muscle_width = float(self.S.l_M_0 * np.sin(P.alpha_0))
+        # The upper bound is deliberately broad because the bell-shaped FL
+        # curve can produce more than one mathematical equilibrium root.
+        lower = max(1e-6, self.sys.minimum_fibre_length)
+        upper = max(2.5 * P.l_M_opt, 1.5 * self.S.l_M_0, float(P.l_MT[0]))
+
+        def tendon_force(l_T: float) -> float:
+            eps_T = float((l_T - P.l_T_slack) / P.l_T_slack)
+            return float(self.mech.tendon_force(eps_T))
+
+        def projected_muscle_force(l_S: float, v_S: float) -> float:
+            # l_S and v_S are fibre length and velocity projected along the tendon.
+            l_M = float(np.sqrt(max(l_S * l_S + muscle_width * muscle_width, 1e-18)))
+            cos_alpha = max(1e-9, float(l_S / l_M))
+            l_M_norm = float(l_M / P.l_M_opt)
+            v_M = float(v_S * cos_alpha)
+            f_PE = float(self.mech.passive_pe(l_M_norm)) if self.model_config.use_PE else 0.0
+            FL = float(self.mech.force_length(activation, l_M_norm)) if self.model_config.use_FL else 1.0
+            FV = (
+                float(self.mech.fv_force(activation, v_M / P.vmax, FL, l_M_norm, fibre_type))
+                if self.model_config.use_FV
+                else 1.0
+            )
+            return float((phi * activation * FL * FV + f_PE) * cos_alpha)
+
+        v_MT_initial = float(self.sys._v_lMT[0])
+
+        def initial_projected_velocity(l_M: float) -> float:
+            """Split initial MT velocity using the local muscle/tendon stiffness."""
+
+            # Compliance-based velocity split from Millard et al. (2013), Eqs. A7-A8.
+            l_S = float(np.sqrt(max(l_M * l_M - muscle_width * muscle_width, 1e-18)))
+            l_T = float(P.l_MT[0] - l_S)
+            if l_T <= P.l_T_slack or np.isclose(v_MT_initial, 0.0, atol=1e-12):
+                return 0.0
+
+            dl_S = max(1e-7, 1e-5 * P.l_M_opt)
+            dl_T = max(1e-7, 1e-5 * P.l_T_slack)
+            v_S = 0.0
+
+            # Muscle stiffness depends weakly on the velocity being estimated;
+            # a few fixed-point iterations are sufficient at the initial state.
+            for _ in range(10):
+                muscle_stiffness = (
+                    projected_muscle_force(l_S + dl_S, v_S)
+                    - projected_muscle_force(max(1e-9, l_S - dl_S), v_S)
+                ) / (2.0 * dl_S)
+                tendon_stiffness = (
+                    tendon_force(l_T + dl_T) - tendon_force(l_T - dl_T)
+                ) / (2.0 * dl_T)
+                total_stiffness = muscle_stiffness + tendon_stiffness
+                updated_v_S = (
+                    0.0
+                    if abs(total_stiffness) < 1e-12
+                    else tendon_stiffness / total_stiffness * v_MT_initial
+                )
+                if not np.isfinite(updated_v_S):
+                    updated_v_S = 0.0
+                if abs(updated_v_S - v_S) < 1e-10:
+                    return float(updated_v_S)
+                v_S = float(updated_v_S)
+
+            return v_S
+
+        def equilibrium_residual(l_M: float) -> float:
+            l_S = float(np.sqrt(max(l_M * l_M - muscle_width * muscle_width, 1e-18)))
+            v_S = initial_projected_velocity(l_M)
+            l_T = float(P.l_MT[0] - l_S)
+            return float(projected_muscle_force(l_S, v_S) - tendon_force(l_T))
+
+        grid = np.linspace(lower, upper, 1001)
+        residuals = np.asarray([equilibrium_residual(length) for length in grid])
+
+        # Retain every sign-changing root, then choose the branch closest to
+        # the nominal initial fibre length. This rejects roots on the remote
+        # tail of the active FL curve.
+        candidates = []
+        for i in range(len(grid) - 1):
+            left_residual = residuals[i]
+            right_residual = residuals[i + 1]
+            if np.isclose(left_residual, 0.0, atol=1e-12):
+                candidates.append(float(grid[i]))
+            elif left_residual * right_residual < 0.0:
+                candidates.append(float(brentq(equilibrium_residual, grid[i], grid[i + 1])))
+
+        if np.isclose(residuals[-1], 0.0, atol=1e-12):
+            candidates.append(float(grid[-1]))
+
+        if not candidates:
+            best_index = int(np.argmin(np.abs(residuals)))
+            raise RuntimeError(
+                "Unable to initialize fibre equilibrium: "
+                f"minimum residual={residuals[best_index]:.6g} at l_M={grid[best_index]:.6g}."
+            )
+
+        return min(candidates, key=lambda length: abs(length - self.S.l_M_0))
 
 
     def run(self, output_force: bool = True) -> Dict[str, Any]:  
@@ -819,6 +971,8 @@ class MuscleModel:  # main model object
             method="LSODA",  
             t_eval=self.P.time,  
             max_step=self.P.dt / 4,  
+            rtol=1e-5,  # needed near the flat eccentric end of the FV curve
+            atol=1e-6,
         )
 
         Y = sol.y  # state with size (n_states, n_time)
