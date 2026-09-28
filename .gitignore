@@ -9,6 +9,9 @@
 *.ddf
 *.npy
 
+# Track benchmark inputs/results while keeping other NumPy files ignored
+!benchmark_Results/**/*.npy
+
 # For GSA
 *.json
 *.png

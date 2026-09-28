@@ -222,7 +222,7 @@ def build_case(name: str, config: dict) -> dict:
     if scale != "Ca_transients":
         results_path = Path() / "benchmark_Results" / scale / benchmark
     else:
-        results_path = Path() / "benchmark_Results" / benchmark
+        results_path = Path() / "benchmark_Results" / scale
 
     exp_force = None
     exp_ca = None

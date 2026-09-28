@@ -50,21 +50,22 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 389747  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 227079 # activation (slow, MU scale)
-    k1_s_M: float = 10          # activation kinetics
+    Ca_max_s_M: float = 225998  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 228314 # activation (slow, MU scale)
+    k1_s_M: float = 19.7        # activation kinetics
     k2_s_M: float = 18.96       # activation kinetics
-    k1_s_MU: float = 19.98      # activation kinetics
+    k1_s_MU: float = 19.88      # activation kinetics
     k2_s_MU: float = 20         # activation kinetics 
-    Ca_max_f_M: float = 280096  # activation (fast, muscle scale)
+    Ca_max_f_M: float = 291927  # activation (fast, muscle scale)
     Ca_max_f_MU_catMG: float = 713841 # activation (fast, MU scale, cat MG)
     Ca_max_f_MU_ratMG: float = 811485 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
-    k2_f_M: float = 14.63       # activation kinetics 
+    k2_f_M: float = 15          # activation kinetics 
     k1_f_MU_catMG: float = 11.38    # activation kinetics
     k2_f_MU_catMG: float = 15.10    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
     k2_f_MU_ratMG: float = 92.05    # activation kinetics
+    a_min: float = 0.01             # minimum activation for elastic-tendon equilibrium
 
     # Calcium kinetics (calibrated via optimization)
     c1_s: float = 7028          # calcium kinetics (slow)
@@ -98,7 +99,7 @@ class Params:
 
     # FV relationship (calibrated via optimization)
     af_s: float = 0.49         # FV curvature (slow)
-    af_f: float = 0.34         # FV curvature (fast)
+    af_f: float = 0.33         # FV curvature (fast)
 
     # FV parameters (from literature)
     fmax: float = 1.4             # max eccentric factor
@@ -128,6 +129,9 @@ class Params:
     tp: float = 0.140           # sag onset (boost peak time)
 
     def __post_init__(self):  
+
+        if not 0.0 < self.a_min <= 1.0:
+            raise ValueError(f"a_min must be in (0, 1], got {self.a_min}")
 
         self.vmax = self.vmax * self.l_M_opt  # convert vmax from l0/s to length units per second
 
@@ -240,14 +244,14 @@ class Mechanics:
         return float(np.exp(-((l_M_norm - b) / self.P.a) ** 2))  
 
 
-    def fv_velocity(self, act, l_M_norm, f_CE_over_FL, FL, fibre_type, vmax) -> float:  
+    def fv_velocity(self, act, l_M_norm, fv_target, FL, fibre_type, vmax) -> float:
 
         """
         Inverts the FV relationship to obtain fibre velocity given normalized CE force ratio (modified from Caillet 2023 PhD thesis).
         Inputs:
         - act: float, activation state (0..1).
         - l_M_norm: float, normalized fibre length.
-        - f_CE_over_FL: float, normalized CE force divided by FL (dimensionless).
+        - fv_target: float, target FV multiplier obtained from muscle-tendon equilibrium.
         - FL: float, force-length scaling.
         - fibre_type: str, "slow" or "fast".
         - vmax: float, maximum contraction velocity in absolute units (already scaled by l_M_opt).
@@ -272,7 +276,7 @@ class Mechanics:
         K = max(float(K), 1e-12) # clamp
 
         eps = 1e-6  
-        f = float(np.clip(f_CE_over_FL, eps, fmax - eps))  # clamp force ratio into valid range
+        f = float(np.clip(fv_target, eps, fmax - eps))  # clamp FV multiplier into valid range
         if f >= 1:  # eccentric / >= isometric
             vel = b * ((f - 1) / (fmax - f))  
             vel *= K  
@@ -551,15 +555,27 @@ def build_state_index(state_names: List[str]) -> Dict[str, int]:
 # =============================================================================
 
 class ODESystem:  # ODE assembly and consistent force computations
-    def __init__(self, P: Params, S: States, mech: Mechanics, eph: Ephys, model_config: ModelConfig):  
+    def __init__(self, P: Params, S: States, mech: Mechanics, eph: Ephys, model_config: ModelConfig, fs: float):
         self.P = P  # store parameters reference
         self.S = S  # store initial states reference (for pennation update uses l_M_0)
         self.mech = mech  # store mechanics block
         self.eph = eph  # store electrophysiology block
         self.model_config = model_config  # store model configuration
+        self.fs = float(fs)  # mean stimulation frequency used to activate yielding/sag
+        self.activation_floor = P.a_min if model_config.use_SE else 0.0
         self.state_names = build_state_names(model_config)  # compute state names from configuration
         self.state_index = build_state_index(self.state_names)  # compute name to index mapping
         self._v_lMT = np.gradient(np.asarray(self.P.l_MT, dtype=float), self.P.dt)  # dl_MT/dt for no-tendon FV case
+
+
+    def active_force_factor(self, y: np.ndarray, fibre_type: str) -> float:
+        """Return the yielding/sag multiplier applied to active force."""
+
+        if self.model_config.use_yielding and fibre_type == "slow" and self.fs < 37:
+            return float(y[self.state_index["yielding"]])
+        if self.model_config.use_sag and fibre_type == "fast" and 5 < self.fs < 100:
+            return float(y[self.state_index["sag"]])
+        return 1.0
 
 
     def compute_forces(self, time_index: int, y: np.ndarray, fibre_type: str) -> Dict[str, float]:
@@ -579,7 +595,8 @@ class ODESystem:  # ODE assembly and consistent force computations
         model_config = self.model_config  # local configuration
         state_index_local = self.state_index  # local alias for state index mapping
         time_index = max(0, min(time_index, len(P.time) - 1))  # clamp time index to valid range
-        act = float(y[state_index_local["act"]])  # read activation state
+        act = float(np.clip(y[state_index_local["act"]], self.activation_floor, 1.0))  # bounded activation
+        phi = self.active_force_factor(y, fibre_type)  # yielding/sag active-force multiplier
 
         if model_config.use_SE:  # tendon system: l_M is dynamic
             l_M = float(y[state_index_local["l_M"]])  # read muscle fibre length from state
@@ -606,7 +623,9 @@ class ODESystem:  # ODE assembly and consistent force computations
         # Therefore  v_M is always computed when possible (even if FV is disabled).
         if model_config.use_FV:  # FV enabled
             if model_config.use_SE:  # tendon system: invert FV to get v_M
-                v_M = float(self.mech.fv_velocity(act, lM_norm, f_CE / max(1e-12, FL), FL, fibre_type, P.vmax))  # fibre velocity
+                active_scale = max(1e-12, phi * act * FL)
+                fv_target = f_CE / active_scale  # Eq. 10: required FV multiplier from equilibrium
+                v_M = float(self.mech.fv_velocity(act, lM_norm, fv_target, FL, fibre_type, P.vmax))  # fibre velocity
                 FV = float(self.mech.fv_force(act, v_M / P.vmax, FL, lM_norm, fibre_type))  # FV factor
             else:  # no tendon: v_M from imposed MT kinematics
                 v_M = float(self._v_lMT[time_index])  # imposed fibre velocity
@@ -622,7 +641,7 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         return dict(l_M=l_M, l_T=l_T, eps_T=eps_T,  
             f_SE=f_SE, f_PE=f_PE, f_CE=f_CE,  
-            FL=FL, FV=FV, v_M=v_M, alpha=alpha)
+            FL=FL, FV=FV, v_M=v_M, alpha=alpha, act=act, phi=phi)
 
 
     def ode_system(self, t: float, y: np.ndarray, distimes: np.ndarray, fibre_type: str) -> np.ndarray:
@@ -650,7 +669,8 @@ class ODESystem:  # ODE assembly and consistent force computations
         dbeta = float(y[state_index_local["dbeta"]])  # MUAP derivative
         Ca = float(y[state_index_local["Ca"]])  # Ca state
         dCa = float(y[state_index_local["dCa"]])  # Ca derivative
-        act = float(y[state_index_local["act"]])  # activation state
+        act_state = float(y[state_index_local["act"]])  # activation ODE state
+        act = float(np.clip(act_state, self.activation_floor, 1.0))  # activation used by the model
 
         DDbeta = self.eph.MU_AP_2nd(t, distimes, beta, dbeta)  # MUAP second derivative
 
@@ -661,6 +681,10 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         DDCa = self.eph.Ca_2nd(l_norm_for_Ca, fibre_type, beta, Ca, dCa)  # Ca second derivative
         dact = self.eph.activation_dot_from(Ca, act, fibre_type)  # activation derivative
+        if act_state <= self.activation_floor and dact < 0.0:
+            dact = 0.0  # enforce the lower activation bound required by Eq. 10
+        elif act_state >= 1.0 and dact > 0.0:
+            dact = 0.0  # activation cannot exceed one
 
         dydt[state_index_local["beta"]] = dbeta  # d(beta)/dt = dbeta
         dydt[state_index_local["dbeta"]] = DDbeta  # d(dbeta)/dt = DDbeta
@@ -706,7 +730,7 @@ class MuscleModel:  # main model object
 
         self.mech = Mechanics(P)  # create mechanics block
         self.eph = Ephys(P)  # create electrophysiology block
-        self.sys = ODESystem(P, S, self.mech, self.eph, self.model_config)  # create ODE system block
+        self.sys = ODESystem(P, S, self.mech, self.eph, self.model_config, self.fs)  # create ODE system block
 
     @property
     def fibre_type(self) -> str:  
@@ -744,7 +768,7 @@ class MuscleModel:  # main model object
         y0[state_index_local["dbeta"]] = self.S.MUAP_0  # initial dbeta (as in your original)
         y0[state_index_local["Ca"]] = self.S.Ca_0  # initial Ca
         y0[state_index_local["dCa"]] = self.S.Ca_0  # initial dCa
-        y0[state_index_local["act"]] = self.S.act_0  # initial activation
+        y0[state_index_local["act"]] = np.clip(self.S.act_0, self.sys.activation_floor, 1.0)  # bounded initial activation
 
         if self.model_config.use_SE:  # tendon requires l_M state
             y0[state_index_local["l_M"]] = self.S.l_M_0  # initial fibre length
@@ -803,7 +827,7 @@ class MuscleModel:  # main model object
             "t": self.P.time,  # time vector
             "MUAP": Y[state_index_local["beta"], :],  # MUAP state
             "Ca": Y[state_index_local["Ca"], :],  # free Ca state 
-            "act": Y[state_index_local["act"], :],  # activation state
+            "act": np.clip(Y[state_index_local["act"], :], self.sys.activation_floor, 1.0),  # bounded activation state
         }
 
         if self.model_config.use_SE:  # tendon case: l_M comes from state vector
@@ -823,6 +847,8 @@ class MuscleModel:  # main model object
         f_PE = np.zeros(T)  # allocate passive force trace
         f_SE = np.zeros(T)  # allocate tendon force trace
         v_M = np.zeros(T)  # allocate fibre velocity trace
+        alpha = np.zeros(T)  # allocate pennation-angle trace
+        active_factor = np.ones(T)  # allocate yielding/sag active-force factor
 
         for i in range(T):  # loop through time samples
             forces = self.sys.compute_forces(i, Y[:, i], fibre_type)  # compute mechanics consistently
@@ -831,18 +857,28 @@ class MuscleModel:  # main model object
             f_PE[i] = forces["f_PE"]  # store passive force
             f_SE[i] = forces["f_SE"]  # store tendon force
             v_M[i] = forces["v_M"]  # store fibre velocity
+            alpha[i] = forces["alpha"]  # store pennation angle
+            active_factor[i] = forces["phi"]  # store yielding/sag multiplier
 
-        out.update({"FL": FL, "FV": FV, "f_PE": f_PE, "f_SE": f_SE, "v_M": v_M})  # add mechanics traces
+        out.update({
+            "FL": FL,
+            "FV": FV,
+            "f_PE": f_PE,
+            "f_SE": f_SE,
+            "v_M": v_M,
+            "alpha": alpha,
+            "phi": active_factor,
+        })  # add mechanics traces
 
         if output_force:  # if force output requested
-            time_factor = np.ones(T, dtype=float)  # default no time modulation
-
-            if self.model_config.use_yielding and fibre_type == "slow" and self.fs < 37:  # apply yielding only to slow fibres if enabled and at submax.freqs.
-                time_factor = out.get("yielding", time_factor)  # use yielding array if present
-            elif self.model_config.use_sag and fibre_type == "fast" and  5 < self.fs < 100:  # apply sag only to fast fibres if enabled and at submax.freqs.
-                time_factor = out.get("sag", time_factor)  # use sag array if present
-
-            out["force"] = self.P.MVC * (time_factor * out["act"] * out["FL"] * out["FV"] + out["f_PE"])
+            if self.model_config.use_SE:
+                out["force"] = self.P.MVC * (
+                    out["phi"] * out["act"] * out["FL"] * out["FV"] + out["f_PE"]
+                ) * np.cos(out["alpha"])  # projected muscle force (Eq. 9)
+            else:
+                out["force"] = self.P.MVC * (
+                    out["phi"] * out["act"] * out["FL"] * out["FV"] + out["f_PE"]
+                )
 
         return out  # return all outputs
 
