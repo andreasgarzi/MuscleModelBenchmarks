@@ -51,21 +51,21 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 225998  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 228314 # activation (slow, MU scale)
-    k1_s_M: float = 19.7        # activation kinetics
-    k2_s_M: float = 18.96       # activation kinetics
-    k1_s_MU: float = 19.88      # activation kinetics
-    k2_s_MU: float = 20         # activation kinetics 
-    Ca_max_f_M: float = 291927  # activation (fast, muscle scale)
-    Ca_max_f_MU_catMG: float = 713841 # activation (fast, MU scale, cat MG)
-    Ca_max_f_MU_ratMG: float = 811485 # activation (fast, MU scale, rat MG)
+    Ca_max_s_M: float = 211317  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 235812 # activation (slow, MU scale)
+    k1_s_M: float = 19.98        # activation kinetics
+    k2_s_M: float = 20       # activation kinetics
+    k1_s_MU: float = 19.07      # activation kinetics
+    k2_s_MU: float = 19.59         # activation kinetics
+    Ca_max_f_M: float = 295453  # activation (fast, muscle scale)
+    Ca_max_f_MU_catMG: float = 664191 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 786854 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
     k2_f_M: float = 15          # activation kinetics 
-    k1_f_MU_catMG: float = 11.38    # activation kinetics
-    k2_f_MU_catMG: float = 15.10    # activation kinetics
+    k1_f_MU_catMG: float = 12.62    # activation kinetics
+    k2_f_MU_catMG: float = 14.00    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 92.05    # activation kinetics
+    k2_f_MU_ratMG: float = 87.64    # activation kinetics
     a_min: float = 0.01             # minimum activation for elastic-tendon equilibrium
 
     # Calcium kinetics (calibrated via optimization)
@@ -99,7 +99,7 @@ class Params:
     b3: float = 9e7              # MUAP ODE coefficient
 
     # FV relationship (calibrated via optimization)
-    af_s: float = 0.49         # FV curvature (slow)
+    af_s: float = 0.52         # FV curvature (slow)
     af_f: float = 0.33         # FV curvature (fast)
 
     # FV parameters (from literature)
@@ -332,7 +332,7 @@ class Ephys:
         self.P = P  # keep params for calcium/activation constants
 
     @staticmethod
-    def _is_firing(t_round: float, AP_times: np.ndarray, prec: float) -> int:  
+    def is_firing(t_round: float, AP_times: np.ndarray, prec: float) -> int:
 
         """
         Checks whether a rounded time instant corresponds to a discharge time (Caillet et al. 2023).
@@ -362,7 +362,7 @@ class Ephys:
         
         prec = 1e-3  # temporal precision (larger than AP duration)
         t_round = int(t / prec + 1e-4) * prec  # round time to grid
-        if not self._is_firing(t_round, AP_times, prec):  # if no discharge at this time
+        if not self.is_firing(t_round, AP_times, prec):  # if no discharge at this time
             return 0.0  # membrane potential remains zero
 
         sin_period = 1.4e-3  # AP sine waveform period
@@ -787,7 +787,7 @@ class MuscleModel:  # main model object
         raise ValueError(f"Unknown muscle '{m}'")  # error if unknown
     
 
-    def _build_y0(self) -> np.ndarray:  
+    def build_y0(self) -> np.ndarray:
 
         """
         Builds the initial ODE state vector y0 with the correct size/order based on model_config.
@@ -810,7 +810,7 @@ class MuscleModel:  # main model object
 
         if self.model_config.use_SE:  # tendon requires l_M state
             # Start from force equilibrium instead of imposing the nominal fibre length.
-            y0[state_index_local["l_M"]] = self._initial_fibre_equilibrium(initial_activation)
+            y0[state_index_local["l_M"]] = self.initial_fibre_equilibrium(initial_activation)
 
         y0[state_index_local["act"]] = initial_activation
 
@@ -824,7 +824,7 @@ class MuscleModel:  # main model object
         return y0  # return initial condition vector
 
 
-    def _initial_fibre_equilibrium(self, activation: float) -> float:
+    def initial_fibre_equilibrium(self, activation: float) -> float:
         """Find the initial fibre length from force equilibrium and local compliance."""
 
         P = self.P
@@ -960,7 +960,7 @@ class MuscleModel:  # main model object
         state_index_local = self.sys.state_index  # local state index
         print("Computing muscle force...")
 
-        y0 = self._build_y0()  # build initial state vector
+        y0 = self.build_y0()  # build initial state vector
 
         args = (self.distimes.astype(float), fibre_type)  # extra args passed to ode_system
         sol = solve_ivp(  # integrate ODEs

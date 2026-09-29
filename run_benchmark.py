@@ -412,7 +412,7 @@ def build_case(name: str, config: dict) -> dict:
     states = {
         "MUAP_0": 0.0,
         "Ca_0": 0.0,
-        "act_0": 1e-9,
+        "act_0": 0.01,
         "l_M_0": float(config["l_M_0"]),
         "y_0": 1.0,
         "s_0": 1.0,
@@ -527,12 +527,11 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
         n = min(len(sim), len(exp)) # ensure same length for residuals
         return np.mean(np.abs(sim[:n] - exp[:n])) # mean absolute error 
 
-    sim = out["force"]
-    exp = case["exp_force"]
+    sim, exp = force_arrays_for_comparison(case, out)
 
     if target == "force_dynamic_ratio":
         i = int(case["mvc_sample"]) # sample index corresponding to MVC (for normalisation)
-        sim = sim[i:] / sim[i] # normalise simulated force to MVC
+        sim = sim[i:]
         exp = exp[i:]
         n = min(len(sim), len(exp)) 
         return np.mean(np.abs(sim[:n] - exp[:n])) # mean absolute error
@@ -626,6 +625,9 @@ def force_arrays_for_comparison(case: dict, out: dict) -> tuple[np.ndarray, np.n
     force_sim = np.asarray(out["force"], dtype=float).copy()
     exp_force = np.asarray(case["exp_force"], dtype=float).copy()
 
+    # Experimental force traces are reported relative to their pre-stimulus baseline
+    force_sim -= force_sim[0]
+
     if case["normalise_dynamic_force"]:
         i = int(case["mvc_sample"]) # sample at which the imposed displacement starts
         if not 0 <= i < force_sim.size:
@@ -637,7 +639,7 @@ def force_arrays_for_comparison(case: dict, out: dict) -> tuple[np.ndarray, np.n
         force_sim /= sim_reference
 
         if not np.isclose(float(case["config"]["freq"]), 120.0):
-            # The experimental 120 Hz traces are already normalised in the source data.
+            # The experimental 120 Hz traces are already normalised in the source data
             if not 0 <= i < exp_force.size:
                 raise IndexError(f"Normalisation sample {i} is outside the experimental force array.")
             exp_reference = exp_force[i]
