@@ -412,7 +412,7 @@ def build_case(name: str, config: dict) -> dict:
     states = {
         "MUAP_0": 0.0,
         "Ca_0": 0.0,
-        "act_0": 0.01,
+        "act_0": 0.01 if config.get("use_SE", False) else 0.0,
         "l_M_0": float(config["l_M_0"]),
         "y_0": 1.0,
         "s_0": 1.0,
@@ -620,13 +620,10 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
 # _____________________________________________________________________
 
 def force_arrays_for_comparison(case: dict, out: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Return force arrays using the normalisation required by the benchmark."""
+    """Return force arrays using the normalisation required by the benchmark"""
 
     force_sim = np.asarray(out["force"], dtype=float).copy()
     exp_force = np.asarray(case["exp_force"], dtype=float).copy()
-
-    # Experimental force traces are reported relative to their pre-stimulus baseline
-    force_sim -= force_sim[0]
 
     if case["normalise_dynamic_force"]:
         i = int(case["mvc_sample"]) # sample at which the imposed displacement starts
