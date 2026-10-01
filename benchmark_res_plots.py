@@ -25,6 +25,22 @@ figures_path = Path() / "benchmark_Figures" # figures folder
 def load_series(folder: Path, names):
     return [np.load(folder / f"{name}.npy") for name in names]
 
+def visible_segment(exp, sim, time, start_time=None, end_time=None):
+    """Return the samples included in the displayed simulated trace."""
+    exp = np.asarray(exp, dtype=float).ravel()
+    sim = np.asarray(sim, dtype=float).ravel()
+    time = np.asarray(time, dtype=float).ravel()
+
+    n = min(len(exp), len(sim), len(time))
+    exp, sim, time = exp[:n], sim[:n], time[:n]
+    mask = np.ones(n, dtype=bool)
+    if start_time is not None:
+        mask &= time >= start_time
+    if end_time is not None:
+        mask &= time <= end_time
+
+    return exp[mask], sim[mask], time[mask]
+
 def pct_errors(exp: np.ndarray, sim: np.ndarray, F0: float):
     """
     Compute:
@@ -590,6 +606,8 @@ def compute_full_isometric_evaluation(
     twitch_peak_sim: float,
     peak_window_s: float = 0.05,
     force_threshold: float = 0.001,
+    start_time: float | None = None,
+    end_time: float | None = None,
 ):
     """
     Full evaluation for an isometric trial:
@@ -599,6 +617,7 @@ def compute_full_isometric_evaluation(
     - peak/twitch ratio
     - metric errors
     """
+    exp, sim, time = visible_segment(exp, sim, time, start_time, end_time)
     out = {}
 
     mae, maxae, stde = pct_errors(exp, sim, F0)
@@ -1042,12 +1061,12 @@ def run_slow_isof_dyn1():
     print(f"MVC = {MVC:.2f} N\n")
 
     iso_trials = [
-        ("ISO Const 10 Hz", "nontwitch", exp_iso_c_10, sim_iso_c_10, MVC, time_dt),
-        ("ISO Rand  10 Hz", "nontwitch", exp_iso_v_10, sim_iso_v_10, MVC, time_dt),
-        ("ISO Const 20 Hz", "nontwitch", exp_iso_c_20, sim_iso_c_20, MVC, time_dt),
-        ("ISO Rand  20 Hz", "nontwitch", exp_iso_v_20, sim_iso_v_20, MVC, time_dt),
-        ("ISO Const 30 Hz", "nontwitch", exp_iso_c_30, sim_iso_c_30, MVC, time_dt),
-        ("ISO Rand  30 Hz", "nontwitch", exp_iso_v_30, sim_iso_v_30, MVC, time_dt),
+        ("ISO Const 10 Hz", "nontwitch", exp_iso_c_10, sim_iso_c_10, MVC, time_dt, stim_iso_c_10),
+        ("ISO Rand  10 Hz", "nontwitch", exp_iso_v_10, sim_iso_v_10, MVC, time_dt, stim_iso_v_10),
+        ("ISO Const 20 Hz", "nontwitch", exp_iso_c_20, sim_iso_c_20, MVC, time_dt, stim_iso_c_20),
+        ("ISO Rand  20 Hz", "nontwitch", exp_iso_v_20, sim_iso_v_20, MVC, time_dt, stim_iso_v_20),
+        ("ISO Const 30 Hz", "nontwitch", exp_iso_c_30, sim_iso_c_30, MVC, time_dt, stim_iso_c_30),
+        ("ISO Rand  30 Hz", "nontwitch", exp_iso_v_30, sim_iso_v_30, MVC, time_dt, stim_iso_v_30),
     ]
 
     dyn_c_trials = [
@@ -1086,6 +1105,14 @@ def run_slow_isof_dyn1():
         ("DYN Rand 30 Hz ±8 mm (NOY)", exp_dyn_v_30_8, sim_dyn_v_30_8_noy),
     ]
 
+    def first_stim_for_trial(name):
+        freq = next(f for f in (10, 20, 30) if f"{f} Hz" in name)
+        if "Const" in name:
+            discharge_times = {10: stim_iso_c_10, 20: stim_iso_c_20, 30: stim_iso_c_30}[freq]
+        else:
+            discharge_times = {10: stim_iso_v_10, 20: stim_iso_v_20, 30: stim_iso_v_30}[freq]
+        return float(np.min(discharge_times))
+
     # -------------------------------------------------------------------------
     # Helper for isometric trials
     # -------------------------------------------------------------------------
@@ -1108,7 +1135,8 @@ def run_slow_isof_dyn1():
 
         print(block_title)
 
-        for name, trial_type, exp, sim, F0, time_dt_local in trials:
+        for name, trial_type, exp, sim, F0, time_dt_local, discharge_times in trials:
+            first_stim_time = float(np.min(discharge_times))
             eval_out = compute_full_isometric_evaluation(
                 exp=exp,
                 sim=sim,
@@ -1119,6 +1147,7 @@ def run_slow_isof_dyn1():
                 twitch_peak_sim=np.nan,
                 peak_window_s=peak_window_s,
                 force_threshold=0.0,
+                start_time=first_stim_time,
             )
 
             mae = eval_out["mae"]
@@ -1155,10 +1184,13 @@ def run_slow_isof_dyn1():
             )
 
             if plot_points:
+                exp_plot, sim_plot, time_plot = visible_segment(
+                    exp, sim, time_dt_local, first_stim_time
+                )
                 plot_nontwitch_metric_points(
-                    time=time_dt_local,
-                    force_exp=exp,
-                    force_sim=sim,
+                    time=time_plot,
+                    force_exp=exp_plot,
+                    force_sim=sim_plot,
                     metrics_exp=metrics_exp,
                     metrics_sim=metrics_sim,
                     title=name
@@ -1193,8 +1225,10 @@ def run_slow_isof_dyn1():
 
         print(block_title)
         for name, exp, sim in trials:
-            mae, maxae, stde = pct_errors(exp, sim, MVC)
-            r2 = compute_r2(exp, sim)
+            first_stim_time = first_stim_for_trial(name)
+            exp_eval, sim_eval, _ = visible_segment(exp, sim, time_dt, first_stim_time)
+            mae, maxae, stde = pct_errors(exp_eval, sim_eval, MVC)
+            r2 = compute_r2(exp_eval, sim_eval)
 
             mae_list.append(mae)
             maxae_list.append(maxae)
@@ -1382,8 +1416,11 @@ def run_slow_isof_dyn1():
 
     def build_err(trials, MVC):
         mean_list, max_list, std_list = [], [], []
-        for _, exp, sim in trials:
-            mae, maxae, stde = pct_errors(exp, sim, MVC)
+        for name, exp, sim in trials:
+            exp_eval, sim_eval, _ = visible_segment(
+                exp, sim, time_dt, first_stim_for_trial(name)
+            )
+            mae, maxae, stde = pct_errors(exp_eval, sim_eval, MVC)
             mean_list.append(mae)
             max_list.append(maxae)
             std_list.append(stde)
@@ -1440,11 +1477,12 @@ def run_slow_isof_dyn1():
         ax.tick_params(axis='both', labelsize=8)
 
 
-    def plot_force_panel(ax, time, exp, sim, ylim, label_text=None, sim_noy=None, label_inside=True):
+    def plot_force_panel(ax, time, exp, sim, ylim, label_text=None, sim_noy=None, label_inside=True, first_stim_time=None):
         ax.plot(time, exp, 'k', lw=1, label='Experimental')
-        ax.plot(time, sim, 'r', lw=1, label='Simulated')
+        start_index = 0 if first_stim_time is None else int(np.searchsorted(time, first_stim_time))
+        ax.plot(time[start_index:], sim[start_index:], 'r', lw=1, label='Simulated')
         if sim_noy is not None:
-            ax.plot(time, sim_noy, 'r--', lw=1, label='Simulated no yielding')
+            ax.plot(time[start_index:], sim_noy[start_index:], 'r--', lw=1, label='Simulated no yielding')
 
         if label_text is not None and label_inside:
             ax.text(
@@ -1532,7 +1570,11 @@ def run_slow_isof_dyn1():
         iso_axes.append(ax)
         iso_discharge_axes.append(discharge_ax)
 
-        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 30), label_text=freq_label, label_inside=True)
+        plot_force_panel(
+            ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 30),
+            label_text=freq_label, label_inside=True,
+            first_stim_time=float(np.min(discharge_times)),
+        )
         plot_discharge_panel(discharge_ax, discharge_times)
         ax.set_xlim(time_dt[0], t_end)
 
@@ -1656,7 +1698,11 @@ def run_slow_isof_dyn1():
         dyn_discharge_axes.append(discharge_ax)
         dyn_panel_axes.append((r, c, ax, discharge_ax))
 
-        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+        plot_force_panel(
+            ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37),
+            label_text=None, sim_noy=sim_noy, label_inside=False,
+            first_stim_time=float(np.min(discharge_times)),
+        )
         plot_discharge_panel(discharge_ax, discharge_times)
         ax.set_xlim(time_dt[0], t_end)
 
@@ -1684,7 +1730,11 @@ def run_slow_isof_dyn1():
         dyn_discharge_axes.append(discharge_ax)
         dyn_panel_axes.append((r, figure_column, ax, discharge_ax))
 
-        plot_force_panel(ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37), label_text=None, sim_noy=sim_noy, label_inside=False)
+        plot_force_panel(
+            ax=ax, time=time_dt, exp=exp, sim=sim, ylim=(0, 37),
+            label_text=None, sim_noy=sim_noy, label_inside=False,
+            first_stim_time=float(np.min(discharge_times)),
+        )
         plot_discharge_panel(discharge_ax, discharge_times)
         ax.set_xlim(time_dt[0], t_end)
 
@@ -1830,6 +1880,7 @@ def run_slow_isol():
 
     sim_path = base_path / 'Muscle' / 'slow_isol' / 'sim'
     exp_path = base_path / 'Muscle' / 'slow_isol' / 'exp'
+    stim_path = Path() / 'benchmark_Data' / 'Muscle' / 'slow_isol'
 
     exp_twitch_0 = np.load(exp_path / 'cat_SOL_1Hz_0mm_force.npy')
     exp_iso_0_10 = np.load(exp_path / 'cat_SOL_10Hz_0mm_force.npy')
@@ -1860,6 +1911,17 @@ def run_slow_isol():
     t_end = 1.4
     time_dt = np.arange(0, t_end, dt)
     MVC = 30.25
+
+    first_stim_times = {
+        (freq, length): float(np.min(np.atleast_1d(np.load(next(stim_path.glob(f'*_{freq}Hz_{length}mm_stim.npy'))))))
+        for freq in (1, 10, 20, 40)
+        for length in (0, 8, 16)
+    }
+
+    def visible_window_for_len_trial(name):
+        freq = next(f for f in (1, 10, 20, 40) if f"{f} Hz" in name)
+        length = next(length for length in (16, 8, 0) if f"{length} mm" in name)
+        return first_stim_times[(freq, length)], 0.5 if freq == 1 else None
 
     print("\n=== Benchmark: slow_M_len (Perreault/Kim) ===")
     print(f"MVC = {MVC:.2f} N\n")
@@ -1900,7 +1962,7 @@ def run_slow_isol():
         align=18,
         plot_points=True,
         peak_window_s=0.05,
-        twitch_ref=None,   # tuple: (twitch_exp, twitch_sim, F0, time)
+        twitch_ref=None,   # tuple: (twitch_exp, twitch_sim, F0, time, start, end)
     ):
         mae_list, maxae_list, std_list = [], [], []
         r2_list = []
@@ -1924,7 +1986,10 @@ def run_slow_isol():
         twitch_peak_sim = np.nan
 
         if twitch_ref is not None:
-            twitch_exp, twitch_sim, twitch_F0, twitch_time = twitch_ref
+            twitch_exp, twitch_sim, twitch_F0, twitch_time, twitch_start, twitch_end = twitch_ref
+            twitch_exp, twitch_sim, twitch_time = visible_segment(
+                twitch_exp, twitch_sim, twitch_time, twitch_start, twitch_end
+            )
             twitch_metrics_exp = compute_isometric_trial_metrics(
                 force=twitch_exp, time=twitch_time, F0=twitch_F0, trial_type="twitch"
             )
@@ -1937,6 +2002,7 @@ def run_slow_isol():
             raise ValueError("A twitch reference trial is required for this block.")
 
         for name, trial_type, exp, sim, F0, time_dt_local in trials:
+            start_time, end_time = visible_window_for_len_trial(name)
             eval_out = compute_full_isometric_evaluation(
                 exp=exp,
                 sim=sim,
@@ -1947,6 +2013,8 @@ def run_slow_isol():
                 twitch_peak_sim=twitch_peak_sim,
                 peak_window_s=peak_window_s,
                 force_threshold=0.01,
+                start_time=start_time,
+                end_time=end_time,
             )
 
             mae = eval_out["mae"]
@@ -1996,20 +2064,23 @@ def run_slow_isol():
                 )
 
             if plot_points:
+                exp_plot, sim_plot, time_plot = visible_segment(
+                    exp, sim, time_dt_local, start_time, end_time
+                )
                 if trial_type == "twitch":
                     plot_twitch_metric_points(
-                        time=time_dt_local,
-                        force_exp=exp,
-                        force_sim=sim,
+                        time=time_plot,
+                        force_exp=exp_plot,
+                        force_sim=sim_plot,
                         metrics_exp=metrics_exp,
                         metrics_sim=metrics_sim,
                         title=name
                     )
                 else:
                     plot_nontwitch_metric_points(
-                        time=time_dt_local,
-                        force_exp=exp,
-                        force_sim=sim,
+                        time=time_plot,
+                        force_exp=exp_plot,
+                        force_sim=sim_plot,
                         metrics_exp=metrics_exp,
                         metrics_sim=metrics_sim,
                         title=name
@@ -2046,7 +2117,7 @@ def run_slow_isol():
         avg_label="Average ΔL = 0 mm",
         align=18,
         plot_points=True,
-        twitch_ref=(exp_twitch_0, sim_twitch_0, MVC, time_dt)
+        twitch_ref=(exp_twitch_0, sim_twitch_0, MVC, time_dt, first_stim_times[(1, 0)], 0.5)
     )
 
     res_8 = process_len_trials(
@@ -2055,7 +2126,7 @@ def run_slow_isol():
         avg_label="Average ΔL = -8 mm",
         align=18,
         plot_points=True,
-        twitch_ref=(exp_twitch_8, sim_twitch_8, MVC, time_dt)
+        twitch_ref=(exp_twitch_8, sim_twitch_8, MVC, time_dt, first_stim_times[(1, 8)], 0.5)
     )
 
     res_16 = process_len_trials(
@@ -2064,7 +2135,7 @@ def run_slow_isol():
         avg_label="Average ΔL = -16 mm",
         align=18,
         plot_points=True,
-        twitch_ref=(exp_twitch_16, sim_twitch_16, MVC, time_dt)
+        twitch_ref=(exp_twitch_16, sim_twitch_16, MVC, time_dt, first_stim_times[(1, 16)], 0.5)
     )
 
     # -------------------------------------------------------------------------
@@ -2114,23 +2185,30 @@ def run_slow_isol():
     ]
     exp_path_isof = base_path / "Muscle" / "slow_isof" / "exp"
     sim_path_isof = base_path / "Muscle" / "slow_isof" / "sim"
+    stim_path_isof = Path() / "benchmark_Data" / "Muscle" / "slow_isof"
     exp_isof_series = load_series(exp_path_isof, isof_names)
     sim_isof_series = load_series(sim_path_isof, isof_names)
+    stim_isof_series = load_series(
+        stim_path_isof, [name.replace("_force", "_stim") for name in isof_names]
+    )
     time_isof = np.arange(0, 2.0, dt)
     F0_isof = 26.13
 
     isof_peak_err = []
     isof_delta_fi = []
-    for exp_isof, sim_isof in zip(exp_isof_series, sim_isof_series):
+    for exp_isof, sim_isof, stim_isof in zip(exp_isof_series, sim_isof_series, stim_isof_series):
+        exp_isof, sim_isof, time_isof_eval = visible_segment(
+            exp_isof, sim_isof, time_isof, float(np.min(stim_isof))
+        )
         metrics_exp = compute_isometric_trial_metrics(
             force=exp_isof,
-            time=time_isof,
+            time=time_isof_eval,
             F0=F0_isof,
             trial_type="nontwitch",
         )
         metrics_sim = compute_isometric_trial_metrics(
             force=sim_isof,
-            time=time_isof,
+            time=time_isof_eval,
             F0=F0_isof,
             trial_type="nontwitch",
         )
@@ -2162,10 +2240,14 @@ def run_slow_isol():
     # -------------------------------------------------------------------------
     # Error panels 
     # -------------------------------------------------------------------------
-    def build_len_err(exp_list, sim_list, MVC):
+    def build_len_err(exp_list, sim_list, MVC, length):
         mean_list, max_list, std_list = [], [], []
-        for exp, sim in zip(exp_list, sim_list):
-            mae, maxae, stde = pct_errors(exp, sim, MVC)
+        for freq, exp, sim in zip((1, 10, 20, 40), exp_list, sim_list):
+            end_time = 0.5 if freq == 1 else None
+            exp_eval, sim_eval, _ = visible_segment(
+                exp, sim, time_dt, first_stim_times[(freq, length)], end_time
+            )
+            mae, maxae, stde = pct_errors(exp_eval, sim_eval, MVC)
             mean_list.append(mae)
             max_list.append(maxae)
             std_list.append(stde)
@@ -2174,28 +2256,33 @@ def run_slow_isol():
     mean_0, max_0, std_0 = build_len_err(
         [exp_twitch_0, exp_iso_0_10, exp_iso_0_20, exp_iso_0_40],
         [sim_twitch_0, sim_iso_0_10, sim_iso_0_20, sim_iso_0_40],
-        MVC
+        MVC, 0
     )
 
     mean_8, max_8, std_8 = build_len_err(
         [exp_twitch_8, exp_iso_8_10, exp_iso_8_20, exp_iso_8_40],
         [sim_twitch_8, sim_iso_8_10, sim_iso_8_20, sim_iso_8_40],
-        MVC
+        MVC, 8
     )
 
     mean_16, max_16, std_16 = build_len_err(
         [exp_twitch_16, exp_iso_16_10, exp_iso_16_20, exp_iso_16_40],
         [sim_twitch_16, sim_iso_16_10, sim_iso_16_20, sim_iso_16_40],
-        MVC
+        MVC, 16
     )
 
     ######################################################################
     # Plots
     #######################################################################
 
-    def plot_len_force_panel(ax, time, exp, sim, ylim, label_text=None):
+    def plot_len_force_panel(
+        ax, time, exp, sim, ylim, label_text=None,
+        first_stim_time=None, end_time=None,
+    ):
         ax.plot(time, exp, 'k', lw=1, label='Experimental')
-        ax.plot(time, sim, 'r', lw=1, label='Simulated')
+        start_index = 0 if first_stim_time is None else int(np.searchsorted(time, first_stim_time))
+        end_index = len(time) if end_time is None else int(np.searchsorted(time, end_time, side='right'))
+        ax.plot(time[start_index:end_index], sim[start_index:end_index], 'r', lw=1, label='Simulated')
 
         if label_text is not None:
             ax.text(
@@ -2234,24 +2321,24 @@ def run_slow_isol():
 
     force_data = [
         [
-            (exp_twitch_0,  sim_twitch_0,  (0, 10), "1 Hz"),
-            (exp_twitch_8,  sim_twitch_8,  (0, 10), "1 Hz"),
-            (exp_twitch_16, sim_twitch_16, (0, 10), "1 Hz"),
+            (exp_twitch_0,  sim_twitch_0,  (0, 15), "1 Hz", first_stim_times[(1, 0)], 0.5),
+            (exp_twitch_8,  sim_twitch_8,  (0, 15), "1 Hz", first_stim_times[(1, 8)], 0.5),
+            (exp_twitch_16, sim_twitch_16, (0, 15), "1 Hz", first_stim_times[(1, 16)], 0.5),
         ],
         [
-            (exp_iso_0_10,  sim_iso_0_10,  (0, 30), "10 Hz"),
-            (exp_iso_8_10,  sim_iso_8_10,  (0, 30), "10 Hz"),
-            (exp_iso_16_10, sim_iso_16_10, (0, 30), "10 Hz"),
+            (exp_iso_0_10,  sim_iso_0_10,  (0, 30), "10 Hz", first_stim_times[(10, 0)], None),
+            (exp_iso_8_10,  sim_iso_8_10,  (0, 30), "10 Hz", first_stim_times[(10, 8)], None),
+            (exp_iso_16_10, sim_iso_16_10, (0, 30), "10 Hz", first_stim_times[(10, 16)], None),
         ],
         [
-            (exp_iso_0_20,  sim_iso_0_20,  (0, 30), "20 Hz"),
-            (exp_iso_8_20,  sim_iso_8_20,  (0, 30), "20 Hz"),
-            (exp_iso_16_20, sim_iso_16_20, (0, 30), "20 Hz"),
+            (exp_iso_0_20,  sim_iso_0_20,  (0, 30), "20 Hz", first_stim_times[(20, 0)], None),
+            (exp_iso_8_20,  sim_iso_8_20,  (0, 30), "20 Hz", first_stim_times[(20, 8)], None),
+            (exp_iso_16_20, sim_iso_16_20, (0, 30), "20 Hz", first_stim_times[(20, 16)], None),
         ],
         [
-            (exp_iso_0_40,  sim_iso_0_40,  (0, 35), "40 Hz"),
-            (exp_iso_8_40,  sim_iso_8_40,  (0, 35), "40 Hz"),
-            (exp_iso_16_40, sim_iso_16_40, (0, 35), "40 Hz"),
+            (exp_iso_0_40,  sim_iso_0_40,  (0, 35), "40 Hz", first_stim_times[(40, 0)], None),
+            (exp_iso_8_40,  sim_iso_8_40,  (0, 35), "40 Hz", first_stim_times[(40, 8)], None),
+            (exp_iso_16_40, sim_iso_16_40, (0, 35), "40 Hz", first_stim_times[(40, 16)], None),
         ],
     ]
 
@@ -2265,11 +2352,15 @@ def run_slow_isol():
 
     for r in range(4):
         for c in range(3):
-            exp, sim, ylim, freq_label = force_data[r][c]
+            exp, sim, ylim, freq_label, first_stim_time, end_time = force_data[r][c]
             ax = fig.add_subplot(gs[r, c])
             force_axes.append(ax)
 
-            plot_len_force_panel(ax, time_dt, exp, sim, ylim, label_text=freq_label)
+            plot_len_force_panel(
+                ax, time_dt, exp, sim, ylim,
+                label_text=freq_label, first_stim_time=first_stim_time,
+                end_time=end_time,
+            )
 
             if r == 0:
                 ax.set_title(col_titles[c], fontweight='bold', fontsize=10, pad=4)
@@ -3061,6 +3152,7 @@ def run_fast_iso():
     # Trial definitions
     # -------------------------------------------------------------------------
     twitch_trial = ("1 Hz", "twitch", exp_FFR_1, sim_FFR_1, MVC, time_dt_twitch)
+    twitch_end = int(np.searchsorted(time_dt_twitch, 0.23, side='right'))
 
     ffr_trials = [
         ("30 Hz",  "nontwitch", exp_FFR_30,  sim_FFR_30,  MVC, time_dt),
@@ -3221,6 +3313,7 @@ def run_fast_iso():
         twitch_peak_sim=np.nan,
         peak_window_s=0.05,
         force_threshold=0.0,
+        end_time=0.23,
     )
 
     print("— FFR twitch —")
@@ -3236,9 +3329,9 @@ def run_fast_iso():
         align=7
     )
     plot_twitch_metric_points(
-        time=twitch_trial[5],
-        force_exp=twitch_trial[2],
-        force_sim=twitch_trial[3],
+        time=twitch_trial[5][:twitch_end],
+        force_exp=twitch_trial[2][:twitch_end],
+        force_sim=twitch_trial[3][:twitch_end],
         metrics_exp=twitch_eval["metrics_exp"],
         metrics_sim=twitch_eval["metrics_sim"],
         title="1 Hz"
@@ -3260,7 +3353,10 @@ def run_fast_iso():
         avg_label="average mAE",
         align=7,
         plot_points=True,
-        twitch_ref=(twitch_trial[2], twitch_trial[3], twitch_trial[4], twitch_trial[5])
+        twitch_ref=(
+            twitch_trial[2][:twitch_end], twitch_trial[3][:twitch_end],
+            twitch_trial[4], twitch_trial[5][:twitch_end],
+        )
     )
 
     summarize_metric_list(ffr_res["r2"], "FFR R²", "")
@@ -3281,7 +3377,10 @@ def run_fast_iso():
         avg_label="average mAE",
         align=10,
         plot_points=True,
-        twitch_ref=(twitch_trial[2], twitch_trial[3], twitch_trial[4], twitch_trial[5])
+        twitch_ref=(
+            twitch_trial[2][:twitch_end], twitch_trial[3][:twitch_end],
+            twitch_trial[4], twitch_trial[5][:twitch_end],
+        )
     )
 
     summarize_metric_list(flr_res["r2"], "FLR R²", "")
@@ -3360,11 +3459,12 @@ def run_fast_iso():
     # -------------------------------------------------------------------------
     # Panel A: FFR
     # -------------------------------------------------------------------------
-    ax_twitch.plot(time_dt_twitch, exp_FFR_1, 'k', label='Experimental')
-    ax_twitch.plot(time_dt_twitch, sim_FFR_1, 'r', label='Simulated')
+    ax_twitch.plot(time_dt_twitch[:twitch_end], exp_FFR_1[:twitch_end], 'k', label='Experimental')
+    ax_twitch.plot(time_dt_twitch[:twitch_end], sim_FFR_1[:twitch_end], 'r', label='Simulated')
     ax_twitch.set_title("Twitch (1 Hz)", weight='bold', fontsize=10)
     ax_twitch.set_ylabel("Rat EDL (Fast)\nForce [N]", weight='bold')
     ax_twitch.set_xlabel("Time [s]", weight='bold')
+    ax_twitch.set_ylim([-0.08, 1.7])
     ax_twitch.legend(loc='upper right', fontsize=7)
 
     n_ffr = len(freqs)

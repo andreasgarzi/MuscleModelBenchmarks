@@ -45,7 +45,7 @@ class Params:
     scale: str                  # 'Muscle', 'MU', 'Ca'
     MVC: float                  # maximum isometric force [N]
     vmax: float                 # maximum contraction velocity [l0/s] (later scaled by l_M_opt)
-    alpha_0: float              # initial pennation angle [rad]
+    alpha_0: float              # pennation angle at optimal fibre length [rad]
     l_MT: np.ndarray            # muscle-tendon total length (len(time) or len(time)+1 accepted)
     l_M_opt: float              # optimal fibre length (same units as l_MT)
     l_T_slack: float            # tendon slack length (same units as l_MT)
@@ -212,20 +212,20 @@ class Mechanics:
     
 
     @staticmethod
-    def pennation(l_M: float, l_M_0: float, alpha0: float) -> float:
+    def pennation(l_M: float, l_M_opt: float, alpha0: float) -> float:
 
         """
-        Computes the pennation angle alpha given MT length, tendon length and initial geometry.
+        Computes the pennation angle alpha using the constant-height geometry.
         Inputs:
         - l_M: fibre length
-        - l_M_0: float, initial fibre length used to compute constant width term.
-        - alpha0: float, initial pennation angle.
+        - l_M_opt: float, optimal fibre length used to compute the constant height.
+        - alpha0: float, pennation angle at optimal fibre length.
         Outputs:
         - alpha: float, updated pennation angle (radians), clipped to avoid singularities.
         """
         
-        w = l_M_0 * np.sin(alpha0) # constant muscle width term
-        sin_alpha = w / max(l_M, 1e-9) # compute sin(alpha) from geometry
+        h = l_M_opt * np.sin(alpha0) # constant muscle height from the optimal geometry
+        sin_alpha = h / max(l_M, 1e-9) # compute sin(alpha) from geometry
         sin_alpha = float(np.clip(sin_alpha, 0.0, np.sin(1.4706289))) # clipped at ~84.3 deg to avoid singularities
         return float(np.arcsin(sin_alpha)) # compute alpha
 
@@ -558,7 +558,7 @@ def build_state_index(state_names: List[str]) -> Dict[str, int]:
 class ODESystem:  # ODE assembly and consistent force computations
     def __init__(self, P: Params, S: States, mech: Mechanics, eph: Ephys, model_config: ModelConfig, fs: float):
         self.P = P  # store parameters reference
-        self.S = S  # store initial states reference (for pennation update uses l_M_0)
+        self.S = S  # store initial states reference
         self.mech = mech  # store mechanics block
         self.eph = eph  # store electrophysiology block
         self.model_config = model_config  # store model configuration
@@ -570,8 +570,8 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         # Keep the fibres above both the lower end of the FL domain and the
         # length corresponding to the maximum permitted pennation angle.
-        muscle_width = float(self.S.l_M_0 * np.sin(self.P.alpha_0))
-        self.minimum_fibre_length = max(0.05 * self.P.l_M_opt, 1.000001 * muscle_width / np.sin(1.4706289),)
+        muscle_height = float(self.P.l_M_opt * np.sin(self.P.alpha_0))
+        self.minimum_fibre_length = max(0.05 * self.P.l_M_opt, 1.000001 * muscle_height / np.sin(1.4706289),)
 
 
     def active_force_factor(self, y: np.ndarray, fibre_type: str) -> float:
@@ -618,7 +618,7 @@ class ODESystem:  # ODE assembly and consistent force computations
 
         if model_config.use_SE:  # tendon system: l_M is dynamic
             l_M = float(y[state_index_local["l_M"]])  # read muscle fibre length from state
-            alpha = self.mech.pennation(l_M, self.S.l_M_0, P.alpha_0) # pick current pennation
+            alpha = self.mech.pennation(l_M, P.l_M_opt, P.alpha_0) # pick current pennation
             l_T = float(l_MT - l_M * np.cos(alpha))  # compute tendon length from geometry
             eps_T = float((l_T - P.l_T_slack) / P.l_T_slack)  # tendon strain
             f_SE = float(self.mech.tendon_force(eps_T))  # tendon force
@@ -833,7 +833,7 @@ class MuscleModel:  # main model object
         elif self.model_config.use_sag and fibre_type == "fast" and 5 < self.fs < 100:
             phi = float(self.S.s_0)
 
-        muscle_width = float(self.S.l_M_0 * np.sin(P.alpha_0))
+        muscle_height = float(P.l_M_opt * np.sin(P.alpha_0))
         # The upper bound is deliberately broad because the bell-shaped FL
         # curve can produce more than one mathematical equilibrium root
         lower = max(1e-6, self.sys.minimum_fibre_length)
@@ -845,7 +845,7 @@ class MuscleModel:  # main model object
 
         def projected_muscle_force(l_S: float, v_S: float) -> float:
             # l_S and v_S are fibre length and velocity projected along the tendon
-            l_M = float(np.sqrt(max(l_S * l_S + muscle_width * muscle_width, 1e-18)))
+            l_M = float(np.sqrt(max(l_S * l_S + muscle_height * muscle_height, 1e-18)))
             cos_alpha = max(1e-9, float(l_S / l_M))
             l_M_norm = float(l_M / P.l_M_opt)
             v_M = float(v_S * cos_alpha)
@@ -864,7 +864,7 @@ class MuscleModel:  # main model object
             """Split initial MT velocity using the local muscle/tendon stiffness."""
 
             # Compliance-based velocity split from Millard et al. (2013), Eqs. A7-A8
-            l_S = float(np.sqrt(max(l_M * l_M - muscle_width * muscle_width, 1e-18)))
+            l_S = float(np.sqrt(max(l_M * l_M - muscle_height * muscle_height, 1e-18)))
             l_T = float(P.l_MT[0] - l_S)
             if l_T <= P.l_T_slack or np.isclose(v_MT_initial, 0.0, atol=1e-12):
                 return 0.0
@@ -892,7 +892,7 @@ class MuscleModel:  # main model object
             return v_S
 
         def equilibrium_residual(l_M: float) -> float:
-            l_S = float(np.sqrt(max(l_M * l_M - muscle_width * muscle_width, 1e-18)))
+            l_S = float(np.sqrt(max(l_M * l_M - muscle_height * muscle_height, 1e-18)))
             v_S = initial_projected_velocity(l_M)
             l_T = float(P.l_MT[0] - l_S)
             return float(projected_muscle_force(l_S, v_S) - tendon_force(l_T))

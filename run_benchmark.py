@@ -35,6 +35,14 @@ base_path = Path() / "benchmark_Data" # benchmark input data path
 # Helper functions
 #______________________________________________________________________________________________
 
+def projected_fibre_length(l_M: float, l_M_opt: float, alpha_0: float) -> float:
+    """Return fibre length projected along the tendon using Millard's fixed-height geometry."""
+
+    muscle_height = float(l_M_opt) * np.sin(float(alpha_0))
+    if float(l_M) <= muscle_height:
+        raise ValueError("Fibre length must be greater than the constant muscle height.")
+    return float(np.sqrt(float(l_M) ** 2 - muscle_height ** 2))
+
 def load_data(file: Path, data_type: str) -> np.ndarray:
     """
     Load experimental data from text-based files (.dat/.ddf) applying the correct
@@ -239,7 +247,7 @@ def build_case(name: str, config: dict) -> dict:
         amp = config["amplitude_mm"] # displacement amplitude
         disp = load_data(path / f"{muscle}_disp.dat", "rat_SOL_dyn2_disp") # load displacement
         disp = interp_xy(disp, np.arange(0, t_end + dt, dt), kind="cubic") # interp displacement
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 2.0 # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) - 2.0 # initial musculo-tendon length
         l_MT = l_MT_0 + disp * float(amp) # musculo-tendon length
 
         force_file = path / f"{muscle}_{amp}mm_force.dat"
@@ -256,7 +264,7 @@ def build_case(name: str, config: dict) -> dict:
         exp_data = load_data(force_file, "cat_SOL_isof_force") # load exp force
         exp_force = interp_xy(exp_data, time, kind="cubic") # interp exp force
         distimes = np.load(path / f"{muscle}_{fs}Hz_{stim}_stim.npy")  # load discharge times
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0 # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) - 4.0 # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
     elif scale == "Muscle" and benchmark == "slow_isol" and muscle == "cat_SOL": # SLOW MUSCLE iso-l benchmark (Perreault et al. 2003, Kim et al. 2015)
@@ -265,7 +273,7 @@ def build_case(name: str, config: dict) -> dict:
 
         length = config["length"] # delta L (to select length offset, based on ref.)
         offset = {0: 8.0, 8: 0.0, 16: -8.0}[int(length)]
-        l_MT_0 = (float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0) + offset # initial musculo-tendon length offset
+        l_MT_0 = (float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) - 4.0) + offset # initial musculo-tendon length offset
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
         exp_force = np.load(path / f"{muscle}_{fs}Hz_{length}mm_interp_force.npy") # load exp force
         distimes = np.load(path / f"{muscle}_{fs}Hz_{length}mm_stim.npy") # load discharge times
@@ -281,7 +289,7 @@ def build_case(name: str, config: dict) -> dict:
         disp = load_data(path / f"{muscle}_{d}mm_disp.dat", "cat_SOL_dyn1_disp") # load displacement
         disp = interp_xy(disp, np.arange(0, t_end + dt, dt), kind="cubic") # interp displacement
     
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) - 4.0 # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) - 4.0 # initial musculo-tendon length
         l_MT = l_MT_0 + (disp + 8.0) # musculo-tendon length
         force_file = path / f"{muscle}_{fs}Hz_{stim}_{d}mm_force.dat"
         exp_data = load_data(force_file, "cat_SOL_dyn1_force") # load exp force
@@ -299,7 +307,7 @@ def build_case(name: str, config: dict) -> dict:
         time = part["t_interp"] # load exp time
         exp_force = part["force_interp"] # load exp force
         distimes = part["spike_times_sec"] # load discharge times
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
     elif scale == "Muscle" and benchmark == "fast_isol" and muscle == "rat_EDL":
@@ -311,7 +319,7 @@ def build_case(name: str, config: dict) -> dict:
         time = part["t_interp"] # load exp time
         exp_force = part["force_interp"] # load exp force
         distimes = part["spike_times_sec"] # load discharge times
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) + l # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) + l # initial musculo-tendon length
         l_MT = np.full(len(time) + 1, float(l_MT_0), dtype=float) # musculo-tendon length
 
     elif scale == "Muscle" and benchmark == "fast_dyn" and muscle == "cat_CF":
@@ -322,7 +330,7 @@ def build_case(name: str, config: dict) -> dict:
         l_M_0_scale = config["l_M_0_scale"] # scale factor for l_M_0 (to select trial, based on ref.)
         force_file = path / f"{muscle}_{fs}Hz_{l_M_0_scale}L0_{trial}_force.npy"
         exp_force = np.load(force_file)[: len(time)] # load exp force
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
+        l_MT_0 = float(config["l_T_slack"]) + projected_fibre_length(config["l_M_0"], config["l_M_opt"], config["alpha_0"]) # initial musculo-tendon length
         
         if fs == "120":
             disp_file = path / f"{muscle}_{fs}Hz_{trial}_disp.npy" 
@@ -488,8 +496,9 @@ def apply_values(case: dict, names: list[str], values: np.ndarray, opt_config: d
     if opt_config.get("rebuild_par", False) or opt_config.get("rebuild_lMT_from_lM0", False): # if specified in opt_config, rebuild l_MT from l_M_0 (to ensure consistency when l_M_0 is optimised)
         l_M_0 = new_case["states"].get("l_M_0", case["states"]["l_M_0"])
         l_T_slack = new_case["parameters"]["l_T_slack"]
+        l_M_opt = new_case["parameters"]["l_M_opt"]
         alpha_0 = new_case["parameters"]["alpha_0"]
-        l_MT_0 = l_T_slack + l_M_0 * np.cos(alpha_0)
+        l_MT_0 = l_T_slack + projected_fibre_length(l_M_0, l_M_opt, alpha_0)
         n = len(new_case["time"]) + 1 if new_case["model_config"].use_SE else len(new_case["time"])
         new_case["parameters"]["l_MT"] = np.full(n, float(l_MT_0), dtype=float)
 
