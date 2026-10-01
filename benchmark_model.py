@@ -51,21 +51,21 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 211317  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 235812 # activation (slow, MU scale)
-    k1_s_M: float = 19.98        # activation kinetics
-    k2_s_M: float = 20       # activation kinetics
-    k1_s_MU: float = 19.07      # activation kinetics
-    k2_s_MU: float = 19.59         # activation kinetics
-    Ca_max_f_M: float = 295453  # activation (fast, muscle scale)
-    Ca_max_f_MU_catMG: float = 664191 # activation (fast, MU scale, cat MG)
-    Ca_max_f_MU_ratMG: float = 786854 # activation (fast, MU scale, rat MG)
+    Ca_max_s_M: float = 204036  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 227586 # activation (slow, MU scale)
+    k1_s_M: float = 19.95       # activation kinetics
+    k2_s_M: float = 20          # activation kinetics
+    k1_s_MU: float = 19.96      # activation kinetics
+    k2_s_MU: float = 20         # activation kinetics
+    Ca_max_f_M: float = 291617  # activation (fast, muscle scale)
+    Ca_max_f_MU_catMG: float = 739964 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 813809 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
     k2_f_M: float = 15          # activation kinetics 
-    k1_f_MU_catMG: float = 12.62    # activation kinetics
-    k2_f_MU_catMG: float = 14.00    # activation kinetics
+    k1_f_MU_catMG: float = 11.07    # activation kinetics
+    k2_f_MU_catMG: float = 15.19    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 87.64    # activation kinetics
+    k2_f_MU_ratMG: float = 92.55    # activation kinetics
     a_min: float = 0.01             # minimum activation for elastic-tendon equilibrium
 
     # Calcium kinetics (calibrated via optimization)
@@ -99,7 +99,7 @@ class Params:
     b3: float = 9e7              # MUAP ODE coefficient
 
     # FV relationship (calibrated via optimization)
-    af_s: float = 0.52         # FV curvature (slow)
+    af_s: float = 0.49         # FV curvature (slow)
     af_f: float = 0.33         # FV curvature (fast)
 
     # FV parameters (from literature)
@@ -571,10 +571,7 @@ class ODESystem:  # ODE assembly and consistent force computations
         # Keep the fibres above both the lower end of the FL domain and the
         # length corresponding to the maximum permitted pennation angle.
         muscle_width = float(self.S.l_M_0 * np.sin(self.P.alpha_0))
-        self.minimum_fibre_length = max(
-            0.05 * self.P.l_M_opt,
-            1.000001 * muscle_width / np.sin(1.4706289),
-        )
+        self.minimum_fibre_length = max(0.05 * self.P.l_M_opt, 1.000001 * muscle_width / np.sin(1.4706289),)
 
 
     def active_force_factor(self, y: np.ndarray, fibre_type: str) -> float:
