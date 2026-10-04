@@ -51,30 +51,30 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 204036  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 227586 # activation (slow, MU scale)
-    k1_s_M: float = 19.95       # activation kinetics
+    Ca_max_s_M: float = 420112  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 224683 # activation (slow, MU scale)
+    k1_s_M: float = 10       # activation kinetics
     k2_s_M: float = 20          # activation kinetics
-    k1_s_MU: float = 19.96      # activation kinetics
+    k1_s_MU: float = 19.98      # activation kinetics
     k2_s_MU: float = 20         # activation kinetics
-    Ca_max_f_M: float = 291617  # activation (fast, muscle scale)
-    Ca_max_f_MU_catMG: float = 739964 # activation (fast, MU scale, cat MG)
-    Ca_max_f_MU_ratMG: float = 813809 # activation (fast, MU scale, rat MG)
+    Ca_max_f_M: float = 214815  # activation (fast, muscle scale)
+    Ca_max_f_MU_catMG: float = 727363 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 684897 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
-    k2_f_M: float = 15          # activation kinetics 
-    k1_f_MU_catMG: float = 11.07    # activation kinetics
-    k2_f_MU_catMG: float = 15.19    # activation kinetics
+    k2_f_M: float = 13          # activation kinetics
+    k1_f_MU_catMG: float = 10    # activation kinetics
+    k2_f_MU_catMG: float = 15.54    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 92.55    # activation kinetics
+    k2_f_MU_ratMG: float = 97.17    # activation kinetics
     a_min: float = 0.01             # minimum activation for elastic-tendon equilibrium
 
     # Calcium kinetics (calibrated via optimization)
-    c1_s: float = 7028          # calcium kinetics (slow)
-    c2_s: float = 184978        # calcium kinetics (slow)
-    c3_s: float = 0.432         # calcium kinetics (slow)
-    c1_f: float = 4304          # calcium kinetics (fast)
-    c2_f: float = 973422        # calcium kinetics (fast)
-    c3_f: float = 0.79          # calcium kinetics (fast)
+    c1_s: float = 7030          # calcium kinetics (slow)
+    c2_s: float = 184946        # calcium kinetics (slow)
+    c3_s: float = 0.428         # calcium kinetics (slow)
+    c1_f: float = 3796          # calcium kinetics (fast)
+    c2_f: float = 765649        # calcium kinetics (fast)
+    c3_f: float = 0.75          # calcium kinetics (fast)
 
     # Calcium kinetics length-dependence (from literature)
     r1: float = 1.0                    # f1: end of the low-length constant region
