@@ -349,7 +349,8 @@ def build_case(name: str, config: dict) -> dict:
 
     elif config["scale"] == "MU":
 
-        l_MT_0 = float(config["l_T_slack"]) + float(config["l_M_0"]) * np.cos(float(config["alpha_0"])) # initial musculo-tendon length
+        # Without the series elastic element the model uses l_MT directly as fibre length.
+        l_MT_0 = float(config["l_M_0"])
         l_MT = np.full(len(time), float(l_MT_0), dtype=float) # musculo-tendon length
         
         if muscle == "cat_LG":
@@ -393,10 +394,11 @@ def build_case(name: str, config: dict) -> dict:
         exp_ca = np.loadtxt(base_path / scale / f"{benchmark}.csv")
         
         if muscle == "rat_SOL":
-            l_MT = np.full(len(time), 1.0, dtype=float) # full MT length array
+            # Use fibre-length units here; normalization by l_M_opt is done in the model.
+            l_MT = np.full(len(time), float(config["l_M_0"]), dtype=float)
             distimes = np.arange(0, 0.04, 1/float(fs)) # adjusted from paper
         elif muscle == "rat_EDL":
-            l_MT = np.full(len(time), 1.6, dtype=float) # full MT length array
+            l_MT = np.full(len(time), float(config["l_M_0"]), dtype=float)
             distimes = np.arange(0, 0.08, 1/float(fs)) # adjusted from paper
     else:
         raise ValueError(f"No loader implemented for Muscle benchmark '{benchmark}' and muscle '{muscle}'.")
