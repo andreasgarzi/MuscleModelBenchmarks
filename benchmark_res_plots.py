@@ -289,6 +289,7 @@ def compute_first_order_tetanus_metrics(
     force: np.ndarray,
     time: np.ndarray,
     F0: float,
+    fusion_end_time: float | None = None,
 ):
     """
     First-order-style metrics for non-twitch trials:
@@ -299,7 +300,7 @@ def compute_first_order_tetanus_metrics(
     force = np.asarray(force, dtype=float).ravel()
     time = np.asarray(time, dtype=float).ravel()
 
-    fusion = compute_fusion_index(force, time, F0)
+    fusion = compute_fusion_index(force, time, F0, end_time=fusion_end_time)
 
     peak_force = fusion["fusion_peak_force"]
     peak_time = fusion["fusion_peak_time"]
@@ -360,10 +361,13 @@ def compute_fusion_index(
     F0: float,
     min_peak_prominence: float | None = None,
     min_peak_distance_s: float | None = None,
+    end_time: float | None = None,
 ):
     """
     Fusion index:
         FI = minimum force between the last two detected peaks / last peak force
+
+    If end_time is provided, peaks are detected only up to that time.
 
     Fallback:
     If fewer than two peaks are found, the contraction is considered fully fused
@@ -386,7 +390,16 @@ def compute_fusion_index(
             "fusion_min_idx": np.nan,
         }
 
-    frange = np.max(force) - np.min(force)
+    # Restrict peak detection to the stimulated part of the trace so that
+    # small oscillations during relaxation are not treated as unfused peaks.
+    if end_time is None:
+        active_end = force.size
+    else:
+        active_end = int(np.searchsorted(time, end_time, side="right"))
+        active_end = max(3, min(active_end, force.size))
+
+    force_active = force[:active_end]
+    frange = np.max(force_active) - np.min(force_active)
 
     if min_peak_prominence is None:
         min_peak_prominence = 0.01 * frange if frange > 0 else 0.0
@@ -398,13 +411,13 @@ def compute_fusion_index(
     min_peak_distance_samples = max(1, int(round(min_peak_distance_s / dt)))
 
     peak_idx, _ = find_peaks(
-        force,
+        force_active,
         prominence=min_peak_prominence,
         distance=min_peak_distance_samples
     )
 
     if peak_idx.size < 2:
-        last_idx = int(np.argmax(force))
+        last_idx = int(np.argmax(force_active))
         last_force = float(force[last_idx])
         last_time = float(time[last_idx])
         return {
@@ -448,10 +461,13 @@ def compute_nontwitch_metrics(
     time: np.ndarray,
     F0: float,
     peak_window_s: float = 0.05,
+    fusion_end_time: float | None = None,
 ):
     global_peak = peak_metrics(force, time, F0)
-    first_order = compute_first_order_tetanus_metrics(force, time, F0)
-    fusion = compute_fusion_index(force, time, F0)
+    first_order = compute_first_order_tetanus_metrics(
+        force, time, F0, fusion_end_time=fusion_end_time
+    )
+    fusion = compute_fusion_index(force, time, F0, end_time=fusion_end_time)
 
     out = {"trial_type": "nontwitch"}
 
@@ -473,6 +489,7 @@ def compute_isometric_trial_metrics(
     trial_type: str,
     peak_window_s: float = 0.05,
     force_threshold: float = 0.001,
+    fusion_end_time: float | None = None,
 ):
     """
     trial_type:
@@ -492,6 +509,7 @@ def compute_isometric_trial_metrics(
             time=time,
             F0=F0,
             peak_window_s=peak_window_s,
+            fusion_end_time=fusion_end_time,
         )
     else:
         raise ValueError("trial_type must be 'twitch' or 'nontwitch'")
@@ -608,6 +626,7 @@ def compute_full_isometric_evaluation(
     force_threshold: float = 0.001,
     start_time: float | None = None,
     end_time: float | None = None,
+    fusion_end_time: float | None = None,
 ):
     """
     Full evaluation for an isometric trial:
@@ -633,6 +652,7 @@ def compute_full_isometric_evaluation(
         trial_type=trial_type,
         peak_window_s=peak_window_s,
         force_threshold=force_threshold,
+        fusion_end_time=fusion_end_time,
     )
     metrics_sim = compute_isometric_trial_metrics(
         force=sim,
@@ -641,6 +661,7 @@ def compute_full_isometric_evaluation(
         trial_type=trial_type,
         peak_window_s=peak_window_s,
         force_threshold=force_threshold,
+        fusion_end_time=fusion_end_time,
     )
 
     metrics_exp = add_peak_ratio_to_twitch(metrics_exp, twitch_peak_exp)
@@ -3155,25 +3176,25 @@ def run_fast_iso():
     twitch_end = int(np.searchsorted(time_dt_twitch, 0.23, side='right'))
 
     ffr_trials = [
-        ("30 Hz",  "nontwitch", exp_FFR_30,  sim_FFR_30,  MVC, time_dt),
-        ("50 Hz",  "nontwitch", exp_FFR_50,  sim_FFR_50,  MVC, time_dt),
-        ("60 Hz",  "nontwitch", exp_FFR_60,  sim_FFR_60,  MVC, time_dt),
-        ("70 Hz",  "nontwitch", exp_FFR_70,  sim_FFR_70,  MVC, time_dt),
-        ("80 Hz",  "nontwitch", exp_FFR_80,  sim_FFR_80,  MVC, time_dt),
-        ("90 Hz",  "nontwitch", exp_FFR_90,  sim_FFR_90,  MVC, time_dt),
-        ("100 Hz", "nontwitch", exp_FFR_100, sim_FFR_100, MVC, time_dt),
-        ("120 Hz", "nontwitch", exp_FFR_120, sim_FFR_120, MVC, time_dt),
+        ("30 Hz",  "nontwitch", exp_FFR_30,  sim_FFR_30,  MVC, time_dt, 0.50),
+        ("50 Hz",  "nontwitch", exp_FFR_50,  sim_FFR_50,  MVC, time_dt, 0.50),
+        ("60 Hz",  "nontwitch", exp_FFR_60,  sim_FFR_60,  MVC, time_dt, 0.50),
+        ("70 Hz",  "nontwitch", exp_FFR_70,  sim_FFR_70,  MVC, time_dt, 0.50),
+        ("80 Hz",  "nontwitch", exp_FFR_80,  sim_FFR_80,  MVC, time_dt, 0.50),
+        ("90 Hz",  "nontwitch", exp_FFR_90,  sim_FFR_90,  MVC, time_dt, 0.50),
+        ("100 Hz", "nontwitch", exp_FFR_100, sim_FFR_100, MVC, time_dt, 0.50),
+        ("120 Hz", "nontwitch", exp_FFR_120, sim_FFR_120, MVC, time_dt, None),
     ]
 
     flr_trials = [
-        ("+0.5 mm", "nontwitch", exp_FLR_050, sim_FLR_050, MVC, time_dt),
-        ("+1.0 mm", "nontwitch", exp_FLR_100, sim_FLR_100, MVC, time_dt),
-        ("+1.5 mm", "nontwitch", exp_FLR_150, sim_FLR_150, MVC, time_dt),
-        ("+2.0 mm", "nontwitch", exp_FLR_200, sim_FLR_200, MVC, time_dt),
-        ("+2.5 mm", "nontwitch", exp_FLR_250, sim_FLR_250, MVC, time_dt),
-        ("+3.0 mm", "nontwitch", exp_FLR_300, sim_FLR_300, MVC, time_dt),
-        ("+3.5 mm", "nontwitch", exp_FLR_350, sim_FLR_350, MVC, time_dt),
-        ("+4.0 mm", "nontwitch", exp_FLR_400, sim_FLR_400, MVC, time_dt),
+        ("+0.5 mm", "nontwitch", exp_FLR_050, sim_FLR_050, MVC, time_dt, 0.40),
+        ("+1.0 mm", "nontwitch", exp_FLR_100, sim_FLR_100, MVC, time_dt, 0.40),
+        ("+1.5 mm", "nontwitch", exp_FLR_150, sim_FLR_150, MVC, time_dt, 0.40),
+        ("+2.0 mm", "nontwitch", exp_FLR_200, sim_FLR_200, MVC, time_dt, 0.40),
+        ("+2.5 mm", "nontwitch", exp_FLR_250, sim_FLR_250, MVC, time_dt, 0.40),
+        ("+3.0 mm", "nontwitch", exp_FLR_300, sim_FLR_300, MVC, time_dt, 0.40),
+        ("+3.5 mm", "nontwitch", exp_FLR_350, sim_FLR_350, MVC, time_dt, 0.40),
+        ("+4.0 mm", "nontwitch", exp_FLR_400, sim_FLR_400, MVC, time_dt, 0.40),
     ]
 
     # -------------------------------------------------------------------------
@@ -3222,7 +3243,7 @@ def run_fast_iso():
         else:
             raise ValueError("A twitch reference trial is required to compute peak/twitch ratios.")
 
-        for name, trial_type, exp, sim, F0, time_dt_local in trials:
+        for name, trial_type, exp, sim, F0, time_dt_local, fusion_end_time in trials:
             eval_out = compute_full_isometric_evaluation(
                 exp=exp,
                 sim=sim,
@@ -3233,6 +3254,7 @@ def run_fast_iso():
                 twitch_peak_sim=twitch_peak_sim,
                 peak_window_s=peak_window_s,
                 force_threshold=0.0,
+                fusion_end_time=fusion_end_time,
             )
 
             mae = eval_out["mae"]
