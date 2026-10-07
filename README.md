@@ -87,7 +87,7 @@ Ca_transients
 
 Motor-unit benchmarks test the model at the single-MU scale under isometric stimulation. They include slow and fast motor units from cat and rat gastrocnemius muscles.
 
-![Motor-unit benchmark summary](benchmark_Figures/MU_summary.png)
+![Motor-unit benchmark summary](benchmark_Figures/Fig%205.png)
 
 Data sources include Burke et al. for cat motor-unit physiology and Celichowski et al. for rat/cat motor-unit tetani. The benchmark summary compares experimental and simulated twitch, unfused tetanic, and fused tetanic responses, including simulations with and without sag for fast units.
 
@@ -95,19 +95,19 @@ Data sources include Burke et al. for cat motor-unit physiology and Celichowski 
 
 Slow-muscle benchmarks include cat and rat soleus experiments under isometric and dynamic conditions.
 
-![Slow isometric benchmark summary](benchmark_Figures/slow_M_sub_isometric_summary.png)
+![Slow isometric benchmark summary](benchmark_Figures/Fig%206.png)
 
 The `slow_isof` and `slow_dyn1` data are derived from the OpenSim Muscle benchmark resources associated with Millard et al. (2013), originally based on Perreault et al. (2003). These trials test constant and random stimulation patterns at 10, 20, and 30 Hz.
 
-![Slow length benchmark summary](benchmark_Figures/slow_M_len_summary.png)
+![Slow length benchmark summary](benchmark_Figures/Fig%207.png)
 
 The `slow_isol` benchmark tests force-length behaviour at different fixed muscle lengths and stimulation frequencies. These traces are based on the slow-muscle activation dynamics benchmark of Kim et al. (2015), building on the Perreault/Sandercock experimental framework.
 
-![Slow dynamic benchmark summary](benchmark_Figures/slow_M_sub_dynamic_summary.png)
+![Slow dynamic benchmark summary](benchmark_Figures/Fig%208.png)
 
 The `slow_dyn1` benchmark evaluates submaximal dynamic responses to imposed length changes, including the effect of yielding.
 
-![Slow maximal dynamic benchmark summary](benchmark_Figures/slow_M_max_summary.png)
+![Slow maximal dynamic benchmark summary](benchmark_Figures/Fig%209.png)
 
 The `slow_dyn2` data are derived from the OpenSim Muscle benchmark resources associated with Millard et al. (2013), originally based on Krylow and Sandercock (1997). These trials evaluate maximal rat soleus responses to imposed length variations.
 
@@ -115,11 +115,11 @@ The `slow_dyn2` data are derived from the OpenSim Muscle benchmark resources ass
 
 Fast-muscle benchmarks include rat extensor digitorum longus (EDL) and cat caudofemoralis (CF) data.
 
-![Fast isometric benchmark summary](benchmark_Figures/fast_M_iso_summary.png)
+![Fast isometric benchmark summary](benchmark_Figures/Fig%2010.png)
 
 The `fast_isof` and `fast_isol` benchmarks contain rat EDL in vitro experiments performed for the associated study. They test force-frequency and force-length behaviour across twitch, unfused, and fused tetanic conditions.
 
-![Fast dynamic benchmark summary](benchmark_Figures/fast_M_dynamic_summary.png)
+![Fast dynamic benchmark summary](benchmark_Figures/Fig%2011.png)
 
 The `fast_dyn` benchmark uses cat caudofemoralis dynamic force data from Brown, Cheng, and Loeb (1999), testing shortening and lengthening contractions under submaximal and maximal stimulation.
 

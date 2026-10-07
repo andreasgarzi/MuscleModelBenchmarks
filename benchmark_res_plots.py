@@ -1832,8 +1832,8 @@ def run_slow_isof_dyn1():
         ax_err_v, x_dyn, dyn_labels,
         mean_rand, max_rand, std_rand, xlabel="Trial", title="Random frequency"
     )
-    ax_err_c.set_ylim([0, 50])
-    ax_err_v.set_ylim([0, 50])
+    ax_err_c.set_ylim([0, 55])
+    ax_err_v.set_ylim([0, 55])
 
     error_panel_shift = 0.012
     for error_ax in (ax_err_c, ax_err_v):
