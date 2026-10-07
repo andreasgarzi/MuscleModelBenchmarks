@@ -136,7 +136,10 @@ def _apply_values(case: dict[str, Any], values: dict[str, float]) -> dict[str, A
         elif name in new_case["states"]:
             new_case["states"][name] = value
         else:
-            new_case["parameters"][name] = value
+            # The manuscript uses b1 for the AP-input term and b3 for damping;
+            # benchmark_model retains the original internal ordering.
+            model_name = {"b1": "b3", "b3": "b1"}.get(name, name)
+            new_case["parameters"][model_name] = value
 
     if _CURVE_BASIS is not None:
         apply_curve_modes(new_case["parameters"], values, _CURVE_BASIS)

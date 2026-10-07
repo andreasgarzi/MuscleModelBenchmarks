@@ -81,9 +81,9 @@ def LU(name: str, low: float, high: float, units: str = "", rationale: str = "")
 # Parameters shared by several blocks are defined once to keep their ranges
 # identical across experiments.
 MUAP = (
-    LU("b1", 1.6e4, 2.4e4, rationale="literature coefficient, +/-20% screening range"),
+    LU("b1", 7.2e7, 1.08e8, rationale="literature coefficient, +/-20% screening range"),
     LU("b2", 4.0e7, 6.0e7, rationale="literature coefficient, +/-20% screening range"),
-    LU("b3", 7.2e7, 1.08e8, rationale="literature coefficient, +/-20% screening range"),
+    LU("b3", 1.6e4, 2.4e4, rationale="literature coefficient, +/-20% screening range"),
 )
 
 SLOW_CA = (
