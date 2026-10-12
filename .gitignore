@@ -15,6 +15,10 @@
 # For GSA
 *.json
 #*.png
+GSA/results/
+GSA/publication_figures/
+benchmark_Figures/Fig S[4-9].png
+benchmark_Figures/Fig S1[0-5].png
 
 
 git-filter-repo
