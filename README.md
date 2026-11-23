@@ -15,13 +15,12 @@ The model represents excitation, calcium-mediated activation, and contraction dy
 .
 ├── benchmark_Data/          # Raw or digitized benchmark input data
 ├── benchmark_Figures/       # Paper and benchmark summary figures
-├── benchmark_Results/       # Saved experimental/simulated traces used for plots
+├── benchmark_Results/       # Saved experimental and simulated traces
 ├── benchmark_model.py       # Multiscale Hill-type actuator implementation
-├── benchmark_trials.py      # Benchmark trial definitions and parameters
-├── run_benchmark.py         # Run, optimise, plot, and save individual trials
-├── benchmark_res_plots.py   # Recreate paper summary plots and error metrics
+├── benchmark_trials.py      # Benchmark definitions and calibrated parameters
+├── run_benchmark.py         # Run, calibrate, plot, and save individual trials
+├── benchmark_res_plots.py   # Recreate summary plots and error metrics
 ├── plot_relationships.py    # Plot constitutive model relationships
-├── requirements.txt         # Python dependencies
 └── requirements.txt         # Python dependencies
 ```
 
@@ -53,20 +52,43 @@ python run_benchmark.py rat_SOL_0.05mm --save
 
 The `--save` flag writes simulated and experimental arrays into `benchmark_Results/`, which are then used by the summary plotting script.
 
+## Running Calibrations
+
+List the available calibration profiles:
+
+```bash
+python run_benchmark.py --list-opt
+```
+
+Run a trial with its only calibration profile:
+
+```bash
+python run_benchmark.py cat_SOL_20Hz_c --optimize
+```
+
+Some trials have separate profiles for different parameters. Select one with `--opt-profile`:
+
+```bash
+python run_benchmark.py rat_MG_150Hz --optimize --opt-profile mvc
+python run_benchmark.py rat_MG_150Hz --optimize --opt-profile k1_k2
+```
+
+Calibration settings, parameter bounds, and target traces are defined in `benchmark_trials.py`. Add `--save` to retain the calibrated trace and optimisation summary.
+
 ## Recreating Summary Figures
 
 Run one benchmark summary:
 
 ```bash
-python benchmark_Res_Plots.py fast_iso
-python benchmark_Res_Plots.py slow_dyn2
-python benchmark_Res_Plots.py MU
+python benchmark_res_plots.py fast_iso
+python benchmark_res_plots.py slow_dyn2
+python benchmark_res_plots.py MU
 ```
 
 Run all summary benchmarks:
 
 ```bash
-python benchmark_Res_Plots.py all
+python benchmark_res_plots.py all
 ```
 
 Available summary benchmark names:
@@ -130,7 +152,7 @@ The calcium-transient benchmarks compare simulated sarcoplasmic calcium concentr
 Run:
 
 ```bash
-python benchmark_Res_Plots.py Ca_transients
+python benchmark_res_plots.py Ca_transients
 ```
 
 ## Data Provenance
@@ -159,14 +181,9 @@ Important source notes:
 - `MU` benchmarks use motor-unit data from Burke et al. and Celichowski et al.
 - `Ca_transients` uses digitized calcium transient data from Baylor/Hollingworth and Rincon/Calderon-related datasets as described in the manuscript.
 
-## Notes for Public Release
+## Saved Results
 
-The current `.gitignore` excludes `*.npy` files. If this repository is intended to be fully reproducible from GitHub alone, either:
-
-- remove the `*.npy` rule and explicitly include `benchmark_Data/` and `benchmark_Results/`, or
-- provide the `.npy` data through an external archive such as Zenodo, OSF, or Figshare and link it here.
-
-Without these arrays, the plotting scripts and saved-result reproduction steps will not run from a fresh clone.
+The NumPy arrays under `benchmark_Results/` are tracked so that the summary figures can be reproduced from a fresh clone. The general `*.npy` rule in `.gitignore` still excludes unrelated NumPy outputs created elsewhere in the repository.
 
 ## Main References
 

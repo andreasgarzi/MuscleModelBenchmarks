@@ -3557,7 +3557,7 @@ def run_fast_iso():
     ax_flr_err.plot(disp_mm, flr_max_arr, '--*', color='k', label='MAE')
     ax_flr_err.set_xlabel(r"$\boldsymbol{\Delta}\mathbf{L}$ [mm]", fontweight='bold')
     ax_flr_err.set_ylabel(r'Error [%$\mathbf{F_{0}}$]', fontweight='bold')
-    ax_flr_err.set_ylim([0, 40])
+    ax_flr_err.set_ylim([0, 50])
     ax_flr_err.set_title("Experimental vs. Simulated", weight='bold', fontsize=10)
     ax_flr_err.legend(loc='upper right', fontsize=7)
 
