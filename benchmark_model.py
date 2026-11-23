@@ -51,21 +51,21 @@ class Params:
     l_T_slack: float            # tendon slack length (same units as l_MT)
 
     # Activation (calibrated via optimization)
-    Ca_max_s_M: float = 420112  # activation (slow, muscle scale)
-    Ca_max_s_MU: float = 224683 # activation (slow, MU scale)
-    k1_s_M: float = 10       # activation kinetics
+    Ca_max_s_M: float = 212669  # activation (slow, muscle scale)
+    Ca_max_s_MU: float = 358702 # activation (slow, MU scale)
+    k1_s_M: float = 20       # activation kinetics
     k2_s_M: float = 20          # activation kinetics
-    k1_s_MU: float = 19.98      # activation kinetics
+    k1_s_MU: float = 15.53      # activation kinetics
     k2_s_MU: float = 20         # activation kinetics
-    Ca_max_f_M: float = 214815  # activation (fast, muscle scale)
-    Ca_max_f_MU_catMG: float = 727363 # activation (fast, MU scale, cat MG)
-    Ca_max_f_MU_ratMG: float = 684897 # activation (fast, MU scale, rat MG)
+    Ca_max_f_M: float = 268643  # activation (fast, muscle scale)
+    Ca_max_f_MU_catMG: float = 451969 # activation (fast, MU scale, cat MG)
+    Ca_max_f_MU_ratMG: float = 1150931 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
-    k2_f_M: float = 13          # activation kinetics
-    k1_f_MU_catMG: float = 10    # activation kinetics
-    k2_f_MU_catMG: float = 15.54    # activation kinetics
+    k2_f_M: float = 20          # activation kinetics
+    k1_f_MU_catMG: float = 20    # activation kinetics
+    k2_f_MU_catMG: float = 15    # activation kinetics
     k1_f_MU_ratMG: float = 10       # activation kinetics
-    k2_f_MU_ratMG: float = 97.17    # activation kinetics
+    k2_f_MU_ratMG: float = 100      # activation kinetics
     a_min: float = 0.01             # minimum activation for elastic-tendon equilibrium
 
     # Calcium kinetics (calibrated via optimization)

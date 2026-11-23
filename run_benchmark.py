@@ -9,7 +9,7 @@ The trial-specific information is stored in benchmark_trials.py. This driver mai
 - loads the appropriate experimental data and stimulation input;
 - constructs the model input dictionaries;
 - runs the model;
-- optionally runs the optimisation block associated with a trial;
+- optionally runs one of the calibration profiles associated with a trial;
 - optionally saves simulated/experimental outputs and figures.
 """
 
@@ -507,14 +507,135 @@ def apply_values(case: dict, names: list[str], values: np.ndarray, opt_config: d
     return new_case
 
 
-def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
+def optimization_profiles(config: dict) -> dict[str, dict]:
+    """Return the calibration profiles defined for a trial."""
+
+    if "optimizations" in config:
+        profiles = config["optimizations"]
+        if not isinstance(profiles, dict) or not profiles:
+            raise ValueError("'optimizations' must contain at least one named profile.")
+        return profiles
+
+    if "optimization" in config:
+        return {"default": config["optimization"]}
+
+    return {}
+
+
+def select_optimization(config: dict, profile: str | None = None) -> tuple[str, dict]:
+    """Select a calibration profile."""
+
+    profiles = optimization_profiles(config)
+    if not profiles:
+        raise ValueError("No optimization block is defined for this trial.")
+
+    if profile is None:
+        if len(profiles) == 1:
+            profile = next(iter(profiles))
+        else:
+            available = ", ".join(profiles)
+            raise ValueError(f"This trial has multiple optimization profiles. Choose one with --opt-profile: {available}.")
+
+    if profile not in profiles:
+        available = ", ".join(profiles)
+        raise ValueError(f"Unknown optimization profile '{profile}'. Available profiles: {available}.")
+
+    return profile, profiles[profile]
+
+
+def _force_baseline(signal_values: np.ndarray, time: np.ndarray, first_stimulus: float) -> float:
+    """Average the force before the first stimulus."""
+
+    pre_stimulus = time < first_stimulus
+    if np.any(pre_stimulus):
+        return float(np.mean(signal_values[pre_stimulus]))
+    return float(signal_values[0])
+
+
+def normalized_force_phase(case: dict, out: dict, opt_config: dict, phase: str) -> tuple[np.ndarray, np.ndarray]:
+    """Normalise force and select the requested part of the response."""
+
+    force_sim, exp_force = force_arrays_for_comparison(case, out)
+    n = min(len(force_sim), len(exp_force), len(case["time"]))
+    if n < 2:
+        raise ValueError("Not enough force samples for phase-specific calibration.")
+
+    force_sim = np.asarray(force_sim[:n], dtype=float)
+    exp_force = np.asarray(exp_force[:n], dtype=float)
+    time = np.asarray(case["time"][:n], dtype=float)
+    distimes = np.asarray(case["distimes"], dtype=float)
+    if distimes.size == 0:
+        raise ValueError("Phase-specific force calibration requires at least one stimulation time.")
+
+    first_stimulus = float(np.min(distimes))
+    first_idx = min(int(np.searchsorted(time, first_stimulus, side="left")), n - 1)
+    sim_baseline = _force_baseline(force_sim, time, first_stimulus)
+    exp_baseline = _force_baseline(exp_force, time, first_stimulus)
+    force_sim = force_sim - sim_baseline
+    exp_force = exp_force - exp_baseline
+
+    sim_peak = float(np.max(force_sim[first_idx:]))
+    exp_peak = float(np.max(exp_force[first_idx:]))
+    if not np.isfinite(sim_peak) or sim_peak <= 0.0:
+        raise ValueError(f"Invalid simulated peak above baseline: {sim_peak}")
+    if not np.isfinite(exp_peak) or exp_peak <= 0.0:
+        raise ValueError(f"Invalid experimental peak above baseline: {exp_peak}")
+
+    force_sim /= sim_peak
+    exp_force /= exp_peak
+    exp_peak_idx = first_idx + int(np.argmax(exp_force[first_idx:]))
+
+    if phase in {"response", "twitch"}:
+        start_idx = first_idx
+        threshold = float(opt_config.get("post_peak_fraction", 0.5))
+        if not 0.0 < threshold < 1.0:
+            raise ValueError("post_peak_fraction must be between 0 and 1.")
+        crossings = np.flatnonzero(exp_force[exp_peak_idx:] <= threshold)
+        end_idx = exp_peak_idx + int(crossings[0]) if crossings.size else n - 1
+    elif phase == "rise":
+        end_idx = exp_peak_idx
+        rise_end_fraction = opt_config.get("rise_end_fraction")
+        if rise_end_fraction is not None:
+            threshold = float(rise_end_fraction)
+            crossings = np.flatnonzero(exp_force[first_idx:exp_peak_idx + 1] >= threshold)
+            if crossings.size:
+                end_idx = first_idx + int(crossings[0])
+        start_idx = first_idx
+    elif phase == "decay":
+        start_idx = exp_peak_idx
+        decay_start = opt_config.get("decay_start", "peak")
+        if decay_start == "last_stimulus_or_peak":
+            last_stimulus = float(np.max(distimes))
+            last_stimulus_idx = min(int(np.searchsorted(time, last_stimulus, side="left")), n - 1)
+            start_idx = max(start_idx, last_stimulus_idx)
+        elif decay_start != "peak":
+            raise ValueError(f"Unknown decay_start setting '{decay_start}'.")
+
+        threshold = float(opt_config.get("decay_end_fraction", 0.05))
+        crossings = np.flatnonzero(exp_force[start_idx:] <= threshold)
+        end_idx = start_idx + int(crossings[0]) if crossings.size else n - 1
+    else:
+        raise ValueError(f"Unknown normalized-force phase '{phase}'.")
+
+    if end_idx <= start_idx:
+        raise ValueError(
+            f"Empty {phase} calibration window (start sample {start_idx}, end sample {end_idx})."
+        )
+
+    selection = slice(start_idx, end_idx + 1)
+    return force_sim[selection], exp_force[selection]
+
+
+def residual_vector(case: dict, out: dict, opt_config: dict) -> float:
     """
     Compute residuals between simulated and experimental data.
 
-    Target ref.erences for optimisation can be specified in opt_config["target"] and include:
+    Target references for optimisation can be specified in opt_config["target"] and include:
     - force
     - dynamic force ratio
     - calcium transients
+    - peak force amplitude
+    - normalised twitch, force rise, or force decay
 
     Inputs:
     - case: dict
@@ -524,7 +645,7 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
         Optimisation settings.
 
     Outputs:
-    - residuals: np.ndarray
+    - residual: float
     """
 
     target = opt_config.get("target", "force") # target reference for optimization (default: force)
@@ -540,6 +661,30 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
 
     sim, exp = force_arrays_for_comparison(case, out)
 
+    if target == "force_peak":
+        n = min(len(sim), len(exp), len(case["time"]))
+        time = np.asarray(case["time"][:n], dtype=float)
+        distimes = np.asarray(case["distimes"], dtype=float)
+        first_stimulus = float(np.min(distimes))
+        first_idx = min(int(np.searchsorted(time, first_stimulus, side="left")), n - 1)
+        sim_baseline = _force_baseline(np.asarray(sim[:n]), time, first_stimulus)
+        exp_baseline = _force_baseline(np.asarray(exp[:n]), time, first_stimulus)
+        sim_peak = np.max(np.asarray(sim[first_idx:n]) - sim_baseline)
+        exp_peak = np.max(np.asarray(exp[first_idx:n]) - exp_baseline)
+        return float(abs(sim_peak - exp_peak))
+
+    if target == "force_normalized_rise":
+        sim_phase, exp_phase = normalized_force_phase(case, out, opt_config, phase="rise")
+        return float(np.mean(np.abs(sim_phase - exp_phase)))
+
+    if target == "force_normalized_decay":
+        sim_phase, exp_phase = normalized_force_phase(case, out, opt_config, phase="decay")
+        return float(np.mean(np.abs(sim_phase - exp_phase)))
+
+    if target in {"force_normalized_response", "force_normalized_twitch"}:
+        sim_phase, exp_phase = normalized_force_phase(case, out, opt_config, phase="response")
+        return float(np.mean(np.abs(sim_phase - exp_phase)))
+
     if target == "force_dynamic_ratio":
         i = int(case["mvc_sample"]) # sample index corresponding to MVC (for normalisation)
         sim = sim[i:]
@@ -553,7 +698,7 @@ def residual_vector(case: dict, out: dict, opt_config: dict) -> np.ndarray:
 
 def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
     """
-    Objective function for optimisation (sum of squared residuals).
+    Mean-absolute-error objective for optimisation.
 
     Inputs:
     - x: np.ndarray
@@ -572,12 +717,14 @@ def objective(x: np.ndarray, case: dict, opt_config: dict) -> float:
     return float(residuals) # minimising mAE
 
 
-def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, Any]:
+def optimise_case(case: dict, profile: str | None = None, maxiter: int | None = None) -> tuple[dict, dict, Any]:
     """
     Run parameter optimisation for a given case.
 
     Inputs:
     - case: dict
+    - profile: str or None
+        Named optimisation profile. It can be omitted for trials with one profile.
     - maxiter: int or None
         Maximum number of iterations.
 
@@ -590,9 +737,7 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
         Optimisation result object.
     """
 
-    opt_config = case["config"].get("optimization") # get optimiziation config from case
-    if opt_config is None:
-        raise ValueError(f"No optimization block found for trial '{case['name']}'.")
+    profile, opt_config = select_optimization(case["config"], profile)
 
     x0 = np.asarray(opt_config["x0"], dtype=float) # initial parameter values
     bounds = opt_config.get("bounds") # parameter bounds (optional)
@@ -605,6 +750,8 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
         options["maxiter"] = int(opt_config["maxiter"])
 
     print("\nOptimisation:", opt_config.get("label", case["name"]))
+    if profile != "default":
+        print("Profile:", profile)
     print("Parameters:", ", ".join(opt_config["parameters"]))
     
     res = minimize(
@@ -616,6 +763,8 @@ def optimise_case(case: dict, maxiter: int | None = None) -> tuple[dict, dict, A
     ) # run optimization
 
     opt_case = apply_values(case, opt_config["parameters"], res.x, opt_config) # apply optimised values to case
+    opt_case["optimization_profile"] = profile
+    opt_case["optimization_config"] = opt_config
     out = run_case(opt_case) # run model with optimised case to get output for plotting/saving
 
     print("\nOptimized parameters:")
@@ -724,6 +873,9 @@ def save_case(case: dict, out: dict, results_path, opt_result=None):
     """
 
     name = case["name"]
+    profile = case.get("optimization_profile", "default") if opt_result is not None else "default"
+    suffix = "" if profile == "default" else f"_{profile}"
+    output_name = f"{name}{suffix}"
     results_path.mkdir(exist_ok=True)
     (results_path / "sim").mkdir(exist_ok=True)
     (results_path / "exp").mkdir(exist_ok=True)
@@ -731,15 +883,15 @@ def save_case(case: dict, out: dict, results_path, opt_result=None):
 
     if case["config"]["scale"] in {"Muscle", "MU"}:
         force_sim, exp_force = force_arrays_for_comparison(case, out)
-        np.save(results_path / "sim" / f"{name}_force.npy", force_sim)
-        np.save(results_path / "exp" / f"{name}_force.npy", exp_force)
+        np.save(results_path / "sim" / f"{output_name}_force.npy", force_sim)
+        np.save(results_path / "exp" / f"{output_name}_force.npy", exp_force)
     else:
-        np.save(results_path / "sim" / f"{name}.npy", out["Ca"])
-        np.save(results_path / "exp" / f"{name}.npy", case["exp_ca"])
+        np.save(results_path / "sim" / f"{output_name}.npy", out["Ca"])
+        np.save(results_path / "exp" / f"{output_name}.npy", case["exp_ca"])
 
     if opt_result is not None: # if optimization was performed, save the optimized parameter values and objective value in a text file
-        opt_config = case["config"].get("optimization", {}) # get optimization config for label and parameter names
-        with open(results_path / "optimisation" / f"{name}_optimised.txt", "w", encoding="utf-8") as f:
+        opt_config = case.get("optimization_config", case["config"].get("optimization", {}))
+        with open(results_path / "optimisation" / f"{output_name}_optimised.txt", "w", encoding="utf-8") as f:
             f.write(opt_config.get("label", name) + "\n")
             f.write(f"Objective = {opt_result.fun}\n")
             for pname, pval in zip(opt_config.get("parameters", []), opt_result.x):
@@ -762,6 +914,7 @@ def main():
     - --list: list all trials
     - --list-opt: list trials with optimisation
     - --optimize: run optimisation
+    - --opt-profile: select a named calibration profile
     - --save: save outputs
     - --no-plot: disable plotting
     """
@@ -775,6 +928,10 @@ def main():
     parser.add_argument("--benchmark", default=None, help="Optional benchmark filter for --list, e.g. isof, isol, dyn, dyn1, dyn2.")
     parser.add_argument("--scale", default=None, help="Optional scale filter for --list, e.g. Muscle, MU, Ca_transients.")
     parser.add_argument("--optimize", action="store_true", help="Run the optimisation block associated with this trial.")
+    parser.add_argument(
+        "--opt-profile", "--profile", dest="opt_profile", default=None,
+        help="Named optimisation profile for trials with more than one calibration step.",
+    )
     parser.add_argument("--maxiter", type=int, default=None, help="Override optimisation maxiter.")
     args = parser.parse_args()
 
@@ -791,9 +948,10 @@ def main():
     if args.list_opt:
         print("Trials with optimisation blocks:")
         for key, cfg in all_trials.items():
-            if "optimization" in cfg:
-                label = cfg["optimization"].get("label", "")
-                print(f"  {key}: {label}")
+            for profile, opt_config in optimization_profiles(cfg).items():
+                label = opt_config.get("label", "")
+                profile_label = "" if profile == "default" else f" [{profile}]"
+                print(f"  {key}{profile_label}: {label}")
         return
 
     if args.trial is None:
@@ -806,8 +964,13 @@ def main():
     case = build_case(args.trial, config) # build benchmark trial case
 
     if args.optimize:
-        case, out, opt_result = optimise_case(case, maxiter=args.maxiter) # optimize parameters in trial case
+        try:
+            case, out, opt_result = optimise_case(case, profile=args.opt_profile, maxiter=args.maxiter) # optimize parameters in trial case
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
     else:
+        if args.opt_profile is not None:
+            raise SystemExit("--opt-profile requires --optimize.")
         out = run_case(case) # otherwise just run the simulation
         opt_result = None
 
