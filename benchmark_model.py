@@ -57,7 +57,7 @@ class Params:
     k2_s_M: float = 20          # activation kinetics
     k1_s_MU: float = 15.53      # activation kinetics
     k2_s_MU: float = 20         # activation kinetics
-    Ca_max_f_M: float = 268643  # activation (fast, muscle scale)
+    Ca_max_f_M: float = 266578  # activation (fast, muscle scale)
     Ca_max_f_MU_catMG: float = 451969 # activation (fast, MU scale, cat MG)
     Ca_max_f_MU_ratMG: float = 1150931 # activation (fast, MU scale, rat MG)
     k1_f_M: float = 10          # activation kinetics
