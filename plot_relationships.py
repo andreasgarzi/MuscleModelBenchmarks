@@ -161,9 +161,9 @@ for j, eps0 in enumerate(eps0_vals):
         eps_T * 100,
         f_T[:, j],
         color=cg_green[j],
-        label=rf'$\epsilon_0^T$ = {eps0*100:.1f}%'
+        label=rf'$\epsilon_0^{{CE}}$ = {eps0*100:.1f}%'
     )
-ax.set_xlabel(r'$\epsilon^T$ [%]', fontsize=13)
+ax.set_xlabel(r'$\epsilon^{CE}$ [%]', fontsize=13)
 ax.set_ylabel(r'$\overline{F}^{T}$', fontsize=13)
 ax.set_title('SE', fontweight='bold')
 #ax.grid(True)
